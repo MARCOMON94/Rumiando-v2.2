@@ -1,5 +1,6 @@
 ﻿import { createContext, useContext, useEffect, useState } from 'react';
 import { get } from '../api/apiClient';
+import { useAuth } from './AuthContext';
 
 const CatalogsContext = createContext(null);
 
@@ -13,20 +14,30 @@ function getArray(data, possibleKeys) {
   return [];
 }
 
-export function CatalogsProvider({ children }) {
-  const [catalogs, setCatalogs] = useState({
-    farmUnits: [],
-    species: [],
-    breeds: [],
-    pens: [],
-    reproductiveStatuses: [],
-    diseases: []
-  });
+const emptyCatalogs = {
+  farmUnits: [],
+  species: [],
+  breeds: [],
+  pens: [],
+  reproductiveStatuses: [],
+  diseases: []
+};
 
-  const [loading, setLoading] = useState(true);
+export function CatalogsProvider({ children }) {
+  const { token, isAuthenticated } = useAuth();
+
+  const [catalogs, setCatalogs] = useState(emptyCatalogs);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   async function loadCatalogs() {
+    if (!token) {
+      setCatalogs(emptyCatalogs);
+      setLoading(false);
+      setError('');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -49,8 +60,14 @@ export function CatalogsProvider({ children }) {
   }
 
   useEffect(() => {
-    loadCatalogs();
-  }, []);
+    if (isAuthenticated && token) {
+      loadCatalogs();
+    } else {
+      setCatalogs(emptyCatalogs);
+      setLoading(false);
+      setError('');
+    }
+  }, [isAuthenticated, token]);
 
   const value = {
     catalogs,

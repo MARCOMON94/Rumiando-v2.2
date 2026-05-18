@@ -1,12 +1,40 @@
-﻿import { NavLink, Outlet } from 'react-router-dom';
+﻿import { useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <header className="mobile-topbar">
+        <div className="brand">
+          <div className="brand-mark">R</div>
+          <div>
+            <h1>RumiAndo</h1>
+            <p>Gestión ganadera</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="menu-button"
+          onClick={() => setMenuOpen((current) => !current)}
+          aria-label="Abrir menú"
+        >
+          ☰
+        </button>
+      </header>
+
+      {menuOpen && <div className="sidebar-overlay" onClick={closeMenu} />}
+
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">R</div>
           <div>
@@ -16,14 +44,12 @@ export default function AppLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/dashboard">Dashboard</NavLink>
-          <NavLink to="/animals">Animales</NavLink>
-          <NavLink to="/animals/new">Alta animal</NavLink>
-          <NavLink to="/reminders">Avisos</NavLink>
-          <NavLink to="/pens">Corrales</NavLink>
-          <NavLink to="/health">Sanidad</NavLink>
-          <NavLink to="/movements">Movimientos</NavLink>
-        <NavLink to="/movements/new">Alta movimiento</NavLink>
+          <NavLink to="/dashboard" onClick={closeMenu}>Dashboard</NavLink>
+          <NavLink to="/animals" onClick={closeMenu}>Animales</NavLink>
+          <NavLink to="/reminders" onClick={closeMenu}>Avisos</NavLink>
+          <NavLink to="/pens" onClick={closeMenu}>Corrales</NavLink>
+          <NavLink to="/health" onClick={closeMenu}>Sanidad</NavLink>
+          <NavLink to="/movements" onClick={closeMenu}>Movimientos</NavLink>
         </nav>
 
         <div className="sidebar-user">
@@ -33,7 +59,7 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content" key={location.pathname}>
         <Outlet />
       </main>
     </div>
