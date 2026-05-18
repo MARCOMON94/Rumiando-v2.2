@@ -73,20 +73,30 @@ export default function CreateAnimalPage() {
     };
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setSaving(true);
-    setError('');
+ async function handleSubmit(event) {
+  event.preventDefault();
+  setSaving(true);
+  setError('');
 
-    try {
-      const createdAnimal = await post('/animals', buildPayload());
-      navigate(`/animals/${createdAnimal.id}`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
+  try {
+    const response = await post('/animals', buildPayload());
+
+    const createdAnimal =
+      response.animal ||
+      response.data ||
+      response;
+
+    if (!createdAnimal?.id) {
+      throw new Error('El backend creó el animal, pero no devolvió un id válido.');
     }
+
+    navigate(`/animals/${createdAnimal.id}`);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setSaving(false);
   }
+}
 
   if (loadingCatalogs) {
     return <p>Cargando catálogos...</p>;

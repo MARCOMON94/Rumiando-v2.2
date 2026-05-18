@@ -11,19 +11,31 @@ export default function AnimalDetailPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function loadAnimal() {
-      try {
-        const data = await get(`/animals/${id}`);
-        setAnimal(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+  async function loadAnimal() {
+    if (!id || id === 'undefined' || Number.isNaN(Number(id))) {
+      setError('ID de animal no válido.');
+      setLoading(false);
+      return;
     }
 
-    loadAnimal();
-  }, [id]);
+    try {
+      const data = await get(`/animals/${id}`);
+
+      const animalData =
+        data.animal ||
+        data.data ||
+        data;
+
+      setAnimal(animalData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  loadAnimal();
+}, [id]);
 
   if (loading) return <p>Cargando ficha...</p>;
   if (error) return <p className="alert error">Error: {error}</p>;
