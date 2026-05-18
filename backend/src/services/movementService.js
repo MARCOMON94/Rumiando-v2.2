@@ -145,6 +145,7 @@ async function createMovement(data, user) {
   await checkFarmUnit(unidadRegaId, user.cuentaGanaderaId);
   const destinationPen = await checkDestinationPen(corralDestinoId, user.cuentaGanaderaId);
 
+  const movementDate = fecha ? new Date(fecha) : new Date();
   const normalizedEarTags = crotales.map((crotal) => normalizeEarTag(crotal));
 
   return prisma.$transaction(async (tx) => {
@@ -152,7 +153,7 @@ async function createMovement(data, user) {
       data: {
         tipoOperacion,
         motivo: motivo || null,
-        fecha: fecha ? new Date(fecha) : new Date(),
+        fecha: movementDate,
         unidadRegaId: Number(unidadRegaId),
         corralDestinoId: Number(corralDestinoId),
         userId: user.id,
@@ -218,7 +219,8 @@ async function createMovement(data, user) {
           id: animal.id
         },
         data: {
-          corralActualId: Number(corralDestinoId)
+          corralActualId: Number(corralDestinoId),
+          fechaEntradaCorralActual: movementDate
         }
       });
 

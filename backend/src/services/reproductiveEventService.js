@@ -127,12 +127,14 @@ async function createReproductiveEvent(data, cuentaGanaderaId) {
   await checkAnimal(animalId, cuentaGanaderaId);
   await checkReproductiveStatus(estadoResultanteId, cuentaGanaderaId);
 
+  const eventDate = new Date(fecha);
+
   return prisma.$transaction(async (tx) => {
     const reproductiveEvent = await tx.eventoReproductivo.create({
       data: {
         tipoEvento,
         resultado: resultado || 'NO_APLICA',
-        fecha: new Date(fecha),
+        fecha: eventDate,
         semanasGestacion: semanasGestacion ? Number(semanasGestacion) : null,
         fechaPartoEstimada: fechaPartoEstimada ? new Date(fechaPartoEstimada) : null,
         numeroCriasVivas: numeroCriasVivas ? Number(numeroCriasVivas) : null,
@@ -150,7 +152,8 @@ async function createReproductiveEvent(data, cuentaGanaderaId) {
           id: Number(animalId)
         },
         data: {
-          estadoReproductivoId: Number(estadoResultanteId)
+          estadoReproductivoId: Number(estadoResultanteId),
+          fechaEstadoReproductivoActual: eventDate
         }
       });
     }
@@ -211,6 +214,7 @@ async function updateReproductiveEvent(id, data, cuentaGanaderaId) {
 
   if (data.estadoResultanteId !== undefined) {
     await checkReproductiveStatus(data.estadoResultanteId, cuentaGanaderaId);
+
     updateData.estadoResultanteId = data.estadoResultanteId
       ? Number(data.estadoResultanteId)
       : null;
@@ -233,6 +237,9 @@ async function updateReproductiveEvent(id, data, cuentaGanaderaId) {
         data: {
           estadoReproductivoId: data.estadoResultanteId
             ? Number(data.estadoResultanteId)
+            : null,
+          fechaEstadoReproductivoActual: data.estadoResultanteId
+            ? reproductiveEvent.fecha
             : null
         }
       });

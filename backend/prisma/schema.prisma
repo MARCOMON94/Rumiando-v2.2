@@ -281,11 +281,13 @@ model Animal {
   razaId Int?
   raza   CatalogoRaza? @relation(fields: [razaId], references: [id])
 
-  corralActualId Int?
-  corralActual   Corral? @relation(fields: [corralActualId], references: [id])
+  corralActualId           Int?
+  corralActual             Corral?   @relation(fields: [corralActualId], references: [id])
+  fechaEntradaCorralActual DateTime?
 
-  estadoReproductivoId Int?
-  estadoReproductivo   CatalogoEstadoReproductivo? @relation(fields: [estadoReproductivoId], references: [id])
+  estadoReproductivoId          Int?
+  estadoReproductivo            CatalogoEstadoReproductivo? @relation(fields: [estadoReproductivoId], references: [id])
+  fechaEstadoReproductivoActual DateTime?
 
   madreId        Int?
   madre          Animal?  @relation("MadreAnimal", fields: [madreId], references: [id])

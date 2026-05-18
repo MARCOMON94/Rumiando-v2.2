@@ -33,7 +33,7 @@ describe('Automation API', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  test('GET /api/automation/daily-operational-summary devuelve resumen con API key', async () => {
+  test('GET /api/automation/daily-operational-summary devuelve avisos automaticos con API key', async () => {
     const res = await request(app)
       .get(`/api/automation/daily-operational-summary?cuentaGanaderaId=${cuentaGanaderaId}`)
       .set('x-api-key', process.env.N8N_API_KEY || 'rumiando-demo-token-2026');
@@ -41,9 +41,16 @@ describe('Automation API', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.type).toBe('DAILY_OPERATIONAL_SUMMARY');
     expect(res.body.farm).toBeDefined();
-    expect(res.body.reminders).toBeDefined();
-    expect(res.body.penMovementAlerts).toBeDefined();
+    expect(res.body.farmUnits).toBeDefined();
+    expect(res.body.automaticAlerts).toBeDefined();
+    expect(res.body.automaticAlerts.total).toBeDefined();
+    expect(res.body.automaticAlerts.high).toBeDefined();
+    expect(res.body.automaticAlerts.medium).toBeDefined();
+    expect(res.body.automaticAlerts.low).toBeDefined();
+    expect(Array.isArray(res.body.automaticAlerts.items)).toBe(true);
+    expect(Array.isArray(res.body.automaticAlerts.byPen)).toBe(true);
     expect(res.body.priorities).toBeDefined();
+    expect(Array.isArray(res.body.priorities)).toBe(true);
   });
 
   test('GET /api/automation/weekly-health-summary devuelve resumen sanitario con API key', async () => {
