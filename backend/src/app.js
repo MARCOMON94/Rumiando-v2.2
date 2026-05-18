@@ -18,6 +18,8 @@ const reminderRoutes = require('./routes/reminderRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 
+const automationRoutes = require('./routes/automationRoutes');
+
 
 const notFoundHandler = require('./middlewares/notFoundHandler');
 const errorHandler = require('./middlewares/errorHandler');
@@ -45,6 +47,8 @@ app.use('/api/reproductive-events', reproductiveEventRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+
+app.use('/api/automation', automationRoutes);
 
 
 
@@ -114,7 +118,10 @@ app.get('/', (req, res) => {
 'GET /api/exports/movements',
 'GET /api/exports/reminders',
 
-'GET /api/dashboard'
+'GET /api/dashboard',
+
+'GET /api/automation/daily-operational-summary',
+'GET /api/automation/weekly-health-summary',
 
 
 ]

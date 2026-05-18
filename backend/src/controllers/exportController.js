@@ -59,9 +59,24 @@ async function exportReminders(req, res, next) {
   }
 }
 
+async function sendExportRequest(req, res, next) {
+  try {
+    const exportRequest = await exportService.sendExportRequest(
+      req.user.cuentaGanaderaId,
+      req.body
+    );
+
+    res.status(201).json(exportRequest);
+  } catch (err) {
+    next(err);
+  }
+}
+
+
 module.exports = {
   exportAnimals,
   exportHealthCases,
   exportMovements,
-  exportReminders
+  exportReminders,
+  sendExportRequest
 };

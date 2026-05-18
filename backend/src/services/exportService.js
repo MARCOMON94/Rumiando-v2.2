@@ -1,4 +1,5 @@
 ﻿const prisma = require('../config/prisma');
+const AppError = require('../utils/AppError');
 
 function formatDate(value) {
   if (!value) {
@@ -404,9 +405,154 @@ async function exportReminders(cuentaGanaderaId, filters = {}) {
   );
 }
 
+
+function validateExportRequest(data) {
+  const allowedTypes = ['CENSO', 'VETERINARIO'];
+
+  if (!data.tipoExportacion) {
+    throw new AppError('El tipo de exportación es obligatorio.', 400);
+  }
+
+  if (!allowedTypes.includes(data.tipoExportacion)) {
+    throw new AppError('El tipo de exportación no es válido.', 400);
+  }
+
+  if (!data.fechaDesde) {
+    throw new AppError('La fecha desde es obligatoria.', 400);
+  }
+
+  if (!data.fechaHasta) {
+    throw new AppError('La fecha hasta es obligatoria.', 400);
+  }
+
+  if (!data.emailDestino) {
+    throw new AppError('El email de destino es obligatorio.', 400);
+  }
+
+  const fechaDesde = new Date(data.fechaDesde);
+  const fechaHasta = new Date(data.fechaHasta);
+
+  if (Number.isNaN(fechaDesde.getTime()) || Number.isNaN(fechaHasta.getTime())) {
+    throw new AppError('Las fechas de exportación no son válidas.', 400);
+  }
+
+  if (fechaDesde > fechaHasta) {
+    throw new AppError('La fecha desde no puede ser posterior a la fecha hasta.', 400);
+  }
+
+  return {
+    tipoExportacion: data.tipoExportacion,
+    fechaDesde,
+    fechaHasta,
+    emailDestino: data.emailDestino,
+    unidadRegaId: data.unidadRegaId ? Number(data.unidadRegaId) : null
+  };
+}
+
+async function sendToN8n(payload) {
+  const webhookUrl = process.env.N8N_EXPORT_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    return {
+      sent: false,
+      mode: 'SIMULATED',
+      message: 'No hay webhook de n8n configurado. La solicitud queda registrada como pendiente.'
+    };
+  }
+
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const text = await response.text();
+
+  let responseBody;
+
+  try {
+    responseBody = text ? JSON.parse(text) : null;
+  } catch (error) {
+    responseBody = text;
+  }
+
+  if (!response.ok) {
+    return {
+      sent: false,
+      mode: 'N8N',
+      status: response.status,
+      response: responseBody
+    };
+  }
+
+  return {
+    sent: true,
+    mode: 'N8N',
+    status: response.status,
+    response: responseBody
+  };
+}
+
+async function sendExportRequest(cuentaGanaderaId, data) {
+  const validatedData = validateExportRequest(data);
+
+  if (validatedData.unidadRegaId) {
+    const farmUnit = await prisma.unidadRega.findFirst({
+      where: {
+        id: validatedData.unidadRegaId,
+        cuentaGanaderaId
+      }
+    });
+
+    if (!farmUnit) {
+      throw new AppError('La unidad REGA indicada no existe para esta cuenta.', 404);
+    }
+  }
+
+  const createdExport = await prisma.exportacionRegistro.create({
+    data: {
+      tipoExportacion: validatedData.tipoExportacion,
+      fechaDesde: validatedData.fechaDesde,
+      fechaHasta: validatedData.fechaHasta,
+      emailDestino: validatedData.emailDestino,
+      estadoEnvio: 'PENDIENTE',
+      cuentaGanaderaId,
+      unidadRegaId: validatedData.unidadRegaId
+    }
+  });
+
+  const n8nPayload = {
+    exportacionId: createdExport.id,
+    tipoExportacion: createdExport.tipoExportacion,
+    fechaDesde: createdExport.fechaDesde,
+    fechaHasta: createdExport.fechaHasta,
+    emailDestino: createdExport.emailDestino,
+    cuentaGanaderaId: createdExport.cuentaGanaderaId,
+    unidadRegaId: createdExport.unidadRegaId
+  };
+
+  const n8nResponse = await sendToN8n(n8nPayload);
+
+  const updatedExport = await prisma.exportacionRegistro.update({
+    where: {
+      id: createdExport.id
+    },
+    data: {
+      estadoEnvio: n8nResponse.sent ? 'ENVIADO' : 'PENDIENTE',
+      respuestaN8n: n8nResponse
+    }
+  });
+
+  return updatedExport;
+}
+
+
 module.exports = {
   exportAnimals,
   exportHealthCases,
   exportMovements,
-  exportReminders
+  exportReminders,
+  sendExportRequest
 };
