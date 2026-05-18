@@ -1,40 +1,37 @@
 ﻿import { useEffect, useState } from 'react';
-import { post } from '../api/apiClient';
+import { Link } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const API_KEY = 'rumiando-demo-token-2026';
+const DEFAULT_FARM_ACCOUNT_ID = '1';
 
 function getLevelClass(level) {
   return String(level || 'LOW').toLowerCase();
 }
 
-function getReminderOrigin(alert) {
-  const species = String(alert.animal?.species || '').toUpperCase();
-
-  if (species.includes('OVINO')) return 'OVINO';
-  if (species.includes('CAPRINO')) return 'CAPRINO';
-
-  return 'PERSONALIZADO';
+function getLevelText(level) {
+  if (level === 'HIGH') return 'Prioridad alta';
+  if (level === 'MEDIUM') return 'Prioridad media';
+  if (level === 'LOW') return 'Prioridad baja';
+  return 'Prioridad no indicada';
 }
 
-function buildReminderNote(alert) {
-  return [
-    alert.title,
-    alert.reason,
-    alert.suggestedAction,
-    alert.animal?.earTag ? `Crotal: ${alert.animal.earTag}` : null,
-    alert.penName ? `Corral: ${alert.penName}` : null
-  ]
-    .filter(Boolean)
-    .join(' | ');
+function getReadableType(type) {
+  const labels = {
+    BREEDING_RECOMMENDED_AFTER_PRODUCTION: 'Revisión reproductiva recomendada',
+    PREGNANCY_DIAGNOSIS_DUE: 'Diagnóstico de gestación pendiente',
+    DRY_OFF_RECOMMENDED_AFTER_GESTATION: 'Paso a seca recomendable',
+    NO_BIRTH_IN_LAST_YEAR: 'Sin parto registrado en el último año',
+    MANDATORY_DISEASE_DECLARATION_NOTICE: 'Aviso sanitario obligatorio'
+  };
+
+  return labels[type] || 'Aviso automático';
 }
 
 export default function RemindersPage() {
   const [automaticAlerts, setAutomaticAlerts] = useState([]);
-  const [cuentaGanaderaId, setCuentaGanaderaId] = useState('1');
   const [loadingAutomatic, setLoadingAutomatic] = useState(false);
   const [error, setError] = useState('');
-  const [actionMessage, setActionMessage] = useState('');
 
   async function loadAutomaticAlerts() {
     setLoadingAutomatic(true);
@@ -42,7 +39,7 @@ export default function RemindersPage() {
 
     try {
       const response = await fetch(
-        `${API_URL}/automation/daily-operational-summary?cuentaGanaderaId=${cuentaGanaderaId}`,
+        `${API_URL}/automation/daily-operational-summary?cuentaGanaderaId=${DEFAULT_FARM_ACCOUNT_ID}`,
         {
           headers: {
             'x-api-key': API_KEY
@@ -68,29 +65,6 @@ export default function RemindersPage() {
     loadAutomaticAlerts();
   }, []);
 
-  async function createReminderFromAutomaticAlert(alert) {
-    setActionMessage('');
-    setError('');
-
-    try {
-      const payload = {
-        tipo: alert.type,
-        fechaObjetivo: new Date().toISOString(),
-        estado: 'PENDIENTE',
-        origenRegla: getReminderOrigin(alert),
-        nota: buildReminderNote(alert),
-        animalId: alert.animal?.id || null,
-        corralId: alert.penId && Number(alert.penId) ? Number(alert.penId) : null
-      };
-
-      await post('/reminders', payload);
-
-      setActionMessage('Aviso automático convertido en recordatorio.');
-    } catch (err) {
-      setError(err.message || 'Error creando recordatorio desde aviso automático');
-    }
-  }
-
   const highAlerts = automaticAlerts.filter((alert) => alert.level === 'HIGH');
   const mediumAlerts = automaticAlerts.filter((alert) => alert.level === 'MEDIUM');
   const lowAlerts = automaticAlerts.filter((alert) => alert.level === 'LOW');
@@ -106,32 +80,35 @@ export default function RemindersPage() {
             corrales, sanidad y reproducción.
           </p>
         </div>
+
+        <button type="button" onClick={loadAutomaticAlerts}>
+          Recalcular avisos
+        </button>
       </header>
 
       {error && <p className="alert error">Error: {error}</p>}
-      {actionMessage && <p className="alert">{actionMessage}</p>}
 
       <div className="metrics-grid">
-        <article className="metric-card">
-          <span>Total avisos</span>
-          <strong>{automaticAlerts.length}</strong>
-        </article>
+  <article className="metric-card">
+    <span>Total avisos</span>
+    <strong>{automaticAlerts.length}</strong>
+  </article>
 
-        <article className="metric-card">
-          <span>Alta prioridad</span>
-          <strong>{highAlerts.length}</strong>
-        </article>
+  <article className="metric-card">
+    <span>Avisos urgentes</span>
+    <strong>{highAlerts.length}</strong>
+  </article>
 
-        <article className="metric-card">
-          <span>Media prioridad</span>
-          <strong>{mediumAlerts.length}</strong>
-        </article>
+  <article className="metric-card">
+    <span>Avisos importantes</span>
+    <strong>{mediumAlerts.length}</strong>
+  </article>
 
-        <article className="metric-card">
-          <span>Baja prioridad</span>
-          <strong>{lowAlerts.length}</strong>
-        </article>
-      </div>
+  <article className="metric-card">
+    <span>Avisos leves</span>
+    <strong>{lowAlerts.length}</strong>
+  </article>
+</div>
 
       <section className="panel">
         <div className="section-header">
@@ -141,18 +118,6 @@ export default function RemindersPage() {
               Si el ganadero realiza la acción recomendada, el aviso dejará de aparecer
               cuando ya no se cumpla la condición que lo genera.
             </p>
-          </div>
-
-          <div className="inline-controls">
-            <input
-              value={cuentaGanaderaId}
-              onChange={(event) => setCuentaGanaderaId(event.target.value)}
-              aria-label="Cuenta ganadera ID"
-            />
-
-            <button type="button" onClick={loadAutomaticAlerts}>
-              Recalcular
-            </button>
           </div>
         </div>
 
@@ -171,9 +136,9 @@ export default function RemindersPage() {
               <article className="panel" key={`${alert.type}-${alert.animal?.id || index}`}>
                 <div className="animal-card-header">
                   <span className={`priority ${getLevelClass(alert.level)}`}>
-                    {alert.level}
+                    {getLevelText(alert.level)}
                   </span>
-                  <span>{alert.type}</span>
+                  <span className="tag">{getReadableType(alert.type)}</span>
                 </div>
 
                 <h3>{alert.title}</h3>
@@ -195,12 +160,20 @@ export default function RemindersPage() {
                   {alert.animal?.currentPen || alert.penName || 'Sin corral'}
                 </p>
 
-                <button
-                  type="button"
-                  onClick={() => createReminderFromAutomaticAlert(alert)}
-                >
-                  Guardar como recordatorio
-                </button>
+                <div className="form-actions">
+                  {alert.animal?.id ? (
+                    <Link
+                      className="button"
+                      to={`/animals/${alert.animal.id}`}
+                    >
+                      Ver ficha animal
+                    </Link>
+                  ) : (
+                    <button type="button" disabled>
+                      Sin ficha asociada
+                    </button>
+                  )}
+                </div>
               </article>
             ))}
           </div>

@@ -136,9 +136,29 @@ export default function AnimalDetailPage() {
           <h3>Reproducción</h3>
           <InfoRow label="Estado reproductivo" value={animal.estadoReproductivo?.nombre} />
           <InfoRow label="Fecha estado actual" value={formatDate(animal.fechaEstadoReproductivoActual)} />
-          <InfoRow label="Madre" value={animal.madre?.crotal} />
-          <InfoRow label="Padre" value={animal.padre?.crotal} />
-          <InfoRow label="Descendencia registrada" value={String(children.length)} />
+          <p>
+  <strong>Madre:</strong>{' '}
+  {animal.madre?.id ? (
+    <Link className="text-link inline-link" to={`/animals/${animal.madre.id}`}>
+      {animal.madre.crotal}
+    </Link>
+  ) : (
+    'No registrada'
+  )}
+</p>
+
+<p>
+  <strong>Padre:</strong>{' '}
+  {animal.padre?.id ? (
+    <Link className="text-link inline-link" to={`/animals/${animal.padre.id}`}>
+      {animal.padre.crotal}
+    </Link>
+  ) : (
+    'No registrado'
+  )}
+</p>
+
+<InfoRow label="Descendencia registrada" value={String(children.length)} />
         </article>
       </div>
 
@@ -320,7 +340,12 @@ export default function AnimalDetailPage() {
             {children.length > 0 ? (
               children.map((child) => (
                 <div className="compact-item" key={child.id}>
-                  <InfoRow label="Crotal" value={child.crotal} />
+                  <p>
+  <strong>Crotal:</strong>{' '}
+  <Link className="text-link inline-link" to={`/animals/${child.id}`}>
+    {child.crotal}
+  </Link>
+</p>
                   <InfoRow label="Número interno" value={child.numeroInterno} />
                   <InfoRow label="Sexo" value={child.sexo} />
                   <InfoRow label="Nacimiento" value={formatDate(child.fechaNacimiento)} />

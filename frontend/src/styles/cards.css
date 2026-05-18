@@ -272,3 +272,24 @@
   box-shadow: none;
   background: #fbfcfa;
 }
+
+.animal-card-header .tag {
+  max-width: 60%;
+  white-space: normal;
+  text-align: left;
+}
+
+@media (max-width: 650px) {
+  .animal-card-header {
+    flex-direction: column;
+  }
+
+  .animal-card-header .tag {
+    max-width: 100%;
+  }
+}
+
+.inline-link {
+  display: inline;
+  margin-top: 0;
+}
