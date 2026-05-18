@@ -1,0 +1,139 @@
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.metric-card,
+.panel,
+.animal-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  box-shadow: var(--shadow-soft);
+}
+
+.metric-card {
+  padding: 1.25rem;
+}
+
+.metric-card span {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 2rem;
+  color: var(--color-primary-dark);
+}
+
+.panel {
+  padding: 1.25rem;
+}
+
+.panel h3 {
+  margin-top: 0;
+  color: var(--color-primary-dark);
+}
+
+.animals-grid,
+.cards-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.animal-card {
+  padding: 1.2rem;
+}
+
+.animal-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.tag,
+.priority {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  background: var(--color-secondary);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+
+.priority.high {
+  background: #fee2e2;
+  color: var(--color-danger);
+}
+
+.priority.medium {
+  background: #fef3c7;
+  color: var(--color-warning);
+}
+
+.priority.low {
+  background: #dcfce7;
+  color: var(--color-success);
+}
+
+.animal-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+  color: var(--color-primary-dark);
+}
+
+.animal-card dl {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.animal-card dt {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.animal-card dd {
+  margin: 0.15rem 0 0;
+  font-weight: 700;
+}
+
+.text-link {
+  display: inline-flex;
+  margin-top: 1rem;
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 1000px) {
+  .metrics-grid,
+  .animals-grid,
+  .cards-list,
+  .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .metrics-grid,
+  .animals-grid,
+  .cards-list,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
