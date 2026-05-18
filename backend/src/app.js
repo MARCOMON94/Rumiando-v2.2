@@ -1,4 +1,6 @@
-﻿const express = require('express');
+﻿require('dotenv').config();
+
+const express = require('express');
 const cors = require('cors');
 
 const authRoutes = require('./routes/authRoutes');
@@ -35,7 +37,7 @@ app.use('/api/catalogs', catalogRoutes);
 app.use('/api/pens', penRoutes);
 app.use('/api/farm-units', farmUnitRoutes);
 app.use('/api/movements', movementRoutes);
-app.use('/api/health', healthRoutes);
+app.use('/api/health-cases', healthRoutes);
 app.use('/api/treatments', treatmentRoutes);
 app.use('/api/vaccinations', vaccinationRoutes);
 app.use('/api/dewormings', dewormingRoutes);

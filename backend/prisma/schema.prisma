@@ -1,4 +1,4 @@
-﻿generator client {
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -85,453 +85,453 @@ enum ResultadoEventoReproductivo {
 }
 
 model User {
-  id               Int       @id @default(autoincrement())
-  nombre           String
-  email            String    @unique
-  passwordHash     String
-  rol              Rol       @default(OPERARIO)
-  activo           Boolean   @default(true)
+  id           Int     @id @default(autoincrement())
+  nombre       String
+  email        String  @unique
+  passwordHash String
+  rol          Rol     @default(OPERARIO)
+  activo       Boolean @default(true)
 
   cuentaGanaderaId Int
   cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
-  movimientos      MovimientoTransaccion[]
+  movimientos MovimientoTransaccion[]
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CuentaGanadera {
-  id              Int       @id @default(autoincrement())
-  nombre          String
-  titularNombre   String?
-  nifCif          String?
-  telefono        String?
-  emailContacto   String?
-  direccion       String?
+  id            Int     @id @default(autoincrement())
+  nombre        String
+  titularNombre String?
+  nifCif        String?
+  telefono      String?
+  emailContacto String?
+  direccion     String?
 
-  usuarios        User[]
-  unidadesRega    UnidadRega[]
-  especies        CatalogoEspecie[]
-  razas           CatalogoRaza[]
-  enfermedades    CatalogoEnfermedad[]
-  estadosRepro    CatalogoEstadoReproductivo[]
-  recordatorios   Recordatorio[]
-  exportaciones   ExportacionRegistro[]
+  usuarios      User[]
+  unidadesRega  UnidadRega[]
+  especies      CatalogoEspecie[]
+  razas         CatalogoRaza[]
+  enfermedades  CatalogoEnfermedad[]
+  estadosRepro  CatalogoEstadoReproductivo[]
+  recordatorios Recordatorio[]
+  exportaciones ExportacionRegistro[]
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model UnidadRega {
-  id                  Int       @id @default(autoincrement())
-  codigoRega          String
-  nombre              String
-  municipio           String?
-  provincia           String?
-  activa              Boolean   @default(true)
+  id         Int     @id @default(autoincrement())
+  codigoRega String
+  nombre     String
+  municipio  String?
+  provincia  String?
+  activa     Boolean @default(true)
 
-  cuentaGanaderaId    Int
-  cuentaGanadera      CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
-  especiePrincipalId  Int?
-  especiePrincipal    CatalogoEspecie? @relation(fields: [especiePrincipalId], references: [id])
+  especiePrincipalId Int?
+  especiePrincipal   CatalogoEspecie? @relation(fields: [especiePrincipalId], references: [id])
 
-  corrales            Corral[]
-  animales            Animal[]
-  movimientos         MovimientoTransaccion[]
-  casosSanitarios     CasoSanitario[]
-  vacunaciones        Vacunacion[]
-  desparasitaciones   Desparasitacion[]
-  exportaciones       ExportacionRegistro[]
+  corrales          Corral[]
+  animales          Animal[]
+  movimientos       MovimientoTransaccion[]
+  casosSanitarios   CasoSanitario[]
+  vacunaciones      Vacunacion[]
+  desparasitaciones Desparasitacion[]
+  exportaciones     ExportacionRegistro[]
 
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([cuentaGanaderaId, codigoRega])
 }
 
 model CatalogoEspecie {
-  id                Int       @id @default(autoincrement())
-  nombre            String
-  activo            Boolean   @default(true)
+  id     Int     @id @default(autoincrement())
+  nombre String
+  activo Boolean @default(true)
 
-  cuentaGanaderaId  Int
-  cuentaGanadera    CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
   unidadesRegaComoPrincipal UnidadRega[]
-  razas             CatalogoRaza[]
-  animales          Animal[]
+  razas                     CatalogoRaza[]
+  animales                  Animal[]
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([cuentaGanaderaId, nombre])
 }
 
 model CatalogoRaza {
-  id                Int       @id @default(autoincrement())
-  nombre            String
-  activo            Boolean   @default(true)
+  id     Int     @id @default(autoincrement())
+  nombre String
+  activo Boolean @default(true)
 
-  cuentaGanaderaId  Int
-  cuentaGanadera    CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
-  especieId         Int
-  especie           CatalogoEspecie @relation(fields: [especieId], references: [id])
+  especieId Int
+  especie   CatalogoEspecie @relation(fields: [especieId], references: [id])
 
-  animales          Animal[]
+  animales Animal[]
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([cuentaGanaderaId, especieId, nombre])
 }
 
 model CatalogoEnfermedad {
-  id                      Int       @id @default(autoincrement())
-  nombre                  String
-  descripcion             String?
-  declaracionObligatoria  Boolean   @default(false)
-  requiereLazareto        Boolean   @default(false)
-  activo                  Boolean   @default(true)
+  id                     Int     @id @default(autoincrement())
+  nombre                 String
+  descripcion            String?
+  declaracionObligatoria Boolean @default(false)
+  requiereLazareto       Boolean @default(false)
+  activo                 Boolean @default(true)
 
-  cuentaGanaderaId        Int
-  cuentaGanadera          CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
-  casosSanitarios         CasoSanitario[]
+  casosSanitarios CasoSanitario[]
 
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([cuentaGanaderaId, nombre])
 }
 
 model CatalogoEstadoReproductivo {
-  id                Int       @id @default(autoincrement())
-  nombre            String
-  orden             Int?
-  activo            Boolean   @default(true)
+  id     Int     @id @default(autoincrement())
+  nombre String
+  orden  Int?
+  activo Boolean @default(true)
 
-  cuentaGanaderaId  Int
-  cuentaGanadera    CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
-  animales          Animal[]
-  corralesSugeridos Corral[]
+  animales           Animal[]
+  corralesSugeridos  Corral[]
   eventosResultantes EventoReproductivo[]
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([cuentaGanaderaId, nombre])
 }
 
 model Corral {
-  id                            Int       @id @default(autoincrement())
-  nombre                        String
-  tipoFuncional                 String?
-  capacidad                     Int?
-  aplicarEstadoAutomaticamente  Boolean   @default(false)
-  activo                        Boolean   @default(true)
+  id                           Int     @id @default(autoincrement())
+  nombre                       String
+  tipoFuncional                String?
+  capacidad                    Int?
+  aplicarEstadoAutomaticamente Boolean @default(false)
+  activo                       Boolean @default(true)
 
-  unidadRegaId                  Int
-  unidadRega                    UnidadRega @relation(fields: [unidadRegaId], references: [id])
+  unidadRegaId Int
+  unidadRega   UnidadRega @relation(fields: [unidadRegaId], references: [id])
 
-  estadoReproductivoSugeridoId  Int?
-  estadoReproductivoSugerido    CatalogoEstadoReproductivo? @relation(fields: [estadoReproductivoSugeridoId], references: [id])
+  estadoReproductivoSugeridoId Int?
+  estadoReproductivoSugerido   CatalogoEstadoReproductivo? @relation(fields: [estadoReproductivoSugeridoId], references: [id])
 
-  animalesActuales              Animal[]
+  animalesActuales Animal[]
 
-  movimientosOrigen             MovimientoTransaccion[] @relation("MovimientoOrigen")
-  movimientosDestino            MovimientoTransaccion[] @relation("MovimientoDestino")
-  detallesOrigen                MovimientoAnimalDetalle[] @relation("DetalleOrigen")
-  detallesDestino               MovimientoAnimalDetalle[] @relation("DetalleDestino")
+  movimientosOrigen  MovimientoTransaccion[]   @relation("MovimientoOrigen")
+  movimientosDestino MovimientoTransaccion[]   @relation("MovimientoDestino")
+  detallesOrigen     MovimientoAnimalDetalle[] @relation("DetalleOrigen")
+  detallesDestino    MovimientoAnimalDetalle[] @relation("DetalleDestino")
 
-  casosSanitarios               CasoSanitario[]
-  tratamientos                  TratamientoVeterinario[]
-  vacunaciones                  Vacunacion[]
-  desparasitaciones             Desparasitacion[]
-  recordatorios                 Recordatorio[]
+  casosSanitarios   CasoSanitario[]
+  tratamientos      TratamientoVeterinario[]
+  vacunaciones      Vacunacion[]
+  desparasitaciones Desparasitacion[]
+  recordatorios     Recordatorio[]
 
-  createdAt                     DateTime  @default(now())
-  updatedAt                     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([unidadRegaId, nombre])
 }
 
 model Animal {
-  id                    Int       @id @default(autoincrement())
-  crotal                String
-  numeroInterno         String?
-  sexo                  SexoAnimal
-  fechaNacimiento       DateTime?
-  fechaEntrada          DateTime  @default(now())
-  origen                String?
-  estadoRegistro        EstadoRegistroAnimal @default(ACTIVO)
-  fechaSalida           DateTime?
-  destinoSalida         String?
-  observaciones         String?
+  id              Int                  @id @default(autoincrement())
+  crotal          String
+  numeroInterno   String?
+  sexo            SexoAnimal
+  fechaNacimiento DateTime?
+  fechaEntrada    DateTime             @default(now())
+  origen          String?
+  estadoRegistro  EstadoRegistroAnimal @default(ACTIVO)
+  fechaSalida     DateTime?
+  destinoSalida   String?
+  observaciones   String?
 
-  unidadRegaId          Int
-  unidadRega            UnidadRega @relation(fields: [unidadRegaId], references: [id])
+  unidadRegaId Int
+  unidadRega   UnidadRega @relation(fields: [unidadRegaId], references: [id])
 
-  especieId             Int
-  especie               CatalogoEspecie @relation(fields: [especieId], references: [id])
+  especieId Int
+  especie   CatalogoEspecie @relation(fields: [especieId], references: [id])
 
-  razaId                Int?
-  raza                  CatalogoRaza? @relation(fields: [razaId], references: [id])
+  razaId Int?
+  raza   CatalogoRaza? @relation(fields: [razaId], references: [id])
 
-  corralActualId        Int?
-  corralActual          Corral? @relation(fields: [corralActualId], references: [id])
+  corralActualId Int?
+  corralActual   Corral? @relation(fields: [corralActualId], references: [id])
 
-  estadoReproductivoId  Int?
-  estadoReproductivo    CatalogoEstadoReproductivo? @relation(fields: [estadoReproductivoId], references: [id])
+  estadoReproductivoId Int?
+  estadoReproductivo   CatalogoEstadoReproductivo? @relation(fields: [estadoReproductivoId], references: [id])
 
-  madreId               Int?
-  madre                 Animal? @relation("MadreAnimal", fields: [madreId], references: [id])
-  hijosComoMadre        Animal[] @relation("MadreAnimal")
+  madreId        Int?
+  madre          Animal?  @relation("MadreAnimal", fields: [madreId], references: [id])
+  hijosComoMadre Animal[] @relation("MadreAnimal")
 
-  padreId               Int?
-  padre                 Animal? @relation("PadreAnimal", fields: [padreId], references: [id])
-  hijosComoPadre        Animal[] @relation("PadreAnimal")
+  padreId        Int?
+  padre          Animal?  @relation("PadreAnimal", fields: [padreId], references: [id])
+  hijosComoPadre Animal[] @relation("PadreAnimal")
 
-  detallesMovimiento    MovimientoAnimalDetalle[]
-  casosSanitarios       CasoSanitario[]
-  tratamientos          TratamientoVeterinario[]
-  vacunaciones          Vacunacion[]
-  desparasitaciones     Desparasitacion[]
-  eventosReproductivos  EventoReproductivo[]
-  recordatorios         Recordatorio[]
+  detallesMovimiento   MovimientoAnimalDetalle[]
+  casosSanitarios      CasoSanitario[]
+  tratamientos         TratamientoVeterinario[]
+  vacunaciones         Vacunacion[]
+  desparasitaciones    Desparasitacion[]
+  eventosReproductivos EventoReproductivo[]
+  recordatorios        Recordatorio[]
 
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([unidadRegaId, crotal])
 }
 
 model MovimientoTransaccion {
-  id              Int       @id @default(autoincrement())
-  tipoOperacion   TipoOperacionMovimiento
-  motivo          String?
-  fecha           DateTime  @default(now())
-  resumen         Json?
+  id            Int                     @id @default(autoincrement())
+  tipoOperacion TipoOperacionMovimiento
+  motivo        String?
+  fecha         DateTime                @default(now())
+  resumen       Json?
 
-  unidadRegaId    Int
-  unidadRega      UnidadRega @relation(fields: [unidadRegaId], references: [id])
+  unidadRegaId Int
+  unidadRega   UnidadRega @relation(fields: [unidadRegaId], references: [id])
 
-  corralOrigenId  Int?
-  corralOrigen    Corral? @relation("MovimientoOrigen", fields: [corralOrigenId], references: [id])
+  corralOrigenId Int?
+  corralOrigen   Corral? @relation("MovimientoOrigen", fields: [corralOrigenId], references: [id])
 
   corralDestinoId Int
   corralDestino   Corral @relation("MovimientoDestino", fields: [corralDestinoId], references: [id])
 
-  userId          Int
-  user            User @relation(fields: [userId], references: [id])
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 
-  detalles        MovimientoAnimalDetalle[]
+  detalles MovimientoAnimalDetalle[]
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model MovimientoAnimalDetalle {
-  id              Int       @id @default(autoincrement())
-  crotalLeido     String?
-  estadoProceso   EstadoProcesoMovimiento
-  observaciones   String?
+  id            Int                     @id @default(autoincrement())
+  crotalLeido   String?
+  estadoProceso EstadoProcesoMovimiento
+  observaciones String?
 
-  transaccionId   Int
-  transaccion     MovimientoTransaccion @relation(fields: [transaccionId], references: [id])
+  transaccionId Int
+  transaccion   MovimientoTransaccion @relation(fields: [transaccionId], references: [id])
 
-  animalId        Int?
-  animal          Animal? @relation(fields: [animalId], references: [id])
+  animalId Int?
+  animal   Animal? @relation(fields: [animalId], references: [id])
 
-  corralOrigenId  Int?
-  corralOrigen    Corral? @relation("DetalleOrigen", fields: [corralOrigenId], references: [id])
+  corralOrigenId Int?
+  corralOrigen   Corral? @relation("DetalleOrigen", fields: [corralOrigenId], references: [id])
 
   corralDestinoId Int
   corralDestino   Corral @relation("DetalleDestino", fields: [corralDestinoId], references: [id])
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CasoSanitario {
-  id                         Int       @id @default(autoincrement())
-  fechaInicio                DateTime
-  signosClinicos             String?
-  diagnosticoPresuntivo      String?
-  diagnosticoConfirmado      String?
-  gravedad                   String?
-  afectaBienestar            Boolean   @default(false)
-  lazareto                   Boolean   @default(false)
-  avisoDeclaracionMostrado   Boolean   @default(false)
-  estado                     EstadoCasoSanitario @default(ABIERTO)
-  fechaCierre                DateTime?
-  resultado                  String?
+  id                       Int                 @id @default(autoincrement())
+  fechaInicio              DateTime
+  signosClinicos           String?
+  diagnosticoPresuntivo    String?
+  diagnosticoConfirmado    String?
+  gravedad                 String?
+  afectaBienestar          Boolean             @default(false)
+  lazareto                 Boolean             @default(false)
+  avisoDeclaracionMostrado Boolean             @default(false)
+  estado                   EstadoCasoSanitario @default(ABIERTO)
+  fechaCierre              DateTime?
+  resultado                String?
 
-  unidadRegaId               Int
-  unidadRega                 UnidadRega @relation(fields: [unidadRegaId], references: [id])
+  unidadRegaId Int
+  unidadRega   UnidadRega @relation(fields: [unidadRegaId], references: [id])
 
-  animalId                   Int?
-  animal                     Animal? @relation(fields: [animalId], references: [id])
+  animalId Int?
+  animal   Animal? @relation(fields: [animalId], references: [id])
 
-  corralId                   Int?
-  corral                     Corral? @relation(fields: [corralId], references: [id])
+  corralId Int?
+  corral   Corral? @relation(fields: [corralId], references: [id])
 
-  enfermedadId               Int?
-  enfermedad                 CatalogoEnfermedad? @relation(fields: [enfermedadId], references: [id])
+  enfermedadId Int?
+  enfermedad   CatalogoEnfermedad? @relation(fields: [enfermedadId], references: [id])
 
-  tratamientos               TratamientoVeterinario[]
+  tratamientos TratamientoVeterinario[]
 
-  createdAt                  DateTime  @default(now())
-  updatedAt                  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model TratamientoVeterinario {
-  id                    Int       @id @default(autoincrement())
-  fechaInicio           DateTime
-  fechaFin              DateTime?
-  motivo                String?
-  medicamentoProducto   String
-  principioActivo       String?
-  dosisTexto            String?
-  unidad                String?
-  via                   String?
-  frecuencia            String?
-  duracionDias          Int?
-  retirada              String?
-  documentoUrl          String?
+  id                  Int       @id @default(autoincrement())
+  fechaInicio         DateTime
+  fechaFin            DateTime?
+  motivo              String?
+  medicamentoProducto String
+  principioActivo     String?
+  dosisTexto          String?
+  unidad              String?
+  via                 String?
+  frecuencia          String?
+  duracionDias        Int?
+  retirada            String?
+  documentoUrl        String?
 
-  casoSanitarioId       Int?
-  casoSanitario         CasoSanitario? @relation(fields: [casoSanitarioId], references: [id])
+  casoSanitarioId Int?
+  casoSanitario   CasoSanitario? @relation(fields: [casoSanitarioId], references: [id])
 
-  animalId              Int?
-  animal                Animal? @relation(fields: [animalId], references: [id])
+  animalId Int?
+  animal   Animal? @relation(fields: [animalId], references: [id])
 
-  corralId              Int?
-  corral                Corral? @relation(fields: [corralId], references: [id])
+  corralId Int?
+  corral   Corral? @relation(fields: [corralId], references: [id])
 
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Vacunacion {
-  id                    Int       @id @default(autoincrement())
-  fecha                 DateTime
-  vacuna                String
-  loteVacuna            String?
-  dosisTexto            String?
-  via                   String?
-  revacunacionPrevista  Boolean   @default(false)
-  fechaRevacunacion     DateTime?
-  reaccion              Boolean   @default(false)
-  documentoUrl          String?
+  id                   Int       @id @default(autoincrement())
+  fecha                DateTime
+  vacuna               String
+  loteVacuna           String?
+  dosisTexto           String?
+  via                  String?
+  revacunacionPrevista Boolean   @default(false)
+  fechaRevacunacion    DateTime?
+  reaccion             Boolean   @default(false)
+  documentoUrl         String?
 
-  unidadRegaId          Int
-  unidadRega            UnidadRega @relation(fields: [unidadRegaId], references: [id])
+  unidadRegaId Int
+  unidadRega   UnidadRega @relation(fields: [unidadRegaId], references: [id])
 
-  animalId              Int?
-  animal                Animal? @relation(fields: [animalId], references: [id])
+  animalId Int?
+  animal   Animal? @relation(fields: [animalId], references: [id])
 
-  corralId              Int?
-  corral                Corral? @relation(fields: [corralId], references: [id])
+  corralId Int?
+  corral   Corral? @relation(fields: [corralId], references: [id])
 
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Desparasitacion {
-  id                    Int       @id @default(autoincrement())
-  fecha                 DateTime
-  tipo                  String
-  producto              String
-  principioActivo       String?
-  dosisTexto            String?
-  via                   String?
-  motivo                String?
-  proximaDosisPrevista  Boolean   @default(false)
-  fechaProximaDosis     DateTime?
-  reaccion              Boolean   @default(false)
-  documentoUrl          String?
+  id                   Int       @id @default(autoincrement())
+  fecha                DateTime
+  tipo                 String
+  producto             String
+  principioActivo      String?
+  dosisTexto           String?
+  via                  String?
+  motivo               String?
+  proximaDosisPrevista Boolean   @default(false)
+  fechaProximaDosis    DateTime?
+  reaccion             Boolean   @default(false)
+  documentoUrl         String?
 
-  unidadRegaId          Int
-  unidadRega            UnidadRega @relation(fields: [unidadRegaId], references: [id])
+  unidadRegaId Int
+  unidadRega   UnidadRega @relation(fields: [unidadRegaId], references: [id])
 
-  animalId              Int?
-  animal                Animal? @relation(fields: [animalId], references: [id])
+  animalId Int?
+  animal   Animal? @relation(fields: [animalId], references: [id])
 
-  corralId              Int?
-  corral                Corral? @relation(fields: [corralId], references: [id])
+  corralId Int?
+  corral   Corral? @relation(fields: [corralId], references: [id])
 
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model EventoReproductivo {
-  id                    Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  tipoEvento            TipoEventoReproductivo
-  resultado             ResultadoEventoReproductivo @default(NO_APLICA)
+  tipoEvento TipoEventoReproductivo
+  resultado  ResultadoEventoReproductivo @default(NO_APLICA)
 
-  fecha                 DateTime
-  semanasGestacion      Int?
-  fechaPartoEstimada    DateTime?
+  fecha              DateTime
+  semanasGestacion   Int?
+  fechaPartoEstimada DateTime?
 
-  numeroCriasVivas      Int?
-  numeroCriasMuertas    Int?
+  numeroCriasVivas   Int?
+  numeroCriasMuertas Int?
 
-  observaciones         String?
+  observaciones String?
 
-  animalId              Int
-  animal                Animal @relation(fields: [animalId], references: [id])
+  animalId Int
+  animal   Animal @relation(fields: [animalId], references: [id])
 
-  estadoResultanteId    Int?
-  estadoResultante      CatalogoEstadoReproductivo? @relation(fields: [estadoResultanteId], references: [id])
+  estadoResultanteId Int?
+  estadoResultante   CatalogoEstadoReproductivo? @relation(fields: [estadoResultanteId], references: [id])
 
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Recordatorio {
-  id                Int       @id @default(autoincrement())
-  tipo              String
-  fechaObjetivo     DateTime
-  estado            EstadoRecordatorio @default(PENDIENTE)
-  pospuestoHasta    DateTime?
-  origenRegla       OrigenReglaRecordatorio?
-  nota              String?
+  id             Int                      @id @default(autoincrement())
+  tipo           String
+  fechaObjetivo  DateTime
+  estado         EstadoRecordatorio       @default(PENDIENTE)
+  pospuestoHasta DateTime?
+  origenRegla    OrigenReglaRecordatorio?
+  nota           String?
 
-  cuentaGanaderaId  Int
-  cuentaGanadera    CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
-  animalId          Int?
-  animal            Animal? @relation(fields: [animalId], references: [id])
+  animalId Int?
+  animal   Animal? @relation(fields: [animalId], references: [id])
 
-  corralId          Int?
-  corral            Corral? @relation(fields: [corralId], references: [id])
+  corralId Int?
+  corral   Corral? @relation(fields: [corralId], references: [id])
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ExportacionRegistro {
-  id                Int       @id @default(autoincrement())
-  tipoExportacion   TipoExportacion
-  fechaDesde        DateTime
-  fechaHasta        DateTime
-  emailDestino      String
-  estadoEnvio       EstadoEnvioExportacion @default(PENDIENTE)
-  urlExcel          String?
-  urlPdf            String?
-  respuestaN8n      Json?
+  id              Int                    @id @default(autoincrement())
+  tipoExportacion TipoExportacion
+  fechaDesde      DateTime
+  fechaHasta      DateTime
+  emailDestino    String
+  estadoEnvio     EstadoEnvioExportacion @default(PENDIENTE)
+  urlExcel        String?
+  urlPdf          String?
+  respuestaN8n    Json?
 
-  cuentaGanaderaId  Int
-  cuentaGanadera    CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
-  unidadRegaId      Int?
-  unidadRega        UnidadRega? @relation(fields: [unidadRegaId], references: [id])
+  unidadRegaId Int?
+  unidadRega   UnidadRega? @relation(fields: [unidadRegaId], references: [id])
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

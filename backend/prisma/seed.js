@@ -3,30 +3,21 @@
 const bcrypt = require('bcrypt');
 const prisma = require('../src/config/prisma');
 
-function fecha(valor) {
-  return new Date(valor);
+function date(value) {
+  return new Date(value);
 }
 
-async function crearEventoReproductivo({ animalId, tipoEvento, resultado, fechaEvento, estadoResultanteId, semanasGestacion, fechaPartoEstimada, numeroCriasVivas, numeroCriasMuertas, observaciones }) {
-  return prisma.eventoReproductivo.create({
-    data: {
-      animalId,
-      tipoEvento,
-      resultado,
-      fecha: fecha(fechaEvento),
-      estadoResultanteId: estadoResultanteId || null,
-      semanasGestacion: semanasGestacion || null,
-      fechaPartoEstimada: fechaPartoEstimada ? fecha(fechaPartoEstimada) : null,
-      numeroCriasVivas: numeroCriasVivas ?? null,
-      numeroCriasMuertas: numeroCriasMuertas ?? null,
-      observaciones: observaciones || null
-    }
-  });
+function addDays(baseDate, days) {
+  const result = new Date(baseDate);
+  result.setDate(result.getDate() + days);
+  return result;
 }
 
-async function main() {
-  console.log('Iniciando seed ampliado de RumiAndo v2...');
+function pad(value, length = 3) {
+  return String(value).padStart(length, '0');
+}
 
+async function clearDatabase() {
   await prisma.movimientoAnimalDetalle.deleteMany();
   await prisma.movimientoTransaccion.deleteMany();
   await prisma.eventoReproductivo.deleteMany();
@@ -38,22 +29,478 @@ async function main() {
   await prisma.exportacionRegistro.deleteMany();
   await prisma.animal.deleteMany();
   await prisma.corral.deleteMany();
+  await prisma.unidadRega.deleteMany();
   await prisma.catalogoEstadoReproductivo.deleteMany();
   await prisma.catalogoEnfermedad.deleteMany();
   await prisma.catalogoRaza.deleteMany();
   await prisma.catalogoEspecie.deleteMany();
   await prisma.user.deleteMany();
-  await prisma.unidadRega.deleteMany();
   await prisma.cuentaGanadera.deleteMany();
+}
+
+async function createCatalogs(cuentaId) {
+  const caprino = await prisma.catalogoEspecie.create({
+    data: { nombre: 'Caprino', cuentaGanaderaId: cuentaId }
+  });
+
+  const ovino = await prisma.catalogoEspecie.create({
+    data: { nombre: 'Ovino', cuentaGanaderaId: cuentaId }
+  });
+
+  const majorera = await prisma.catalogoRaza.create({
+    data: { nombre: 'Majorera', cuentaGanaderaId: cuentaId, especieId: caprino.id }
+  });
+
+  const manchega = await prisma.catalogoRaza.create({
+    data: { nombre: 'Manchega', cuentaGanaderaId: cuentaId, especieId: ovino.id }
+  });
+
+  const estadosSeed = [
+    ['No aplica', 1],
+    ['No reproductor', 2],
+    ['Vacía', 3],
+    ['Cubierta / Inseminada', 4],
+    ['Gestante', 5],
+    ['Parida', 6],
+    ['Abortada', 7],
+    ['Problema reproductivo', 8]
+  ];
+
+  const estados = {};
+
+  for (const [nombre, orden] of estadosSeed) {
+    estados[nombre] = await prisma.catalogoEstadoReproductivo.create({
+      data: { nombre, orden, cuentaGanaderaId: cuentaId }
+    });
+  }
+
+  const enfermedadesSeed = [
+    {
+      nombre: 'Lengua azul',
+      descripcion: 'Enfermedad vírica transmitida por vectores. Incluida como ejemplo de enfermedad de declaración obligatoria.',
+      declaracionObligatoria: true,
+      requiereLazareto: true
+    },
+    {
+      nombre: 'Brucelosis ovina y caprina',
+      descripcion: 'Enfermedad zoonósica incluida como ejemplo de control sanitario oficial.',
+      declaracionObligatoria: true,
+      requiereLazareto: true
+    },
+    {
+      nombre: 'Agalaxia contagiosa ovina y caprina',
+      descripcion: 'Proceso infeccioso relevante en pequeños rumiantes.',
+      declaracionObligatoria: false,
+      requiereLazareto: true
+    },
+    {
+      nombre: 'Mamitis clínica',
+      descripcion: 'Proceso inflamatorio de la glándula mamaria usado como ejemplo sanitario no EDO.',
+      declaracionObligatoria: false,
+      requiereLazareto: false
+    },
+    {
+      nombre: 'Cojera / pododermatitis',
+      descripcion: 'Ejemplo de patología frecuente de manejo.',
+      declaracionObligatoria: false,
+      requiereLazareto: false
+    }
+  ];
+
+  const enfermedades = {};
+
+  for (const enfermedad of enfermedadesSeed) {
+    enfermedades[enfermedad.nombre] = await prisma.catalogoEnfermedad.create({
+      data: { ...enfermedad, cuentaGanaderaId: cuentaId }
+    });
+  }
+
+  return {
+    species: { caprino, ovino },
+    breeds: { majorera, manchega },
+    estados,
+    enfermedades
+  };
+}
+
+async function createFarmUnit({ cuentaId, codigoRega, nombre, municipio, provincia, especiePrincipalId }) {
+  return prisma.unidadRega.create({
+    data: {
+      codigoRega,
+      nombre,
+      municipio,
+      provincia,
+      activa: true,
+      cuentaGanaderaId: cuentaId,
+      especiePrincipalId
+    }
+  });
+}
+
+async function createPens(unidadRegaId, estados) {
+  const pensSeed = [
+    { nombre: 'Producción', tipoFuncional: 'PRODUCCION', capacidad: 60, estado: 'Vacía' },
+    { nombre: 'Secado', tipoFuncional: 'SECADO', capacidad: 35, estado: 'Gestante' },
+    { nombre: 'Paridera', tipoFuncional: 'PARIDERA', capacidad: 25, estado: 'Parida' },
+    { nombre: 'Reposición', tipoFuncional: 'REPOSICION', capacidad: 35, estado: 'No reproductor' },
+    { nombre: 'Lazareto', tipoFuncional: 'LAZARETO', capacidad: 8, estado: null },
+    { nombre: 'Machos', tipoFuncional: 'MACHOS', capacidad: 5, estado: 'No aplica' }
+  ];
+
+  const pens = {};
+
+  for (const pen of pensSeed) {
+    pens[pen.nombre] = await prisma.corral.create({
+      data: {
+        nombre: pen.nombre,
+        tipoFuncional: pen.tipoFuncional,
+        capacidad: pen.capacidad,
+        aplicarEstadoAutomaticamente: ['Secado', 'Paridera'].includes(pen.nombre),
+        unidadRegaId,
+        estadoReproductivoSugeridoId: pen.estado ? estados[pen.estado].id : null
+      }
+    });
+  }
+
+  return pens;
+}
+
+async function createAnimalsForFarmUnit({ prefix, internalPrefix, unidadRega, especie, raza, estados, pens, speciesName }) {
+  const males = [];
+  const adultFemales = [];
+  const offspring = [];
+
+  for (let i = 1; i <= 3; i++) {
+    const male = await prisma.animal.create({
+      data: {
+        crotal: `${prefix}M${pad(i)}`,
+        numeroInterno: `${internalPrefix}-M-${pad(i)}`,
+        sexo: 'MACHO',
+        fechaNacimiento: date(`2020-0${i + 1}-10`),
+        fechaEntrada: date('2022-01-10'),
+        origen: 'Compra de reproductor externo',
+        estadoRegistro: 'ACTIVO',
+        unidadRegaId: unidadRega.id,
+        especieId: especie.id,
+        razaId: raza.id,
+        corralActualId: pens['Machos'].id,
+        estadoReproductivoId: estados['No aplica'].id,
+        observaciones: `Macho reproductor ${speciesName} ${raza.nombre}.`
+      }
+    });
+
+    males.push(male);
+  }
+
+  const femaleStates = ['Vacía', 'Gestante', 'Parida', 'Cubierta / Inseminada'];
+  const femalePens = ['Producción', 'Secado', 'Paridera', 'Producción'];
+
+  for (let i = 1; i <= 32; i++) {
+    const stateName = femaleStates[i % femaleStates.length];
+    const penName = femalePens[i % femalePens.length];
+
+    const female = await prisma.animal.create({
+      data: {
+        crotal: `${prefix}H${pad(i)}`,
+        numeroInterno: `${internalPrefix}-H-${pad(i)}`,
+        sexo: 'HEMBRA',
+        fechaNacimiento: date(`${2018 + (i % 5)}-${pad((i % 12) + 1, 2)}-15`),
+        fechaEntrada: date('2023-01-15'),
+        origen: i <= 20 ? 'Nacimiento en explotación' : 'Compra de lote reproductor',
+        estadoRegistro: 'ACTIVO',
+        unidadRegaId: unidadRega.id,
+        especieId: especie.id,
+        razaId: raza.id,
+        corralActualId: pens[penName].id,
+        estadoReproductivoId: estados[stateName].id,
+        observaciones: `Hembra adulta ${speciesName} ${raza.nombre} generada para demo.`
+      }
+    });
+
+    adultFemales.push(female);
+  }
+
+  for (let i = 1; i <= 15; i++) {
+    const mother = adultFemales[(i - 1) % adultFemales.length];
+    const father = males[(i - 1) % males.length];
+
+    const child = await prisma.animal.create({
+      data: {
+        crotal: `${prefix}C${pad(i)}`,
+        numeroInterno: `${internalPrefix}-C-${pad(i)}`,
+        sexo: 'HEMBRA',
+        fechaNacimiento: date(`2025-${pad((i % 6) + 1, 2)}-05`),
+        fechaEntrada: date(`2025-${pad((i % 6) + 1, 2)}-05`),
+        origen: 'Nacimiento en explotación',
+        estadoRegistro: 'ACTIVO',
+        unidadRegaId: unidadRega.id,
+        especieId: especie.id,
+        razaId: raza.id,
+        corralActualId: pens['Reposición'].id,
+        estadoReproductivoId: estados['No reproductor'].id,
+        madreId: mother.id,
+        padreId: father.id,
+        observaciones: 'Hembra de reposición con madre y padre registrados.'
+      }
+    });
+
+    offspring.push(child);
+  }
+
+  return { males, adultFemales, offspring, all: [...males, ...adultFemales, ...offspring] };
+}
+
+async function createDemoRecordsForFarmUnit({ unidadRega, pens, animals, estados, enfermedades, admin, origenRegla }) {
+  const motherA = animals.adultFemales[0];
+  const motherB = animals.adultFemales[1];
+  const motherC = animals.adultFemales[2];
+  const father = animals.males[0];
+  const childA = animals.offspring[0];
+  const sickAnimal = animals.adultFemales[8];
+
+  await prisma.eventoReproductivo.createMany({
+    data: [
+      {
+        animalId: motherA.id,
+        tipoEvento: 'CUBRICION',
+        resultado: 'NO_APLICA',
+        fecha: date('2025-01-10'),
+        estadoResultanteId: estados['Cubierta / Inseminada'].id,
+        observaciones: `Cubrición natural con macho ${father.crotal}.`
+      },
+      {
+        animalId: motherA.id,
+        tipoEvento: 'DIAGNOSTICO_GESTACION',
+        resultado: 'POSITIVO',
+        fecha: date('2025-02-25'),
+        semanasGestacion: 6,
+        fechaPartoEstimada: date('2025-06-10'),
+        estadoResultanteId: estados['Gestante'].id,
+        observaciones: 'Diagnóstico positivo registrado para demo.'
+      },
+      {
+        animalId: motherB.id,
+        tipoEvento: 'PARTO',
+        resultado: 'NO_APLICA',
+        fecha: date('2025-03-12'),
+        numeroCriasVivas: 1,
+        numeroCriasMuertas: 0,
+        estadoResultanteId: estados['Parida'].id,
+        observaciones: `Parto simple. Cría relacionada de ejemplo: ${childA.crotal}.`
+      },
+      {
+        animalId: motherC.id,
+        tipoEvento: 'DIAGNOSTICO_GESTACION',
+        resultado: 'NEGATIVO',
+        fecha: date('2025-04-01'),
+        estadoResultanteId: estados['Vacía'].id,
+        observaciones: 'Diagnóstico negativo usado para mostrar historial reproductivo.'
+      }
+    ]
+  });
+
+  const healthCase = await prisma.casoSanitario.create({
+    data: {
+      fechaInicio: date('2025-09-13'),
+      signosClinicos: 'Fiebre, decaimiento y bajada de producción registrados como demo.',
+      diagnosticoPresuntivo: 'Sospecha clínica pendiente de confirmación.',
+      diagnosticoConfirmado: null,
+      gravedad: 'Moderada',
+      afectaBienestar: true,
+      lazareto: true,
+      avisoDeclaracionMostrado: true,
+      estado: 'ABIERTO',
+      unidadRegaId: unidadRega.id,
+      animalId: sickAnimal.id,
+      corralId: pens['Lazareto'].id,
+      enfermedadId: enfermedades['Lengua azul'].id
+    }
+  });
+
+  await prisma.tratamientoVeterinario.create({
+    data: {
+      fechaInicio: date('2025-09-13'),
+      fechaFin: date('2025-09-16'),
+      motivo: 'Tratamiento de soporte asociado a caso sanitario demo.',
+      medicamentoProducto: 'Producto veterinario demo',
+      principioActivo: 'Principio activo demo',
+      dosisTexto: '2 ml durante 3 días',
+      unidad: 'ml',
+      via: 'SC',
+      frecuencia: 'Cada 24 horas',
+      duracionDias: 3,
+      retirada: 'Consultar ficha técnica del medicamento',
+      casoSanitarioId: healthCase.id,
+      animalId: sickAnimal.id,
+      corralId: pens['Lazareto'].id
+    }
+  });
+
+  await prisma.vacunacion.create({
+    data: {
+      fecha: date('2025-10-01'),
+      vacuna: 'Vacuna demo frente a clostridiosis',
+      loteVacuna: 'LOT-DEMO-001',
+      dosisTexto: '2 ml',
+      via: 'SC',
+      revacunacionPrevista: true,
+      fechaRevacunacion: date('2026-10-01'),
+      reaccion: false,
+      unidadRegaId: unidadRega.id,
+      corralId: pens['Producción'].id
+    }
+  });
+
+  await prisma.vacunacion.create({
+    data: {
+      fecha: date('2025-10-03'),
+      vacuna: 'Vacuna demo individual',
+      loteVacuna: 'LOT-DEMO-002',
+      dosisTexto: '2 ml',
+      via: 'SC',
+      revacunacionPrevista: false,
+      reaccion: false,
+      unidadRegaId: unidadRega.id,
+      animalId: motherA.id
+    }
+  });
+
+  await prisma.desparasitacion.create({
+    data: {
+      fecha: date('2025-07-01'),
+      tipo: 'Interna',
+      producto: 'Antiparasitario demo',
+      principioActivo: 'Ivermectina demo',
+      dosisTexto: 'Según peso',
+      via: 'Oral',
+      motivo: 'Desparasitación de reposición',
+      proximaDosisPrevista: true,
+      fechaProximaDosis: date('2026-01-01'),
+      reaccion: false,
+      unidadRegaId: unidadRega.id,
+      corralId: pens['Reposición'].id
+    }
+  });
+
+  const movement = await prisma.movimientoTransaccion.create({
+    data: {
+      tipoOperacion: 'LOTE',
+      motivo: 'Movimiento demo de reposición a producción',
+      fecha: date('2025-11-10'),
+      resumen: {
+        totalLeidos: 5,
+        procesados: 3,
+        noEncontrados: 1,
+        yaEnDestino: 1
+      },
+      unidadRegaId: unidadRega.id,
+      corralOrigenId: pens['Reposición'].id,
+      corralDestinoId: pens['Producción'].id,
+      userId: admin.id
+    }
+  });
+
+  const movedAnimals = animals.offspring.slice(0, 3);
+
+  for (const animal of movedAnimals) {
+    await prisma.movimientoAnimalDetalle.create({
+      data: {
+        transaccionId: movement.id,
+        animalId: animal.id,
+        crotalLeido: animal.crotal,
+        estadoProceso: 'PROCESADO',
+        corralOrigenId: pens['Reposición'].id,
+        corralDestinoId: pens['Producción'].id,
+        observaciones: 'Procesado dentro de movimiento en lote demo.'
+      }
+    });
+
+    await prisma.animal.update({
+      where: { id: animal.id },
+      data: { corralActualId: pens['Producción'].id }
+    });
+  }
+
+  await prisma.movimientoAnimalDetalle.create({
+    data: {
+      transaccionId: movement.id,
+      crotalLeido: `${unidadRega.codigoRega}-NOEXISTE`,
+      estadoProceso: 'NO_ENCONTRADO',
+      corralDestinoId: pens['Producción'].id,
+      observaciones: 'Crotal leído no encontrado en esta unidad REGA.'
+    }
+  });
+
+  await prisma.movimientoAnimalDetalle.create({
+    data: {
+      transaccionId: movement.id,
+      animalId: motherA.id,
+      crotalLeido: motherA.crotal,
+      estadoProceso: 'YA_EN_DESTINO',
+      corralOrigenId: pens['Producción'].id,
+      corralDestinoId: pens['Producción'].id,
+      observaciones: 'Animal ya estaba en el corral destino.'
+    }
+  });
+
+  await prisma.recordatorio.createMany({
+    data: [
+      {
+        tipo: 'REVISION_SANITARIA',
+        fechaObjetivo: addDays(new Date(), 7),
+        estado: 'PENDIENTE',
+        origenRegla,
+        nota: 'Revisar evolución del caso sanitario abierto.',
+        cuentaGanaderaId: unidadRega.cuentaGanaderaId,
+        animalId: sickAnimal.id,
+        corralId: pens['Lazareto'].id
+      },
+      {
+        tipo: 'CAMBIO_CORRAL',
+        fechaObjetivo: addDays(new Date(), 14),
+        estado: 'POSPUESTO',
+        pospuestoHasta: addDays(new Date(), 17),
+        origenRegla,
+        nota: 'Valorar paso de reposición a producción.',
+        cuentaGanaderaId: unidadRega.cuentaGanaderaId,
+        animalId: childA.id,
+        corralId: pens['Reposición'].id
+      }
+    ]
+  });
+
+  await prisma.exportacionRegistro.create({
+    data: {
+      tipoExportacion: 'CENSO',
+      fechaDesde: date('2025-01-01'),
+      fechaHasta: date('2025-12-31'),
+      emailDestino: 'admin@rumiando.com',
+      estadoEnvio: 'PENDIENTE',
+      urlExcel: null,
+      urlPdf: null,
+      respuestaN8n: {
+        demo: true,
+        message: 'Registro preparado para futura integración con n8n.'
+      },
+      cuentaGanaderaId: unidadRega.cuentaGanaderaId,
+      unidadRegaId: unidadRega.id
+    }
+  });
+}
+
+async function main() {
+  console.log('Reiniciando seed realista de RumiAndo v2...');
+
+  await clearDatabase();
 
   const cuenta = await prisma.cuentaGanadera.create({
     data: {
-      nombre: 'Finca Demo RumiAndo',
-      titularNombre: 'Titular Demo',
+      nombre: 'Ganadería Demo RumiAndo',
+      titularNombre: 'Titular Demo RumiAndo',
       nifCif: '00000000T',
       telefono: '600000000',
-      emailContacto: 'demo@rumiando.com',
-      direccion: 'Las Palmas de Gran Canaria'
+      emailContacto: 'admin@rumiando.com',
+      direccion: 'Carretera general s/n, Canarias'
     }
   });
 
@@ -79,584 +526,83 @@ async function main() {
     }
   });
 
-  const ovino = await prisma.catalogoEspecie.create({
-    data: {
-      nombre: 'Ovino',
-      cuentaGanaderaId: cuenta.id
-    }
+  const { species, breeds, estados, enfermedades } = await createCatalogs(cuenta.id);
+
+  const regaCaprino = await createFarmUnit({
+    cuentaId: cuenta.id,
+    codigoRega: 'ES350000000001',
+    nombre: 'REGA caprino Majorero',
+    municipio: 'Teguise',
+    provincia: 'Las Palmas',
+    especiePrincipalId: species.caprino.id
   });
 
-  const caprino = await prisma.catalogoEspecie.create({
-    data: {
-      nombre: 'Caprino',
-      cuentaGanaderaId: cuenta.id
-    }
+  const regaOvino = await createFarmUnit({
+    cuentaId: cuenta.id,
+    codigoRega: 'ES350000000002',
+    nombre: 'REGA ovino Manchego',
+    municipio: 'San Bartolomé',
+    provincia: 'Las Palmas',
+    especiePrincipalId: species.ovino.id
   });
 
-  const razaMerina = await prisma.catalogoRaza.create({
-    data: {
-      nombre: 'Merina',
-      cuentaGanaderaId: cuenta.id,
-      especieId: ovino.id
-    }
+  const pensCaprino = await createPens(regaCaprino.id, estados);
+  const pensOvino = await createPens(regaOvino.id, estados);
+
+  const caprinoAnimals = await createAnimalsForFarmUnit({
+    prefix: 'ESCAPMAJ',
+    internalPrefix: 'CAP-MAJ',
+    unidadRega: regaCaprino,
+    especie: species.caprino,
+    raza: breeds.majorera,
+    estados,
+    pens: pensCaprino,
+    speciesName: 'caprino'
   });
 
-  const razaManchega = await prisma.catalogoRaza.create({
-    data: {
-      nombre: 'Manchega',
-      cuentaGanaderaId: cuenta.id,
-      especieId: ovino.id
-    }
+  const ovinoAnimals = await createAnimalsForFarmUnit({
+    prefix: 'ESOVMAN',
+    internalPrefix: 'OV-MAN',
+    unidadRega: regaOvino,
+    especie: species.ovino,
+    raza: breeds.manchega,
+    estados,
+    pens: pensOvino,
+    speciesName: 'ovino'
   });
 
-  const razaCanaria = await prisma.catalogoRaza.create({
-    data: {
-      nombre: 'Canaria',
-      cuentaGanaderaId: cuenta.id,
-      especieId: ovino.id
-    }
+  await createDemoRecordsForFarmUnit({
+    unidadRega: regaCaprino,
+    pens: pensCaprino,
+    animals: caprinoAnimals,
+    estados,
+    enfermedades,
+    admin,
+    origenRegla: 'CAPRINO'
   });
 
-  await prisma.catalogoRaza.create({
-    data: {
-      nombre: 'Majorera',
-      cuentaGanaderaId: cuenta.id,
-      especieId: caprino.id
-    }
+  await createDemoRecordsForFarmUnit({
+    unidadRega: regaOvino,
+    pens: pensOvino,
+    animals: ovinoAnimals,
+    estados,
+    enfermedades,
+    admin,
+    origenRegla: 'OVINO'
   });
 
-  const estados = {};
-  const estadosSeed = [
-    { nombre: 'No aplica', orden: 1 },
-    { nombre: 'No reproductor', orden: 2 },
-    { nombre: 'Vacía', orden: 3 },
-    { nombre: 'Cubierta / Inseminada', orden: 4 },
-    { nombre: 'Gestante', orden: 5 },
-    { nombre: 'Parida', orden: 6 },
-    { nombre: 'Abortada', orden: 7 },
-    { nombre: 'Problema reproductivo', orden: 8 }
-  ];
-
-  for (const estado of estadosSeed) {
-    const creado = await prisma.catalogoEstadoReproductivo.create({
-      data: {
-        ...estado,
-        cuentaGanaderaId: cuenta.id
-      }
-    });
-
-    estados[estado.nombre] = creado;
-  }
-
-  const unidadRega = await prisma.unidadRega.create({
-    data: {
-      codigoRega: 'ES350000000001',
-      nombre: 'REGA ovino demo',
-      municipio: 'Las Palmas de Gran Canaria',
-      provincia: 'Las Palmas',
-      cuentaGanaderaId: cuenta.id,
-      especiePrincipalId: ovino.id
-    }
-  });
-
-  const pens = {};
-  const pensSeed = [
-    { nombre: 'Cría', tipoFuncional: 'CRIA', estado: 'No aplica', capacidad: 80 },
-    { nombre: 'Producción', tipoFuncional: 'PRODUCCION', estado: 'Vacía', capacidad: 120 },
-    { nombre: 'Secado', tipoFuncional: 'SECADO', estado: 'Gestante', capacidad: 60 },
-    { nombre: 'Reposición', tipoFuncional: 'REPOSICION', estado: 'No aplica', capacidad: 70 },
-    { nombre: 'Cebo', tipoFuncional: 'CEBO', estado: 'No aplica', capacidad: 100 },
-    { nombre: 'Vacío', tipoFuncional: 'VACIO', estado: 'Vacía', capacidad: 80 },
-    { nombre: 'Paridera', tipoFuncional: 'PARIDERA', estado: 'Parida', capacidad: 40 },
-    { nombre: 'Lazareto', tipoFuncional: 'LAZARETO', estado: null, capacidad: 15 },
-    { nombre: 'Machos', tipoFuncional: 'MACHOS', estado: 'No aplica', capacidad: 20 }
-  ];
-
-  for (const pen of corralesSeed) {
-    const creado = await prisma.corral.create({
-      data: {
-        nombre: corral.nombre,
-        tipoFuncional: corral.tipoFuncional,
-        capacidad: corral.capacidad,
-        aplicarEstadoAutomaticamente: false,
-        unidadRegaId: unidadRega.id,
-        estadoReproductivoSugeridoId: corral.estado ? estados[corral.estado].id : null
-      }
-    });
-
-    corrales[corral.nombre] = creado;
-  }
-
-  const enfermedadesSeed = [
-    'Agalaxia contagiosa ovina y caprina',
-    'Brucelosis ovina y caprina',
-    'Epididimitis ovina',
-    'Estomatitis vesicular',
-    'Fiebre aftosa',
-    'Fiebre del Valle del Rift',
-    'Lengua azul',
-    'Peste de los pequeños rumiantes',
-    'Pleuropneumonía contagiosa caprina',
-    'Scrapie o tembladera',
-    'Viruela ovina y caprina'
-  ];
-
-  const enfermedades = {};
-
-  for (const enfermedad of enfermedadesSeed) {
-    const creada = await prisma.catalogoEnfermedad.create({
-      data: {
-        nombre: enfermedad,
-        descripcion: 'Enfermedad incluida en el catálogo inicial EDO para ovino/caprino.',
-        declaracionObligatoria: true,
-        requiereLazareto: false,
-        cuentaGanaderaId: cuenta.id
-      }
-    });
-
-    enfermedades[enfermedad] = creada;
-  }
-
-  const padre1 = await prisma.animal.create({
-    data: {
-      crotal: 'ESOV000000001',
-      numeroInterno: 'MACHO-001',
-      sexo: 'MACHO',
-      fechaNacimiento: fecha('2020-01-15'),
-      fechaEntrada: fecha('2021-01-10'),
-      origen: 'Compra',
-      unidadRegaId: unidadRega.id,
-      especieId: ovino.id,
-      razaId: razaMerina.id,
-      corralActualId: corrales['Machos'].id,
-      estadoReproductivoId: estados['No aplica'].id,
-      observaciones: 'Macho reproductor principal.'
-    }
-  });
-
-  const padre2 = await prisma.animal.create({
-    data: {
-      crotal: 'ESOV000000002',
-      numeroInterno: 'MACHO-002',
-      sexo: 'MACHO',
-      fechaNacimiento: fecha('2021-03-20'),
-      fechaEntrada: fecha('2022-01-12'),
-      origen: 'Compra',
-      unidadRegaId: unidadRega.id,
-      especieId: ovino.id,
-      razaId: razaManchega.id,
-      corralActualId: corrales['Machos'].id,
-      estadoReproductivoId: estados['No aplica'].id,
-      observaciones: 'Segundo macho reproductor.'
-    }
-  });
-
-  const madresData = [
-    ['ESOV000000101', 'H-101', razaMerina.id, '2019-02-10', 'Gestante', 'Secado'],
-    ['ESOV000000102', 'H-102', razaMerina.id, '2019-05-12', 'Parida', 'Paridera'],
-    ['ESOV000000103', 'H-103', razaManchega.id, '2020-01-22', 'Vacía', 'Vacío'],
-    ['ESOV000000104', 'H-104', razaCanaria.id, '2020-06-02', 'Gestante', 'Producción'],
-    ['ESOV000000105', 'H-105', razaMerina.id, '2021-02-18', 'Cubierta / Inseminada', 'Producción'],
-    ['ESOV000000106', 'H-106', razaManchega.id, '2021-07-14', 'Parida', 'Paridera'],
-    ['ESOV000000107', 'H-107', razaCanaria.id, '2022-03-11', 'Vacía', 'Vacío'],
-    ['ESOV000000108', 'H-108', razaMerina.id, '2022-09-25', 'Gestante', 'Secado']
-  ];
-
-  const madres = [];
-
-  for (const madre of madresData) {
-    const [crotal, numeroInterno, razaId, fechaNacimiento, estado, corral] = madre;
-
-    const creada = await prisma.animal.create({
-      data: {
-        crotal,
-        numeroInterno,
-        sexo: 'HEMBRA',
-        fechaNacimiento: fecha(fechaNacimiento),
-        fechaEntrada: fecha(fechaNacimiento),
-        origen: 'Nacimiento en explotación',
-        unidadRegaId: unidadRega.id,
-        especieId: ovino.id,
-        razaId,
-        corralActualId: corrales[corral].id,
-        estadoReproductivoId: estados[estado].id,
-        observaciones: `Hembra reproductora demo ${numeroInterno}.`
-      }
-    });
-
-    madres.push(creada);
-  }
-
-  const criasData = [
-    ['ESOV000000201', 'CRIA-201', 'HEMBRA', '2025-01-10', madres[1].id, padre1.id, razaMerina.id, 'Reposición'],
-    ['ESOV000000202', 'CRIA-202', 'MACHO', '2025-01-10', madres[1].id, padre1.id, razaMerina.id, 'Cebo'],
-    ['ESOV000000203', 'CRIA-203', 'HEMBRA', '2025-02-03', madres[5].id, padre2.id, razaManchega.id, 'Reposición'],
-    ['ESOV000000204', 'CRIA-204', 'HEMBRA', '2025-02-03', madres[5].id, padre2.id, razaManchega.id, 'Reposición'],
-    ['ESOV000000205', 'CRIA-205', 'MACHO', '2025-03-17', madres[0].id, padre1.id, razaMerina.id, 'Cebo'],
-    ['ESOV000000206', 'CRIA-206', 'HEMBRA', '2025-03-17', madres[0].id, padre1.id, razaMerina.id, 'Reposición'],
-    ['ESOV000000207', 'CRIA-207', 'MACHO', '2025-04-22', madres[3].id, padre2.id, razaCanaria.id, 'Cebo'],
-    ['ESOV000000208', 'CRIA-208', 'HEMBRA', '2025-04-22', madres[3].id, padre2.id, razaCanaria.id, 'Reposición'],
-    ['ESOV000000209', 'CRIA-209', 'HEMBRA', '2025-06-05', madres[7].id, padre1.id, razaMerina.id, 'Cría'],
-    ['ESOV000000210', 'CRIA-210', 'MACHO', '2025-06-05', madres[7].id, padre1.id, razaMerina.id, 'Cría']
-  ];
-
-  const crias = [];
-
-  for (const cria of criasData) {
-    const [crotal, numeroInterno, sexo, fechaNacimiento, madreId, padreId, razaId, corral] = cria;
-
-    const creada = await prisma.animal.create({
-      data: {
-        crotal,
-        numeroInterno,
-        sexo,
-        fechaNacimiento: fecha(fechaNacimiento),
-        fechaEntrada: fecha(fechaNacimiento),
-        origen: 'Nacimiento en explotación',
-        unidadRegaId: unidadRega.id,
-        especieId: ovino.id,
-        razaId,
-        corralActualId: corrales[corral].id,
-        estadoReproductivoId: estados['No aplica'].id,
-        madreId,
-        padreId,
-        observaciones: `Cría demo con madre y padre registrados.`
-      }
-    });
-
-    crias.push(creada);
-  }
-
-  await crearEventoReproductivo({
-    animalId: madres[0].id,
-    tipoEvento: 'CUBRICION',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2024-08-01',
-    estadoResultanteId: estados['Cubierta / Inseminada'].id,
-    observaciones: 'Cubrición natural.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[0].id,
-    tipoEvento: 'DIAGNOSTICO_GESTACION',
-    resultado: 'POSITIVO',
-    fechaEvento: '2024-09-15',
-    semanasGestacion: 6,
-    estadoResultanteId: estados['Gestante'].id,
-    observaciones: 'Diagnóstico positivo.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[0].id,
-    tipoEvento: 'PARTO',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2025-03-17',
-    numeroCriasVivas: 2,
-    numeroCriasMuertas: 0,
-    estadoResultanteId: estados['Parida'].id,
-    observaciones: 'Parto doble. Crías ESOV000000205 y ESOV000000206.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[1].id,
-    tipoEvento: 'PARTO',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2025-01-10',
-    numeroCriasVivas: 2,
-    numeroCriasMuertas: 0,
-    estadoResultanteId: estados['Parida'].id,
-    observaciones: 'Parto doble. Crías ESOV000000201 y ESOV000000202.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[2].id,
-    tipoEvento: 'DIAGNOSTICO_GESTACION',
-    resultado: 'NEGATIVO',
-    fechaEvento: '2025-02-01',
-    estadoResultanteId: estados['Vacía'].id,
-    observaciones: 'Diagnóstico negativo. Se mantiene vacía.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[3].id,
-    tipoEvento: 'PARTO',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2025-04-22',
-    numeroCriasVivas: 2,
-    numeroCriasMuertas: 0,
-    estadoResultanteId: estados['Parida'].id,
-    observaciones: 'Parto doble. Crías ESOV000000207 y ESOV000000208.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[4].id,
-    tipoEvento: 'CUBRICION',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2025-11-02',
-    estadoResultanteId: estados['Cubierta / Inseminada'].id,
-    observaciones: 'Cubrición pendiente de diagnóstico.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[5].id,
-    tipoEvento: 'PARTO',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2025-02-03',
-    numeroCriasVivas: 2,
-    numeroCriasMuertas: 0,
-    estadoResultanteId: estados['Parida'].id,
-    observaciones: 'Parto doble. Crías ESOV000000203 y ESOV000000204.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[6].id,
-    tipoEvento: 'ABORTO',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2025-09-12',
-    numeroCriasVivas: 0,
-    numeroCriasMuertas: 1,
-    estadoResultanteId: estados['Abortada'].id,
-    observaciones: 'Aborto registrado como ejemplo sanitario/reproductivo.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[7].id,
-    tipoEvento: 'PARTO',
-    resultado: 'NO_APLICA',
-    fechaEvento: '2025-06-05',
-    numeroCriasVivas: 2,
-    numeroCriasMuertas: 0,
-    estadoResultanteId: estados['Parida'].id,
-    observaciones: 'Parto doble. Crías ESOV000000209 y ESOV000000210.'
-  });
-
-  await crearEventoReproductivo({
-    animalId: madres[7].id,
-    tipoEvento: 'DIAGNOSTICO_GESTACION',
-    resultado: 'POSITIVO',
-    fechaEvento: '2025-12-15',
-    semanasGestacion: 6,
-    fechaPartoEstimada: '2026-04-25',
-    estadoResultanteId: estados['Gestante'].id,
-    observaciones: 'Nueva gestación confirmada.'
-  });
-
-  const caso = await prisma.casoSanitario.create({
-    data: {
-      unidadRegaId: unidadRega.id,
-      animalId: madres[6].id,
-      corralId: corrales['Lazareto'].id,
-      enfermedadId: enfermedades['Lengua azul'].id,
-      fechaInicio: fecha('2025-09-13'),
-      signosClinicos: 'Fiebre y decaimiento registrados como caso demo.',
-      diagnosticoPresuntivo: 'Sospecha compatible con enfermedad de declaración obligatoria.',
-      gravedad: 'Moderada',
-      afectaBienestar: true,
-      lazareto: true,
-      avisoDeclaracionMostrado: true,
-      estado: 'ABIERTO'
-    }
-  });
-
-  await prisma.tratamientoVeterinario.create({
-    data: {
-      casoSanitarioId: caso.id,
-      animalId: madres[6].id,
-      corralId: corrales['Lazareto'].id,
-      fechaInicio: fecha('2025-09-13'),
-      fechaFin: fecha('2025-09-16'),
-      motivo: 'Tratamiento de soporte asociado a caso sanitario demo.',
-      medicamentoProducto: 'Producto veterinario demo',
-      principioActivo: 'Principio activo demo',
-      dosisTexto: '2 ml durante 3 días',
-      unidad: 'ml',
-      via: 'SC',
-      frecuencia: 'Cada 24 horas',
-      duracionDias: 3,
-      retirada: 'Consultar ficha del medicamento',
-      documentoUrl: null
-    }
-  });
-
-  await prisma.vacunacion.create({
-    data: {
-      unidadRegaId: unidadRega.id,
-      corralId: corrales['Producción'].id,
-      fecha: fecha('2025-10-01'),
-      vacuna: 'Vacuna demo frente a clostridiosis',
-      loteVacuna: 'LOT-DEMO-001',
-      dosisTexto: '2 ml',
-      via: 'SC',
-      revacunacionPrevista: true,
-      fechaRevacunacion: fecha('2026-10-01'),
-      reaccion: false
-    }
-  });
-
-  await prisma.desparasitacion.create({
-    data: {
-      unidadRegaId: unidadRega.id,
-      corralId: corrales['Cría'].id,
-      fecha: fecha('2025-07-01'),
-      tipo: 'Interna',
-      producto: 'Antiparasitario demo',
-      principioActivo: 'Ivermectina demo',
-      dosisTexto: 'Según peso',
-      via: 'Oral',
-      motivo: 'Desparasitación de crías',
-      proximaDosisPrevista: true,
-      fechaProximaDosis: fecha('2026-01-01'),
-      reaccion: false
-    }
-  });
-
-  const movimientoLote = await prisma.movimientoTransaccion.create({
-    data: {
-      tipoOperacion: 'LOTE',
-      motivo: 'Movimiento de crías a reposición/cebo demo',
-      fecha: fecha('2025-07-15'),
-      resumen: {
-        procesados: 6,
-        duplicadosIgnorados: 1,
-        noEncontrados: 1,
-        yaEnDestino: 0,
-        errores: 0
-      },
-      unidadRegaId: unidadRega.id,
-      corralOrigenId: corrales['Cría'].id,
-      corralDestinoId: corrales['Reposición'].id,
-      userId: admin.id
-    }
-  });
-
-  const criasProcesadas = [crias[0], crias[2], crias[3], crias[5], crias[7], crias[8]];
-
-  for (const cria of criasProcesadas) {
-    await prisma.movimientoAnimalDetalle.create({
-      data: {
-        transaccionId: movimientoLote.id,
-        animalId: cria.id,
-        crotalLeido: cria.crotal,
-        corralOrigenId: corrales['Cría'].id,
-        corralDestinoId: corrales['Reposición'].id,
-        estadoProceso: 'PROCESADO',
-        observaciones: 'Detalle individual dentro de movimiento en lote.'
-      }
-    });
-  }
-
-  await prisma.movimientoAnimalDetalle.create({
-    data: {
-      transaccionId: movimientoLote.id,
-      animalId: crias[0].id,
-      crotalLeido: crias[0].crotal,
-      corralOrigenId: corrales['Cría'].id,
-      corralDestinoId: corrales['Reposición'].id,
-      estadoProceso: 'DUPLICADO_IGNORADO',
-      observaciones: 'Crotal leído dos veces durante la operación.'
-    }
-  });
-
-  await prisma.movimientoAnimalDetalle.create({
-    data: {
-      transaccionId: movimientoLote.id,
-      animalId: null,
-      crotalLeido: 'ESOV999999999',
-      corralOrigenId: corrales['Cría'].id,
-      corralDestinoId: corrales['Reposición'].id,
-      estadoProceso: 'NO_ENCONTRADO',
-      observaciones: 'Crotal leído no encontrado en la base de datos.'
-    }
-  });
-
-  const movimientoIndividual = await prisma.movimientoTransaccion.create({
-    data: {
-      tipoOperacion: 'INDIVIDUAL',
-      motivo: 'Paso a lazareto por revisión sanitaria',
-      fecha: fecha('2025-09-13'),
-      resumen: {
-        procesados: 1,
-        duplicadosIgnorados: 0,
-        noEncontrados: 0,
-        yaEnDestino: 0,
-        errores: 0
-      },
-      unidadRegaId: unidadRega.id,
-      corralOrigenId: corrales['Vacío'].id,
-      corralDestinoId: corrales['Lazareto'].id,
-      userId: admin.id
-    }
-  });
-
-  await prisma.movimientoAnimalDetalle.create({
-    data: {
-      transaccionId: movimientoIndividual.id,
-      animalId: madres[6].id,
-      crotalLeido: madres[6].crotal,
-      corralOrigenId: corrales['Vacío'].id,
-      corralDestinoId: corrales['Lazareto'].id,
-      estadoProceso: 'PROCESADO',
-      observaciones: 'Movimiento individual asociado a caso sanitario.'
-    }
-  });
-
-  await prisma.recordatorio.create({
-    data: {
-      tipo: 'DIAGNOSTICO_GESTACION',
-      fechaObjetivo: fecha('2025-12-17'),
-      estado: 'PENDIENTE',
-      origenRegla: 'OVINO',
-      nota: 'Realizar diagnóstico de gestación tras cubrición de ESOV000000105.',
-      cuentaGanaderaId: cuenta.id,
-      animalId: madres[4].id,
-      corralId: corrales['Producción'].id
-    }
-  });
-
-  await prisma.recordatorio.create({
-    data: {
-      tipo: 'DECLARACION_OBLIGATORIA',
-      fechaObjetivo: fecha('2025-09-13'),
-      estado: 'PENDIENTE',
-      origenRegla: 'OVINO',
-      nota: 'Caso asociado a enfermedad de declaración obligatoria. Revisar comunicación administrativa.',
-      cuentaGanaderaId: cuenta.id,
-      animalId: madres[6].id,
-      corralId: corrales['Lazareto'].id
-    }
-  });
-
-  await prisma.exportacionRegistro.create({
-    data: {
-      tipoExportacion: 'CENSO',
-      fechaDesde: fecha('2025-01-01'),
-      fechaHasta: fecha('2025-12-31'),
-      emailDestino: 'demo@rumiando.com',
-      estadoEnvio: 'PENDIENTE',
-      cuentaGanaderaId: cuenta.id,
-      unidadRegaId: unidadRega.id,
-      respuestaN8n: {
-        demo: true,
-        mensaje: 'Exportación demo pendiente de envío por n8n.'
-      }
-    }
-  });
-
-  console.log('Seed ampliado completado correctamente.');
+  console.log('Seed completado.');
   console.log('Usuarios demo:');
-  console.log('ADMIN    -> admin@rumiando.com / 123456');
+  console.log('ADMIN -> admin@rumiando.com / 123456');
   console.log('OPERARIO -> operario@rumiando.com / 123456');
-  console.log('Animales ovinos creados: 20');
-  console.log('Incluye madres, padres, crías, genealogía, reproducción, movimientos, sanidad y recordatorios.');
+  console.log('Datos creados: 2 REGA, 100 animales, relaciones familiares, sanidad, reproducción, movimientos, recordatorios y exportaciones.');
 }
 
 main()
   .catch((error) => {
-    console.error('Error ejecutando seed:', error);
+    console.error(error);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-
