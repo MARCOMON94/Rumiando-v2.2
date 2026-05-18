@@ -89,66 +89,7 @@ function buildReminderItem(reminder) {
   };
 }
 
-function buildMovementAlertsFromReminders(reminders) {
-  const movementKeywords = [
-    'CORRAL',
-    'CAMBIO',
-    'MOVER',
-    'MOVIMIENTO',
-    'PREPARTO',
-    'PARIDERA',
-    'SECADO',
-    'DESTETE'
-  ];
 
-  const candidates = reminders.filter((reminder) => {
-    const text = `${reminder.tipo || ''} ${reminder.nota || ''}`.toUpperCase();
-
-    return reminder.animal && movementKeywords.some((keyword) => text.includes(keyword));
-  });
-
-  const items = candidates.map((reminder) => {
-    const animal = reminder.animal;
-    const currentPen = animal.corralActual;
-
-    return {
-      animalId: animal.id,
-      earTag: animal.crotal,
-      species: animal.especie?.nombre || null,
-      breed: animal.raza?.nombre || null,
-      sex: animal.sexo,
-      currentPen: currentPen?.nombre || null,
-      currentReproductiveStatus: animal.estadoReproductivo?.nombre || null,
-      suggestedAction: reminder.nota || reminder.tipo,
-      reason: `Recordatorio pendiente de tipo ${reminder.tipo}`,
-      reminderId: reminder.id,
-      targetDate: formatDate(reminder.fechaObjetivo)
-    };
-  });
-
-  const byPenMap = new Map();
-
-  for (const item of items) {
-    const penName = item.currentPen || 'Sin corral actual';
-
-    if (!byPenMap.has(penName)) {
-      byPenMap.set(penName, {
-        penName,
-        totalAnimals: 0,
-        animals: []
-      });
-    }
-
-    const group = byPenMap.get(penName);
-    group.totalAnimals += 1;
-    group.animals.push(item);
-  }
-
-  return {
-    total: items.length,
-    byPen: Array.from(byPenMap.values())
-  };
-}
 
 async function getFarmAccount(cuentaGanaderaId) {
   const farmAccount = await prisma.cuentaGanadera.findUnique({
@@ -176,93 +117,11 @@ async function getDailyOperationalSummary(query = {}) {
 
   const farmAccount = await getFarmAccount(cuentaGanaderaId);
 
-  const reminders = await prisma.recordatorio.findMany({
-    where: {
-      cuentaGanaderaId,
-      estado: {
-        in: ['PENDIENTE', 'POSPUESTO']
-      },
-      OR: [
-        {
-          fechaObjetivo: {
-            lte: nextSevenDays
-          }
-        },
-        {
-          pospuestoHasta: {
-            lte: nextSevenDays
-          }
-        }
-      ]
-    },
-    include: {
-      cuentaGanadera: true,
-      animal: {
-        include: {
-          especie: true,
-          raza: true,
-          corralActual: true,
-          unidadRega: true,
-          estadoReproductivo: true
-        }
-      },
-      corral: {
-        include: {
-          unidadRega: true
-        }
-      }
-    },
-    orderBy: [
-      {
-        fechaObjetivo: 'asc'
-      },
-      {
-        createdAt: 'desc'
-      }
-    ]
-  });
-
-  const reminderItems = reminders.map(buildReminderItem);
-
-  const overdue = reminders.filter((reminder) => {
-    const effectiveDate = reminder.pospuestoHasta || reminder.fechaObjetivo;
-    return effectiveDate < todayStart;
-  });
-
-  const dueToday = reminders.filter((reminder) => {
-    const effectiveDate = reminder.pospuestoHasta || reminder.fechaObjetivo;
-    return effectiveDate >= todayStart && effectiveDate <= todayEnd;
-  });
-
-  const reminderGroups = groupByPen(reminderItems, (item) => ({
-    id: item.currentPen || 'SIN_CORRAL',
-    nombre: item.currentPen || 'Sin corral asociado'
-  }));
-
-  const movementAlerts = buildMovementAlertsFromReminders(reminders);
+  
 
   const priorities = [];
 
-  if (overdue.length > 0) {
-    priorities.push({
-      level: 'HIGH',
-      message: `Hay ${overdue.length} recordatorio(s) vencido(s) que deberían revisarse hoy.`
-    });
-  }
-
-  if (dueToday.length > 0) {
-    priorities.push({
-      level: 'MEDIUM',
-      message: `Hay ${dueToday.length} recordatorio(s) programado(s) para hoy.`
-    });
-  }
-
-  if (movementAlerts.total > 0) {
-    priorities.push({
-      level: 'MEDIUM',
-      message: `Hay ${movementAlerts.total} animal(es) con posible cambio de corral o estado.`
-    });
-  }
+  
 
   if (priorities.length === 0) {
     priorities.push({
@@ -287,14 +146,7 @@ async function getDailyOperationalSummary(query = {}) {
       municipality: unit.municipio,
       province: unit.provincia
     })),
-    reminders: {
-      totalPending: reminders.length,
-      overdue: overdue.length,
-      dueToday: dueToday.length,
-      nextSevenDays: reminders.length - overdue.length - dueToday.length,
-      byPen: reminderGroups
-    },
-    penMovementAlerts: movementAlerts,
+    
     priorities
   };
 }
