@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { get } from '../api/apiClient';
 
 function getMovementsFromResponse(data) {
@@ -60,11 +61,16 @@ export default function MovementsPage() {
     return (
       <section className="page">
         <header className="page-header">
-          <div>
-            <p className="eyebrow">Trazabilidad</p>
-            <h2>Movimientos</h2>
-          </div>
-        </header>
+  <div>
+    <p className="eyebrow">Trazabilidad</p>
+    <h2>Movimientos</h2>
+    <p>{movements.length} movimientos registrados</p>
+  </div>
+
+  <Link className="button" to="/movements/new">
+    Registrar movimiento
+  </Link>
+</header>
 
         <p className="alert error">Error: {error}</p>
       </section>

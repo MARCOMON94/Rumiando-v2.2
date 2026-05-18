@@ -11,6 +11,8 @@ import AutomationPage from './pages/AutomationPage';
 import PensPage from './pages/PensPage';
 import HealthPage from './pages/HealthPage';
 import MovementsPage from './pages/MovementsPage';
+import CreateMovementPage from './pages/CreateMovementPage';
+import RemindersPage from './pages/RemindersPage';
 
 export default function App() {
   return (
@@ -31,7 +33,9 @@ export default function App() {
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/pens" element={<PensPage />} />
         <Route path="/health" element={<HealthPage />} />
+        <Route path="/movements/new" element={<CreateMovementPage />} />
         <Route path="/movements" element={<MovementsPage />} />
+        <Route path="/reminders" element={<RemindersPage />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

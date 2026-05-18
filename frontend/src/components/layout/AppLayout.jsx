@@ -19,10 +19,11 @@ export default function AppLayout() {
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/animals">Animales</NavLink>
           <NavLink to="/animals/new">Alta animal</NavLink>
-          <NavLink to="/automation">Avisos</NavLink>
+          <NavLink to="/reminders">Avisos</NavLink>
           <NavLink to="/pens">Corrales</NavLink>
           <NavLink to="/health">Sanidad</NavLink>
           <NavLink to="/movements">Movimientos</NavLink>
+        <NavLink to="/movements/new">Alta movimiento</NavLink>
         </nav>
 
         <div className="sidebar-user">
