@@ -38,8 +38,8 @@ export default function App() {
         <Route path="/reminders" element={<RemindersPage />} />
       </Route>
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/animals" replace />} />
+      <Route path="*" element={<Navigate to="/animals" replace />} />
     </Routes>
   );
 }

@@ -8,8 +8,8 @@ export default function LoginPage() {
   const { login, error } = useAuth();
 
   const [formData, setFormData] = useState({
-    email: 'admin@rumiando.com',
-    password: '123456'
+    email: '',
+    password: ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -53,23 +53,27 @@ export default function LoginPage() {
           <label>
             Email
             <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-            />
+  type="email"
+  name="email"
+  value={formData.email}
+  onChange={handleChange}
+  placeholder="Introduce tu email"
+  autoComplete="email"
+  required
+/>
           </label>
 
           <label>
             Contraseña
             <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
+  type="password"
+  name="password"
+  value={formData.password}
+  onChange={handleChange}
+  placeholder="Introduce tu contraseña"
+  autoComplete="current-password"
+  required
+/>
           </label>
 
           {error && <p className="form-error">{error}</p>}

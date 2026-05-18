@@ -212,14 +212,13 @@ export default function AnimalsPage() {
       </div>
 
       {!hasActiveSearch && (
-        <div className="empty-state">
-          <h3>No se muestran animales de entrada</h3>
-          <p>
-            Usa el buscador o los filtros para localizar animales. Esto evita cargar visualmente
-            todo el censo y permite trabajar pegando crotales desde un lector.
-          </p>
-        </div>
-      )}
+  <div className="panel">
+    <h3>Buscar animal</h3>
+    <p className="muted">
+      Escribe o pega un crotal para abrir la ficha del animal. También puedes usar los filtros superiores.
+    </p>
+  </div>
+)}
 
       {hasActiveSearch && filteredAnimals.length === 0 && (
         <div className="empty-state">
