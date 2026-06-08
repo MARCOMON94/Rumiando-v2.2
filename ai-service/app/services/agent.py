@@ -445,12 +445,19 @@ def _should_try_unknown_llm_fallback(intent, triage, sources):
     return False
 
 
-def _should_queue_for_review(intent, triage, answer_from_unknown_fallback=False):
-    return (
-        answer_from_unknown_fallback
-        or intent.kind == "general"
-        or triage.code == "generic_health"
-    )
+def _should_queue_for_review(intent, triage, answer_from_unknown_fallback=False, sources=None):
+    sources = sources or []
+
+    if answer_from_unknown_fallback:
+        return True
+
+    if getattr(triage, "code", None) == "generic_health" and len(sources) < 2:
+        return True
+
+    if intent.kind == "general" and len(sources) < 2:
+        return True
+
+    return False
 
 
 def _should_use_context(message):

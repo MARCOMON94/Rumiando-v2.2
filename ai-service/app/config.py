@@ -41,6 +41,12 @@ class Settings(BaseModel):
     openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
     openai_max_output_tokens: int = int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "350"))
+    chat_history_mode: str = os.getenv("CHAT_HISTORY_MODE", "memory")
+    chat_history_ttl_minutes: int = int(os.getenv("CHAT_HISTORY_TTL_MINUTES", "60"))
+    save_unresolved_questions: bool = os.getenv("SAVE_UNRESOLVED_QUESTIONS", "true").lower() == "true"
+    anonymize_unresolved_questions: bool = os.getenv("ANONYMIZE_UNRESOLVED_QUESTIONS", "true").lower() == "true"
+    openai_store: bool = os.getenv("OPENAI_STORE", "false").lower() == "true"
+    learning_queue_token: str | None = os.getenv("LEARNING_QUEUE_TOKEN")
 
 
 @lru_cache

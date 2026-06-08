@@ -62,10 +62,21 @@ export default function AiChatPage() {
     setLoading(true);
 
     try {
-      const data = await post('/ai/chat', {
-        message: trimmed,
-        conversation_id: conversationId
-      });
+      const recentMessages = messages
+  .filter((message) => message.role === 'user' || message.role === 'assistant')
+  .slice(-6)
+  .map((message) => ({
+    role: message.role,
+    content: message.content
+  }));
+
+const data = await post('/ai/chat', {
+  message: trimmed,
+  conversation_id: conversationId,
+  context: {
+    recent_messages: recentMessages
+  }
+});
 
       setConversationId(data.conversation_id);
       setMessages((current) => [
