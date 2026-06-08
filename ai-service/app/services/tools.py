@@ -1,5 +1,6 @@
 import json
 import re
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -9,15 +10,9 @@ from app.schemas import ToolCall
 
 
 def _normalize(text):
-    return (
-        text.lower()
-        .replace("á", "a")
-        .replace("é", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ú", "u")
-        .replace("ñ", "n")
-    )
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return text.lower()
 
 
 def _api_get(path, authorization=None):
@@ -38,12 +33,46 @@ def _api_get(path, authorization=None):
 
 def _animal_query_from_message(message):
     normalized = _normalize(message)
-    match = re.search(r"(?:crotal|animal|oveja|cabra)\s+([a-z0-9_/-]{3,})", normalized)
+
+    explicit_search_words = [
+        "busca", "buscar", "encuentra", "localiza", "ficha",
+        "crotal", "rfid", "lector", "lectura", "identificador", "id animal"
+    ]
+
+    has_search_intent = any(word in normalized for word in explicit_search_words)
+    tokens = re.findall(r"\b(?:es[-_]?)?[a-z]{0,4}\d[a-z0-9_/-]{2,}\b", normalized)
+
+    if has_search_intent and tokens:
+        return tokens[0]
+
+    match = re.search(
+        r"(?:crotal|rfid|lector|lectura|identificador|id animal)\s+([a-z0-9_/-]*\d[a-z0-9_/-]*)",
+        normalized
+    )
     if match:
         return match.group(1)
 
-    tokens = re.findall(r"\b[a-z]{0,4}\d[a-z0-9_/-]{2,}\b", normalized)
-    return tokens[0] if tokens else None
+    return None
+
+
+def _has_movement_intent(normalized):
+    if any(phrase in normalized for phrase in ["pasa algo", "que pasa si", "puede pasar algo"]):
+        return False
+
+    action_words = [
+        "mover", "mueve", "movimiento", "trasladar", "traslada",
+        "pasar", "pasa", "meter", "mete", "apartar", "aparta",
+        "cambio de corral", "cambiar de corral"
+    ]
+    context_words = [
+        "corral", "lote", "crotales", "rfid", "lector", "paridas",
+        "gestantes", "secado", "lazareto", "reposicion", "cebo"
+    ]
+
+    return (
+        any(word in normalized for word in action_words)
+        and any(word in normalized for word in context_words)
+    )
 
 
 def _summarize_animals(data):
@@ -153,16 +182,20 @@ def run_app_tools(message, authorization=None):
             lambda: _api_get("/dashboard", authorization)
         ))
 
-    if any(word in normalized for word in ["mover", "movimiento", "trasladar", "corral"]):
+    if _has_movement_intent(normalized):
         calls.append(ToolCall(
-            name="preparar_movimiento",
+            name="preparar_cambio_corral",
             status="ok",
             input={"message": message},
             output_summary=(
-                "Movimiento detectado. La IA puede preparar datos, pero la accion "
-                "debe confirmarse en el formulario de movimientos."
+                "Cambio de corral detectado. La IA puede preparar animales, destino "
+                "y resumen, pero la ejecucion definitiva queda pendiente de rutas finales "
+                "y confirmacion del usuario."
             ),
-            data={"requires_confirmation": True}
+            data={
+                "requires_confirmation": True,
+                "action_type": "CHANGE_PEN_PENDING_FINAL_ROUTES"
+            }
         ))
 
     return calls

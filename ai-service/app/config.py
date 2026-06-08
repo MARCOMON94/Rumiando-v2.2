@@ -28,7 +28,18 @@ class Settings(BaseModel):
     knowledge_dir: Path = BASE_DIR / "knowledge"
     storage_dir: Path = BASE_DIR / "storage"
     history_file: Path = BASE_DIR / "storage" / "chat_history.json"
+    unresolved_questions_file: Path = BASE_DIR / "storage" / "unresolved_questions.json"
     max_history_messages: int = int(os.getenv("MAX_HISTORY_MESSAGES", "40"))
+    chroma_dir: Path = BASE_DIR / "storage" / "chroma"
+    use_chroma: bool = os.getenv("USE_CHROMA", "true").lower() == "true"
+    chroma_collection: str = os.getenv("CHROMA_COLLECTION", "rumiando_knowledge")
+    local_embedding_dimensions: int = int(os.getenv("LOCAL_EMBEDDING_DIMENSIONS", "384"))
+    include_debug_sections_in_answer: bool = os.getenv("INCLUDE_DEBUG_SECTIONS_IN_ANSWER", "false").lower() == "true"
+    include_safety_notice_in_answer: bool = os.getenv("INCLUDE_SAFETY_NOTICE_IN_ANSWER", "false").lower() == "true"
+    openai_fallback_on_unknown: bool = os.getenv("OPENAI_FALLBACK_ON_UNKNOWN", "false").lower() == "true"
+    use_llm: bool = os.getenv("USE_LLM", "false").lower() == "true"
+    openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.2")
 
 
 @lru_cache
@@ -36,4 +47,5 @@ def get_settings():
     settings = Settings()
     settings.knowledge_dir.mkdir(parents=True, exist_ok=True)
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
+    settings.chroma_dir.mkdir(parents=True, exist_ok=True)
     return settings

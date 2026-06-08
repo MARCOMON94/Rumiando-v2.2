@@ -35,9 +35,20 @@ async function getHistory(req, res, next) {
 }
 
 
+async function getUnresolvedQuestions(req, res, next) {
+  try {
+    const response = await aiService.getUnresolvedQuestions(req.headers.authorization);
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
+
 module.exports = {
   getHealth,
   chat,
-  getHistory
+  getHistory,
+  getUnresolvedQuestions
 };
 

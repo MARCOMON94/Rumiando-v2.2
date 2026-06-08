@@ -85,9 +85,17 @@ async function getHistory(conversationId, authorization) {
 }
 
 
+async function getUnresolvedQuestions(authorization) {
+  return requestAi('/api/learning/unresolved', {
+    authorization
+  });
+}
+
+
 module.exports = {
   getHealth,
   chat,
-  getHistory
+  getHistory,
+  getUnresolvedQuestions
 };
 

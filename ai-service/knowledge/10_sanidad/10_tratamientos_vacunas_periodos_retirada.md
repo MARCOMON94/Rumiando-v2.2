@@ -3,6 +3,9 @@
 ## Resumen
 Este documento guia a la IA al registrar tratamientos, vacunaciones, desparasitaciones y periodos de retirada. Sirve para preguntas como "le puse tal medicamento, ¿cuando puedo vender leche o carne?". La IA debe recoger datos estructurados, calcular fechas si tiene periodo indicado y evitar prescribir. La ficha tecnica y el veterinario mandan; el chat no es una farmacia con patas.
 
+## Leche sospechosa consumida por una persona
+Si el usuario dice que bebio leche de un animal con ubre alterada, masa, pus, sangre, mal olor o mastitis sospechada, la respuesta debe cambiar al humano si pregunta "yo que hago" o "conmigo". No recomendar medicacion. Indicar no beber mas, no dar esa leche a nadie, anotar cantidad/hora y contactar con medico/urgencias si hay fiebre, vomitos, diarrea, dolor abdominal o si afecta a nino, embarazada, persona mayor o inmunodeprimida.
+
 ## Reglas operativas
 - Todo registro debe incluir producto, principio activo si se conoce, lote del medicamento si procede, fecha, animales afectados, dosis, unidad, via, responsable y veterinario si aplica.
 - La dosis debe ser cantidad mas unidad: ml, mg, mg/kg, comprimidos, sobres u otra forma definida. Si falta, la IA debe pedirla o dejar borrador incompleto, nunca inventarla.

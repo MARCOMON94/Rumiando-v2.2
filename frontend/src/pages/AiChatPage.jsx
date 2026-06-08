@@ -19,36 +19,6 @@ function ChatMessage({ message }) {
       </div>
 
       <p>{message.content}</p>
-
-      {message.sources?.length > 0 && (
-        <details className="chat-details">
-          <summary>Fuentes</summary>
-          <ul>
-            {message.sources.map((source) => (
-              <li key={source.source_id}>
-                <strong>{source.title}</strong>
-                <span>{source.file}</span>
-                <p>{source.excerpt}</p>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {message.toolCalls?.length > 0 && (
-        <details className="chat-details">
-          <summary>Tools</summary>
-          <ul>
-            {message.toolCalls.map((tool, index) => (
-              <li key={`${tool.name}-${index}`}>
-                <strong>{tool.name}</strong>
-                <span>{tool.status}</span>
-                <p>{tool.output_summary}</p>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
     </article>
   );
 }
@@ -59,7 +29,7 @@ export default function AiChatPage() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Listo para consultar documentos RAG y datos de la explotacion cuando esten disponibles.'
+      content: 'Cuentame que esta pasando y te ayudo a decidir el siguiente paso.'
     }
   ]);
   const [input, setInput] = useState('');
@@ -128,13 +98,27 @@ export default function AiChatPage() {
     setInput(prompt);
   }
 
+  function shouldSendWithEnter() {
+    return !window.matchMedia?.('(pointer: coarse)').matches;
+  }
+
+  function handleComposerKeyDown(event) {
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+      && !event.nativeEvent.isComposing
+      && shouldSendWithEnter()
+    ) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  }
+
   return (
     <section className="page ai-chat-page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">MVP IA</p>
           <h2>Asistente IA</h2>
-          <p>Chat con RAG, memoria y tools de consulta de datos.</p>
         </div>
       </header>
 
@@ -166,7 +150,8 @@ export default function AiChatPage() {
               rows="4"
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Pregunta por avisos, animales, sanidad o documentos..."
+              onKeyDown={handleComposerKeyDown}
+              placeholder="Pregunta por animales, sanidad, avisos o movimientos..."
             />
             <button type="submit" disabled={loading || !input.trim()}>
               Enviar
@@ -175,7 +160,7 @@ export default function AiChatPage() {
         </section>
 
         <aside className="chat-side-panel">
-          <h3>Consultas rápidas</h3>
+          <h3>Consultas rapidas</h3>
           <div className="quick-prompts">
             {QUICK_PROMPTS.map((prompt) => (
               <button
@@ -187,11 +172,6 @@ export default function AiChatPage() {
                 {prompt}
               </button>
             ))}
-          </div>
-
-          <div className="chat-note">
-            <strong>Alcance MVP</strong>
-            <p>La IA prepara y orienta. Las acciones sobre datos se confirman en la app.</p>
           </div>
         </aside>
       </div>

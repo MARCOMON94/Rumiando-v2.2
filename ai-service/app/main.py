@@ -5,7 +5,8 @@ from app.config import get_settings
 from app.schemas import ChatHistoryResponse, ChatRequest, ChatResponse
 from app.services.agent import build_chat_response
 from app.services.history_store import get_history
-from app.services.rag_service import count_documents
+from app.services.learning_queue import list_unresolved_questions
+from app.services.rag_service import count_documents, rag_status
 
 
 settings = get_settings()
@@ -40,7 +41,8 @@ def health():
         "ok": True,
         "service": settings.service_name,
         "environment": settings.environment,
-        "rag_documents_indexed": count_documents()
+        "rag_documents_indexed": count_documents(),
+        "rag": rag_status()
     }
 
 
@@ -55,4 +57,11 @@ def chat_history(conversation_id: str):
         conversation_id=conversation_id,
         messages=get_history(conversation_id)
     )
+
+
+@app.get("/api/learning/unresolved")
+def unresolved_questions(limit: int = 100):
+    return {
+        "items": list_unresolved_questions(limit=limit)
+    }
 

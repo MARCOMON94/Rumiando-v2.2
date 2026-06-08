@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .chroma/
+storage/chroma/
 storage/*.json
 storage/*.sqlite3
 
