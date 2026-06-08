@@ -96,6 +96,14 @@ El objetivo principal es ofrecer una herramienta sencilla y trazable para que un
   * Estados reproductivos.
   * Casos sanitarios por corral.
 
+### Asistente IA
+
+* Pantalla protegida `/ai-chat`.
+* Proxy backend `/api/ai` hacia un servicio FastAPI independiente.
+* Endpoints de IA: health, chat e historial de conversación.
+* RAG preparado para documentos locales en `ai-service/knowledge/`.
+* Tools iniciales para buscar animales, listar avisos, consultar dashboard y preparar movimientos con confirmación del usuario.
+
 ## Tecnologías utilizadas
 
 ### Frontend
@@ -117,6 +125,14 @@ El objetivo principal es ofrecer una herramienta sencilla y trazable para que un
 * bcrypt.
 * CORS.
 * dotenv.
+
+### Servicio IA
+
+* FastAPI.
+* Pydantic v2.
+* Memoria conversacional persistida en JSON local para desarrollo.
+* RAG local sobre documentos Markdown o TXT.
+* LangGraph y ChromaDB preparados como dependencias opcionales en `ai-service/requirements-rag.txt`.
 
 ### Testing y herramientas
 
@@ -192,6 +208,7 @@ routes -> middlewares -> controllers -> services -> Prisma -> PostgreSQL
 * `/api/reminders`
 * `/api/exports`
 * `/api/dashboard`
+* `/api/ai`
 * `/api/automation`
 
 ### Middlewares principales
@@ -222,6 +239,7 @@ pages -> components -> context -> api -> routes -> styles
 * `/health`
 * `/movements`
 * `/movements/new`
+* `/ai-chat`
 
 La ruta raíz `/` redirige a `/animals`, porque la pantalla principal de trabajo es el censo animal.
 
@@ -237,6 +255,7 @@ JWT_SECRET="clave_secreta"
 JWT_EXPIRES_IN="7d"
 FRONTEND_URL="https://rumiando.netlify.app"
 N8N_API_KEY="clave_para_integraciones"
+AI_SERVICE_URL="http://localhost:8000"
 NODE_ENV="development"
 PORT=3000
 ```
@@ -255,6 +274,16 @@ Variable configurada en Netlify:
 
 ```env
 VITE_API_URL=https://rumiando-v2-production.up.railway.app/api
+```
+
+### Servicio IA local
+
+Archivo `ai-service/.env`:
+
+```env
+AI_SERVICE_NAME="RumiAndo AI Service"
+RUMIANDO_API_URL="http://localhost:3000/api"
+ALLOWED_ORIGINS="http://localhost:5173,http://localhost:3000"
 ```
 
 ## Instalación local
@@ -325,6 +354,22 @@ El frontend local queda disponible en:
 ```txt
 http://localhost:5173
 ```
+
+### 9. Instalar y arrancar servicio IA
+
+En otra terminal:
+
+```bash
+cd ai-service
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Los documentos RAG se colocan en `ai-service/knowledge/`. La guia de generacion
+esta en `docs/rag-documentos-necesarios.md`.
 
 ## Scripts disponibles
 
