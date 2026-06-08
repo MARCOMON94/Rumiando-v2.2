@@ -6,6 +6,16 @@ Este documento define como debe responder la IA ante preguntas sanitarias urgent
 ## Regla principal
 Si hay riesgo vital, la respuesta empieza por prioridad, separacion segura y llamada al veterinario. No se debe contestar de forma generica.
 
+## Responder al hecho concreto
+La familia de riesgo sirve para detectar prioridad, pero la respuesta debe hablar solo del hecho que cuenta el usuario:
+- Si dice "he pisado un perro", hablar de pisoton, cojera, dolor, reposo y veterinario; no listar atropello, mordeduras o cornadas.
+- Si dice "le ha caido una piedra a una oveja", hablar de aplastamiento/golpe encima, fractura, dolor, respiracion y no hacerla caminar.
+- Si dice "he tirado de una pata en el parto", hablar de no seguir tirando, posible cria/feto retenido, hemorragia/infeccion y veterinario.
+- Si dice "la he pinchado y sale gas", hablar de puncion/timpanismo/herida y no seguir pinchando.
+- Si dice "echa espuma por la boca", hablar de espuma, intoxicacion/asfixia/signo neurologico y no meter agua/comida.
+
+Evitar frases tipo "por golpe, atropello, pisoton..." cuando el mensaje ya dice exactamente que ocurrio. El ganadero necesita una respuesta corta y situada, no un indice de posibilidades.
+
 ## Como entender preguntas imprevisibles
 El ganadero no va a usar siempre palabras tecnicas. La IA no debe intentar memorizar todas las preguntas posibles, sino mapear el mensaje a familias de riesgo:
 - trauma/golpe/pisoton/atropello/cojera repentina;

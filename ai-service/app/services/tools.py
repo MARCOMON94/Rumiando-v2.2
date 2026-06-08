@@ -118,12 +118,44 @@ def _summarize_dashboard(data):
     if not totals:
         return "La API no devolvio totales de dashboard."
 
-    return (
+    species = data.get("animalsBySpecies") or []
+    species_summary = ", ".join(
+        f"{item.get('total', 0)} {item.get('name', '').lower()}"
+        for item in species
+        if item.get("name")
+    )
+
+    base = (
         "Resumen de explotacion: "
-        f"{totals.get('totalAnimals', 'N/D')} animales, "
+        f"{totals.get('totalAnimals', 'N/D')} animales totales, "
+        f"{totals.get('activeAnimals', 'N/D')} activos, "
         f"{totals.get('totalPens', 'N/D')} corrales, "
         f"{totals.get('activeHealthCases', 'N/D')} casos sanitarios activos."
     )
+
+    if species_summary:
+        return f"{base} Por especie: {species_summary}."
+
+    return base
+
+
+def _summarize_farm_units(data):
+    farm_units = data.get("data") if isinstance(data, dict) else []
+    if not farm_units:
+        return "No hay unidades REGA devueltas por la API."
+
+    lines = []
+    for unit in farm_units:
+        name = unit.get("nombre") or "Unidad REGA"
+        code = unit.get("codigoRega") or "sin codigo REGA registrado"
+        location = ", ".join(
+            item for item in [unit.get("municipio"), unit.get("provincia")]
+            if item
+        )
+        suffix = f" ({location})" if location else ""
+        lines.append(f"- {name}: {code}{suffix}")
+
+    return "Unidades REGA registradas:\n" + "\n".join(lines)
 
 
 def _safe_call(name, input_data, summary_builder, callback):
@@ -180,6 +212,22 @@ def run_app_tools(message, authorization=None):
             {},
             _summarize_dashboard,
             lambda: _api_get("/dashboard", authorization)
+        ))
+
+    if any(word in normalized for word in ["cuantas", "cuantos", "ovejas tengo", "cabras tengo", "animales tengo", "ganado tengo"]):
+        calls.append(_safe_call(
+            "consultar_dashboard",
+            {"reason": "conteo_animales"},
+            _summarize_dashboard,
+            lambda: _api_get("/dashboard", authorization)
+        ))
+
+    if any(word in normalized for word in ["rega", "unidad rega", "numero rega", "codigo rega"]):
+        calls.append(_safe_call(
+            "listar_unidades_rega",
+            {},
+            _summarize_farm_units,
+            lambda: _api_get("/farm-units", authorization)
         ))
 
     if _has_movement_intent(normalized):

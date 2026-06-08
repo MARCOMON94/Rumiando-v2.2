@@ -29,7 +29,7 @@ class Settings(BaseModel):
     storage_dir: Path = BASE_DIR / "storage"
     history_file: Path = BASE_DIR / "storage" / "chat_history.json"
     unresolved_questions_file: Path = BASE_DIR / "storage" / "unresolved_questions.json"
-    max_history_messages: int = int(os.getenv("MAX_HISTORY_MESSAGES", "40"))
+    max_history_messages: int = int(os.getenv("MAX_HISTORY_MESSAGES", "20"))
     chroma_dir: Path = BASE_DIR / "storage" / "chroma"
     use_chroma: bool = os.getenv("USE_CHROMA", "true").lower() == "true"
     chroma_collection: str = os.getenv("CHROMA_COLLECTION", "rumiando_knowledge")
@@ -41,10 +41,11 @@ class Settings(BaseModel):
     openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
     openai_max_output_tokens: int = int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "350"))
-    chat_history_mode: str = os.getenv("CHAT_HISTORY_MODE", "memory")
+    chat_history_mode: str = os.getenv("CHAT_HISTORY_MODE", "none").strip().lower()
     chat_history_ttl_minutes: int = int(os.getenv("CHAT_HISTORY_TTL_MINUTES", "60"))
     save_unresolved_questions: bool = os.getenv("SAVE_UNRESOLVED_QUESTIONS", "true").lower() == "true"
     anonymize_unresolved_questions: bool = os.getenv("ANONYMIZE_UNRESOLVED_QUESTIONS", "true").lower() == "true"
+    learning_use_openai_reformulation: bool = os.getenv("LEARNING_USE_OPENAI_REFORMULATION", "false").lower() == "true"
     openai_store: bool = os.getenv("OPENAI_STORE", "false").lower() == "true"
     learning_queue_token: str | None = os.getenv("LEARNING_QUEUE_TOKEN")
 
@@ -52,6 +53,8 @@ class Settings(BaseModel):
 @lru_cache
 def get_settings():
     settings = Settings()
+    if settings.chat_history_mode not in {"memory", "file", "none"}:
+        settings.chat_history_mode = "memory"
     settings.knowledge_dir.mkdir(parents=True, exist_ok=True)
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
     settings.chroma_dir.mkdir(parents=True, exist_ok=True)

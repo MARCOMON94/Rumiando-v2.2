@@ -86,8 +86,19 @@ async function getHistory(conversationId, authorization) {
 
 
 async function getUnresolvedQuestions(authorization) {
+  const learningToken = process.env.LEARNING_QUEUE_TOKEN;
+
   return requestAi('/api/learning/unresolved', {
-    authorization
+    authorization: learningToken ? `Bearer ${learningToken}` : authorization
+  });
+}
+
+
+async function getLearningWeeklySummary(authorization) {
+  const learningToken = process.env.LEARNING_QUEUE_TOKEN;
+
+  return requestAi('/api/learning/weekly-summary', {
+    authorization: learningToken ? `Bearer ${learningToken}` : authorization
   });
 }
 
@@ -96,6 +107,7 @@ module.exports = {
   getHealth,
   chat,
   getHistory,
-  getUnresolvedQuestions
+  getUnresolvedQuestions,
+  getLearningWeeklySummary
 };
 

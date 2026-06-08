@@ -148,7 +148,10 @@ RULES = [
             "cojera tras golpe", "cayo del techo", "cayo de alto", "caida fuerte",
             "se cayo del techo", "cuello roto", "solo mueve los ojos",
             "no mueve el cuerpo", "no mueve nada", "golpe", "golpe del coche", "coche", "atropello con coche",
-"le di con el coche", "le he dado con el coche", "accidente con coche"
+            "le di con el coche", "le he dado con el coche", "accidente con coche",
+            "le ha caido una piedra", "le cayo una piedra", "piedra encima",
+            "le ha caido algo encima", "le cayo algo encima", "aplastado por una piedra",
+            "aplastada por una piedra"
         ],
         reasons=[
             "la perdida de sangre y el shock pueden avanzar rapido",
@@ -507,7 +510,8 @@ RULES = [
         terms=[
             "se ha muerto", "se murio", "ha muerto", "esta muerto", "esta muerta",
             "aparecio muerto", "aparecio muerta", "muerte subita", "muerto de repente",
-            "muerta de repente"
+            "muerta de repente", "he matado", "mate sin querer", "matado sin querer",
+            "lo mate sin querer", "la mate sin querer", "he matado sin querer"
         ],
         reasons=[
             "puede haber riesgo para otros animales si fue intoxicacion, contagio o problema de manejo",

@@ -1,4 +1,5 @@
 from app.config import get_settings
+from app.services.privacy import redact_sensitive_text
 
 
 SYSTEM_PROMPT = """
@@ -17,6 +18,11 @@ Objetivo:
 - Si el usuario pregunta por lo hablado antes, usar el historial de conversacion.
 - No meter categorias largas en la primera frase. Di primero lo que tiene que hacer.
 - No incluyas fuentes consultadas ni tools en el texto: ya se mandan como campos estructurados.
+- Responder al hecho concreto, no a toda la familia de riesgo. Si el usuario dice "he pisado un perro",
+  habla de pisoton y cojera, no de atropellos, cornadas o heridas no mencionadas.
+- No empieces con "necesito mas detalles" si ya hay una actuacion segura evidente.
+- Si hay datos de tools internas, usa esos datos directamente. No digas que no tienes acceso.
+- Evita sonar como una ficha tecnica. Respuesta practica de campo: clara, corta y situada.
 
 Sanidad animal:
 - Prioriza triaje: urgencia alta, media o baja.
@@ -37,6 +43,7 @@ Formato recomendado:
 - Si el caso implica parto bloqueado, pata arrancada, atropello, convulsion, falta de aire,
   intoxicacion o sangrado abundante, no pidas mas datos antes de dar la actuacion inmediata.
 - Puedes decir que el veterinario valorara medicacion necesaria, pero no prescribas farmacos ni dosis.
+- Si el caso no es urgente, dilo: "Si esta normal, no parece urgencia", y luego 2-4 cosas a revisar.
 """
 
 
@@ -76,7 +83,7 @@ def _format_history_for_prompt(history):
 
     lines = []
     for item in history[-10:]:
-        content = item.content.replace("\n", " ").strip()
+        content = redact_sensitive_text(item.content).replace("\n", " ").strip()
         if len(content) > 500:
             content = content[:500] + "..."
         lines.append(f"{item.role}: {content}")
@@ -105,13 +112,14 @@ def build_llm_answer(
 
         OpenAI = importlib.import_module("openai").OpenAI
         client = OpenAI(api_key=settings.openai_api_key)
+        safe_message = redact_sensitive_text(message)
 
         response = client.responses.create(
             model=settings.openai_model,
             instructions=SYSTEM_PROMPT,
             input=(
                 "Mensaje del usuario:\n"
-                f"{message}\n\n"
+                f"{safe_message}\n\n"
                 "Historial reciente de esta conversacion:\n"
                 f"{_format_history_for_prompt(history or [])}\n\n"
                 "Triaje local previo sin coste:\n"
@@ -130,7 +138,8 @@ def build_llm_answer(
                 "Si una tool no encontro animales, no lo conviertas en el centro salvo "
                 "que el usuario haya pedido buscar un animal concreto."
             ),
-            max_output_tokens=settings.openai_max_output_tokens
+            max_output_tokens=settings.openai_max_output_tokens,
+            store=settings.openai_store
         )
 
         return getattr(response, "output_text", None)
@@ -138,4 +147,44 @@ def build_llm_answer(
     except Exception as err:
         if settings.environment == "development":
             print(f"[LLM ERROR] {type(err).__name__}: {err}")
+        return None
+
+
+def build_learning_case_summary(message_redacted, triage=None, intent=None):
+    settings = get_settings()
+
+    if not settings.learning_use_openai_reformulation or not settings.openai_api_key:
+        return None
+
+    try:
+        import importlib
+
+        OpenAI = importlib.import_module("openai").OpenAI
+        client = OpenAI(api_key=settings.openai_api_key)
+
+        response = client.responses.create(
+            model=settings.openai_model,
+            instructions=(
+                "Convierte una consulta ganadera ya anonimizada en un resumen generico "
+                "para una cola de mejora de base de conocimiento. No incluyas nombres, "
+                "relaciones familiares, usuarios, explotaciones, ubicaciones ni identificadores. "
+                "No juzgues. Devuelve solo JSON."
+            ),
+            input=(
+                f"Consulta anonimizada: {message_redacted}\n"
+                f"Intent: {getattr(intent, 'kind', 'unknown')}\n"
+                f"Triage code: {getattr(triage, 'code', 'general')}\n"
+                f"Priority: {getattr(triage, 'priority', 'LOW')}\n\n"
+                "Devuelve JSON con estas claves: "
+                "case_title, case_summary, knowledge_gap, suggested_tags."
+            ),
+            max_output_tokens=min(settings.openai_max_output_tokens, 250),
+            store=settings.openai_store
+        )
+
+        return getattr(response, "output_text", None)
+
+    except Exception as err:
+        if settings.environment == "development":
+            print(f"[LEARNING SUMMARY ERROR] {type(err).__name__}: {err}")
         return None

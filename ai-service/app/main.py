@@ -1,13 +1,11 @@
-from fastapi import FastAPI, Header
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Header, HTTPException
-from app.config import get_settings
-from app.services.learning_queue import list_unresolved_questions
+
 from app.config import get_settings
 from app.schemas import ChatHistoryResponse, ChatRequest, ChatResponse
 from app.services.agent import build_chat_response
 from app.services.history_store import get_history
-from app.services.learning_queue import list_unresolved_questions
+from app.services.learning_queue import build_weekly_summary, list_unresolved_questions
 from app.services.rag_service import count_documents, rag_status
 
 
@@ -82,23 +80,6 @@ def get_unresolved_questions(limit: int = 100, authorization: str | None = Heade
 
 
 @app.get("/api/learning/weekly-summary")
-def get_learning_weekly_summary(authorization: str | None = Header(default=None)):
+def get_learning_weekly_summary(limit: int = 100, authorization: str | None = Header(default=None)):
     _check_learning_token(authorization)
-
-    items = list_unresolved_questions(limit=100)
-
-    pending = [
-        item for item in items
-        if item.get("status") == "pending_review"
-    ]
-
-    by_triage = {}
-    for item in pending:
-        key = item.get("triage_code", "unknown")
-        by_triage[key] = by_triage.get(key, 0) + 1
-
-    return {
-        "total_pending": len(pending),
-        "by_triage_code": by_triage,
-        "items": pending[:50]
-    }
+    return build_weekly_summary(limit=limit)

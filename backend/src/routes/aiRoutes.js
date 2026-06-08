@@ -9,6 +9,7 @@ router.get('/health', authMiddleware, aiController.getHealth);
 router.post('/chat', authMiddleware, aiController.chat);
 router.get('/chat/history/:conversationId', authMiddleware, aiController.getHistory);
 router.get('/learning/unresolved', authMiddleware, aiController.getUnresolvedQuestions);
+router.get('/learning/weekly-summary', authMiddleware, aiController.getLearningWeeklySummary);
 
 module.exports = router;
 

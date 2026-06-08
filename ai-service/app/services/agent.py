@@ -1,7 +1,7 @@
 import unicodedata
 
 from app.config import get_settings
-from app.schemas import ChatRequest, ChatResponse, ToolCall
+from app.schemas import ChatMessage, ChatRequest, ChatResponse, ToolCall
 from app.services import history_store
 from app.services.intent_service import classify_intent
 from app.services.learning_queue import add_unresolved_question
@@ -178,12 +178,36 @@ def _build_triage_answer(message, triage, sources):
                 "por tu cuenta."
             )
 
-        if "me ha pisado" in normalized or "me piso" in normalized or "pisado una oveja" in normalized:
+        if "he pisado" in normalized or "pise" in normalized or "lo he pisado" in normalized or "la he pisado" in normalized:
             return (
-                "Si te ha pisado a ti: revisa si puedes apoyar, si hay deformidad, herida, hinchazon fuerte "
-                "o dolor intenso. Si no puedes apoyar, hay deformidad o la piel esta abierta, ve a urgencias.\n\n"
-                "Si le ha pisado a otro animal: separalo, no lo fuerces a caminar y llama al veterinario si "
-                "cojea, no apoya, sangra o esta decaido."
+                "Si lo has pisado y ahora cojea, tratalo como una posible lesion de pata.\n\n"
+                "Dejalo quieto en un sitio tranquilo y no lo fuerces a caminar. Mira si apoya algo, si hay hinchazon, "
+                "deformidad, herida, sangrado o mucho dolor al tocar.\n\n"
+                "Llama al veterinario hoy; urgente si no apoya, llora de dolor, respira raro, esta muy decaido "
+                "o ves la pata deformada."
+            )
+
+        if "me ha pisado" in normalized or "me piso" in normalized:
+            return (
+                "Si te ha pisado a ti y no puedes apoyar, hay deformidad, herida abierta, hinchazon fuerte "
+                "o dolor intenso, ve a urgencias.\n\n"
+                "Mientras tanto, no fuerces el pie/pierna y revisa si el dolor va a mas."
+            )
+
+        if "atropell" in normalized or "coche" in normalized:
+            return (
+                "URGENTE: si lo has atropellado, no lo muevas salvo para quitarlo de peligro.\n\n"
+                "Puede tener lesiones internas aunque por fuera no se vea mucho. Dejale respirar tranquilo, revisa "
+                "sangrado y si mueve las patas, y mantenlo quieto y abrigado.\n\n"
+                "Llama al veterinario ya. No le des agua, comida ni medicacion humana."
+            )
+
+        if "piedra" in normalized or "caido algo encima" in normalized or "cayo algo encima" in normalized:
+            return (
+                "URGENTE: una piedra encima puede haber causado fractura, aplastamiento o lesion interna.\n\n"
+                "Aparta la oveja sin hacerla caminar, dejala quieta y revisa respiracion, sangrado, hinchazon "
+                "y si puede apoyar las patas.\n\n"
+                "Llama al veterinario cuanto antes. No intentes colocar la pata ni darle medicacion por tu cuenta."
             )
 
         return (
@@ -234,6 +258,15 @@ def _build_triage_answer(message, triage, sources):
 
     if triage.code == "down_animal":
         normalized = _normalize_message(message)
+        if "aves" in triage.detected_species:
+            return (
+                "URGENTE: si la gallina no se mueve pero respira, apartala ya en una caja o sitio limpio, seco y templado.\n\n"
+                "Dejala tranquila, con la cabeza libre para respirar. No le des agua ni comida a la fuerza. Mira si hay "
+                "sangre, golpe, ala o pata torcida, cuello raro, diarrea, pico abierto o si hay mas aves igual.\n\n"
+                "Llama al veterinario cuanto antes, sobre todo si no se incorpora en pocos minutos, respira raro, esta fria "
+                "o ha podido recibir un golpe/ataque."
+            )
+
         if "perro" in normalized and ("oveja entera" in normalized or "se ha comida" in normalized or "se ha comido" in normalized or "se comio" in normalized):
             return (
                 "URGENTE: llama al veterinario.\n\n"
@@ -255,6 +288,15 @@ def _build_triage_answer(message, triage, sources):
             )
 
     if triage.code == "death_event":
+        normalized = _normalize_message(message)
+        if "perro" in normalized and any(term in normalized for term in ["he matado", "mate", "matado sin querer"]):
+            return (
+                "Si el perro esta muerto, ya no hay primeros auxilios. Aparta a otros animales y no manipules mas de lo necesario.\n\n"
+                "Si no estas completamente seguro de que ha muerto, llama al veterinario ya y no lo muevas. Si fue un golpe, atropello "
+                "o aplastamiento, tambien conviene avisar al veterinario para confirmar y gestionar el cuerpo correctamente.\n\n"
+                "Lavate las manos, evita que otros animales lo toquen y apunta hora y que paso."
+            )
+
         return (
             "Lo siento. Ahora piensa en proteger al resto.\n\n"
             "No dejes que perros, gatos, aves u otros animales toquen el cuerpo o restos. Revisa ya si hay mas "
@@ -290,18 +332,20 @@ def _build_triage_answer(message, triage, sources):
             "Si hay fiebre, dolor, decaimiento o leche rara, llama al veterinario pronto."
         )
 
-    actions = "\n".join(
-        f"- {item}"
-        for item in triage.immediate_actions[:3]
-    )
+    actions = "\n".join(f"- {item}" for item in triage.immediate_actions[:3])
     do_not = "\n".join(f"- {item}" for item in triage.do_not[:2])
-    priority = "URGENTE: llama al veterinario ya." if triage.priority == "URGENT" else f"Prioridad: {_priority_label(triage.priority)}."
+
+    if triage.priority == "URGENT":
+        header = "URGENTE: llama al veterinario ya."
+    elif triage.priority == "HIGH":
+        header = "Prioridad alta: no lo dejaria para mas tarde."
+    else:
+        header = f"{_priority_label(triage.priority).capitalize()}."
 
     return (
-        f"{priority}\n\n"
-        f"{triage.title}. No lo cierro como diagnostico, pero no lo dejaria pasar.\n\n"
-        f"Haz ahora:\n{actions}\n\n"
-        f"No hagas:\n{do_not}\n\n"
+        f"{header}\n\n"
+        f"Ahora mismo:\n{actions}\n\n"
+        f"Evita:\n{do_not}\n\n"
         f"{triage.vet_when}"
     )
 
@@ -319,7 +363,7 @@ def _build_memory_answer(history):
             "A partir de ahora puedo usar este hilo para mantener contexto."
         )
 
-    recent = user_messages[-6:]
+    recent = user_messages[-10:]
     lines = "\n".join(
         f"{index}. {content}"
         for index, content in enumerate(recent, start=1)
@@ -381,9 +425,90 @@ def _build_management_answer(message):
     )
 
 
+def _is_common_field_term_question(message):
+    normalized = _normalize_message(message)
+    terms = [
+        "basquilla", "mal de boca", "boquera", "orf", "modorra",
+        "sanguinuelo", "sanguiñuelo", "coquera", "pedero", "mal de pezuña",
+        "mal de pezuna", "pezuna podrida"
+    ]
+    return any(term in normalized for term in terms)
+
+
+def _build_common_field_term_answer(message):
+    normalized = _normalize_message(message)
+
+    if "basquilla" in normalized:
+        return (
+            "Basquilla es un nombre de campo, no un diagnostico cerrado.\n\n"
+            "En ovejas y cabras suele usarse para cuadros subitos digestivos o clostridiales, como enterotoxemia, "
+            "pero tambien puede confundirse con timpanismo, acidosis, intoxicacion u otros problemas graves.\n\n"
+            "Si el animal esta caido, hinchado, con diarrea fuerte, espuma, convulsiones o hay muertes, llama al "
+            "veterinario ya y no muevas el lote. Revisa cambio de pienso/pasto, vacunacion clostridial y si hay mas afectados."
+        )
+
+    if "mal de boca" in normalized or "boquera" in normalized or "orf" in normalized:
+        return (
+            "Mal de boca o boquera suele usarse para costras y heridas en labios, boca, nariz o pezones.\n\n"
+            "Puede ser ectima contagioso/orf, pero tambien puede confundirse con heridas, lengua azul u otras lesiones. "
+            "Usa guantes, separa al animal si hay muchas lesiones y no dejes que crias o personas vulnerables toquen las costras.\n\n"
+            "Veterinario si hay fiebre, no come, muchas lesiones, cojera, lengua hinchada o varios animales afectados."
+        )
+
+    if "modorra" in normalized:
+        return (
+            "Modorra es una palabra muy variable: suele significar que el animal esta atontado, raro, debil, da vueltas "
+            "o tiene la cabeza torcida.\n\n"
+            "Tratalo como problema neurologico o general serio: separalo, dejalo tranquilo, no lo fuerces a caminar y revisa "
+            "si pudo comer toxicos o si hay mas animales igual.\n\n"
+            "Llama al veterinario si no coordina, esta caido, tiene fiebre, convulsiones o empeora."
+        )
+
+    if "coquera" in normalized:
+        return (
+            "Coquera suele referirse a una herida sucia, con larvas, mal olor o tejido muerto.\n\n"
+            "Aparta al animal en limpio y revisa la zona sin arrancar tejido ni meter productos fuertes. Si hay larvas, pus, "
+            "mal olor o dolor, necesita veterinario para limpieza y tratamiento correcto."
+        )
+
+    if "pedero" in normalized or "mal de pezuña" in normalized or "mal de pezuna" in normalized or "pezuna podrida" in normalized:
+        return (
+            "Pedero o mal de pezuña suele apuntar a problema podal, sobre todo si hay cojera, mal olor, humedad o varios animales cojos.\n\n"
+            "Separa los cojos en suelo seco, revisa pezuñas sin recortar a ciegas y mira si hay pus, calor, hinchazon o dolor fuerte. "
+            "Si hay varios afectados, conviene plan con veterinario porque puede ser contagioso y de manejo."
+        )
+
+    return None
+
+
+def _is_laying_question(message):
+    normalized = _normalize_message(message)
+    return (
+        ("gallina" in normalized or "gallinas" in normalized)
+        and any(term in normalized for term in ["no pone", "no ponen", "dejo de poner", "ha dejado de poner", "huevos"])
+    )
+
+
+def _build_laying_answer(message):
+    normalized = _normalize_message(message)
+
+    if any(term in normalized for term in ["decaida", "decaido", "embolada", "no come", "no bebe", "pico abierto", "sangre", "abdomen hinchado"]):
+        return (
+            "Si ademas de no poner esta apagada, no come, respira raro o tiene abdomen hinchado, separala y llama al veterinario.\n\n"
+            "Puede ser algo mas que una pausa de puesta, incluso huevo retenido u otro problema. No intentes sacar un huevo a la fuerza."
+        )
+
+    return (
+        "Si la gallina esta normal, que deje de poner no suele ser urgencia.\n\n"
+        "Mira primero muda, edad, menos horas de luz, calor/frio, estres, cambio de pienso, falta de calcio, parasitos o si esta poniendo en otro sitio.\n\n"
+        "Preocupa si esta embolada, no come, respira con pico abierto, tiene diarrea, abdomen hinchado o hace fuerza como para poner y no sale nada."
+    )
+
+
 def _build_app_query_answer(tool_calls, sources):
-    if any(tool.status == "ok" for tool in tool_calls):
-        return "He consultado los datos disponibles de la app y te dejo el resultado preparado abajo."
+    ok_tools = [tool for tool in tool_calls if tool.status == "ok"]
+    if ok_tools:
+        return "\n\n".join(tool.output_summary for tool in ok_tools)
 
     if tool_calls:
         return (
@@ -432,14 +557,32 @@ def _build_human_exposure_answer():
     )
 
 
+def _is_style_feedback(message):
+    normalized = _normalize_message(message)
+    style_terms = [
+        "pareces un robot", "suena a robot", "hablas como un robot",
+        "muy robot", "respuesta robotica", "no hables asi", "habla normal",
+        "no me contestes asi", "muy largo", "demasiado largo", "mas claro",
+        "se directo", "se mas directo", "no te entiendo"
+    ]
+    return any(term in normalized for term in style_terms)
+
+
+def _build_style_feedback_answer():
+    return (
+        "Tienes razon. Voy a contestar mas claro y menos en modo ficha.\n\n"
+        "Para urgencias te dire primero que hacer, en pocas frases. Si necesito datos, te pedire solo los importantes."
+    )
+
+
 def _should_try_unknown_llm_fallback(intent, triage, sources):
     if intent.kind == "general":
         return True
 
-    if intent.kind == "veterinary" and triage.code == "generic_health":
+    if intent.kind == "veterinary" and triage.code == "generic_health" and len(sources) < 2:
         return True
 
-    if intent.kind == "veterinary" and not sources:
+    if intent.kind == "veterinary" and not triage.is_relevant and not sources:
         return True
 
     return False
@@ -494,6 +637,32 @@ def _recent_user_context(history, limit=3):
     return "\n".join(messages[-limit:])
 
 
+def _history_from_request_context(context, current_message=None):
+    settings = get_settings()
+    raw_messages = (context or {}).get("recent_messages", [])
+    messages = []
+
+    for item in raw_messages[-settings.max_history_messages - 1:]:
+        if not isinstance(item, dict):
+            continue
+
+        role = item.get("role")
+        content = item.get("content")
+        if role not in {"user", "assistant"}:
+            continue
+        if not isinstance(content, str) or not content.strip():
+            continue
+
+        messages.append(ChatMessage(role=role, content=content.strip()))
+
+    if messages and current_message:
+        last = messages[-1]
+        if last.role == "user" and _normalize_message(last.content) == _normalize_message(current_message):
+            messages.pop()
+
+    return messages[-settings.max_history_messages:]
+
+
 def _build_context_followup_answer(message, context):
     normalized = _normalize_message(message).strip()
     combined = f"{_normalize_message(context or '')}\n{normalized}"
@@ -519,6 +688,13 @@ def _build_context_followup_answer(message, context):
 
 
 def _build_local_answer(message, sources, tool_calls, triage, intent):
+    common_term_answer = _build_common_field_term_answer(message)
+    if common_term_answer:
+        return common_term_answer
+
+    if _is_laying_question(message):
+        return _build_laying_answer(message)
+
     if intent.kind == "veterinary" or triage.is_relevant or _is_health_or_symptom_query(message):
         return _build_triage_answer(message, triage, sources)
 
@@ -545,10 +721,21 @@ def _build_local_answer(message, sources, tool_calls, triage, intent):
     )
 
 
+def _is_low_confidence_local_answer(answer):
+    normalized = _normalize_message(answer or "")
+    return normalized.startswith((
+        "no tengo una respuesta fiable",
+        "no lo puedo valorar bien",
+        "con lo que cuentas no puedo cerrar"
+    ))
+
+
 def build_chat_response(request: ChatRequest, authorization=None):
     settings = get_settings()
     conversation_id = history_store.get_or_create_conversation_id(request.conversation_id)
-    previous_history = history_store.get_history(conversation_id)
+    backend_history = history_store.get_history(conversation_id)
+    frontend_history = _history_from_request_context(request.context, request.message)
+    previous_history = frontend_history or backend_history
     history_store.append_message(conversation_id, "user", request.message)
 
     context = _recent_user_context(previous_history) if _should_use_context(request.message) else None
@@ -572,45 +759,38 @@ def build_chat_response(request: ChatRequest, authorization=None):
 
     context_answer = _build_context_followup_answer(request.message, context)
     human_exposure = _is_human_exposure_question(request.message, context=context)
+    style_feedback = _is_style_feedback(request.message)
+
+    answer_from_unknown_fallback = False
 
     if intent.kind == "memory":
         answer = _build_memory_answer(previous_history)
+    elif style_feedback:
+        answer = _build_style_feedback_answer()
     elif context_answer:
         answer = context_answer
     elif human_exposure:
         answer = _build_human_exposure_answer()
     else:
-        answer = build_llm_answer(
-            request.message,
-            sources,
-            tool_calls,
-            requires_confirmation=requires_confirmation,
-            history=previous_history,
-            triage=triage,
-            intent=intent
-        )
-
-    answer_from_unknown_fallback = False
-    if not answer and _should_try_unknown_llm_fallback(intent, triage, sources):
-        answer = build_llm_answer(
-            request.message,
-            sources,
-            tool_calls,
-            requires_confirmation=requires_confirmation,
-            history=previous_history,
-            triage=triage,
-            intent=intent,
-            force=True
-        )
-        answer_from_unknown_fallback = bool(answer)
-
-    if not answer:
         answer = _build_local_answer(request.message, sources, tool_calls, triage, intent)
+        if _is_low_confidence_local_answer(answer) and _should_try_unknown_llm_fallback(intent, triage, sources):
+            fallback_answer = build_llm_answer(
+                request.message,
+                sources,
+                tool_calls,
+                requires_confirmation=requires_confirmation,
+                history=previous_history,
+                triage=triage,
+                intent=intent,
+                force=True
+            )
+            if fallback_answer:
+                answer = fallback_answer
+                answer_from_unknown_fallback = True
 
-    if _should_queue_for_review(intent, triage, answer_from_unknown_fallback):
+    if _should_queue_for_review(intent, triage, answer_from_unknown_fallback, sources):
         add_unresolved_question(
             message=request.message,
-            conversation_id=conversation_id,
             intent=intent,
             triage=triage,
             sources=sources,

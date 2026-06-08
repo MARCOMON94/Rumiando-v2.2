@@ -45,10 +45,21 @@ async function getUnresolvedQuestions(req, res, next) {
 }
 
 
+async function getLearningWeeklySummary(req, res, next) {
+  try {
+    const response = await aiService.getLearningWeeklySummary(req.headers.authorization);
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
+
 module.exports = {
   getHealth,
   chat,
   getHistory,
-  getUnresolvedQuestions
+  getUnresolvedQuestions,
+  getLearningWeeklySummary
 };
 

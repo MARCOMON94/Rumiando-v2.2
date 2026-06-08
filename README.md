@@ -256,6 +256,7 @@ JWT_EXPIRES_IN="7d"
 FRONTEND_URL="https://rumiando.netlify.app"
 N8N_API_KEY="clave_para_integraciones"
 AI_SERVICE_URL="http://localhost:8000"
+LEARNING_QUEUE_TOKEN="mismo_token_que_ai_service_si_se_usan_endpoints_learning"
 NODE_ENV="development"
 PORT=3000
 ```
@@ -284,6 +285,15 @@ Archivo `ai-service/.env`:
 AI_SERVICE_NAME="RumiAndo AI Service"
 RUMIANDO_API_URL="http://localhost:3000/api"
 ALLOWED_ORIGINS="http://localhost:5173,http://localhost:3000"
+CHAT_HISTORY_MODE=none
+MAX_HISTORY_MESSAGES=20
+SAVE_UNRESOLVED_QUESTIONS=true
+ANONYMIZE_UNRESOLVED_QUESTIONS=true
+LEARNING_USE_OPENAI_REFORMULATION=false
+LEARNING_QUEUE_TOKEN="token_largo_para_n8n_o_admin"
+USE_LLM=false
+OPENAI_FALLBACK_ON_UNKNOWN=true
+OPENAI_STORE=false
 ```
 
 ## Instalación local
@@ -364,7 +374,7 @@ cd ai-service
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env
+# Crear ai-service/.env con las variables necesarias
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 

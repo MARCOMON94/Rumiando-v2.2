@@ -31,7 +31,9 @@ HEALTH_TERMS = [
     "he sacado la pata", "solo saco una pata", "pata en la mano",
     "espuma por la boca", "se ha muerto", "se murio", "sale gas",
     "saliendo gas", "pincho", "pinchar", "chilla", "cuello roto",
-    "solo mueve los ojos", "cayo del techo", "cayo de alto", "pario", "parida", "parida reciente", "recien parida",
+    "solo mueve los ojos", "cayo del techo", "cayo de alto",
+    "le ha caido una piedra", "le cayo una piedra", "le ha caido algo encima",
+    "le cayo algo encima", "piedra encima", "pario", "parida", "parida reciente", "recien parida",
 "cria", "crias", "cordero recien nacido", "cabrito recien nacido",
 "calostro", "no ha mamado", "no mama", "no se engancha",
 "madre desconocida", "no se cual es la madre", "abandono de cria",
@@ -55,7 +57,9 @@ APP_QUERY_TERMS = [
     "aviso", "avisos", "recordatorio", "recordatorios", "pendiente", "pendientes",
     "dashboard", "resumen", "explotacion", "busca", "buscar", "encuentra",
     "localiza", "ficha", "crotal", "rfid", "lector", "lectura", "identificador",
-    "donde esta", "en que corral"
+    "donde esta", "en que corral", "rega", "unidad rega", "numero rega",
+    "codigo rega", "cuantas", "cuantos", "cuanto ganado", "numero de animales",
+    "ovejas tengo", "cabras tengo", "animales tengo"
 ]
 
 

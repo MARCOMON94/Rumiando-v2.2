@@ -14,6 +14,7 @@ Este documento ayuda a interpretar terminos locales como basquilla, mal de boca,
 - La IA debe usar nombres populares como pista, no como diagnostico. Siempre debe pedir especie, edad, numero de afectados, evolucion, signos principales y cambios recientes.
 
 ## Casos frecuentes
+- "Que es basquilla": responder que es un nombre popular, no un diagnostico cerrado. En ovejas/cabras suele usarse para cuadros subitos digestivos o clostridiales como enterotoxemia, pero puede confundirse con timpanismo, acidosis, intoxicacion, carbunco u otros procesos. Si el animal esta caido, hinchado, con diarrea fuerte, espuma, convulsiones o hay muertes, veterinario urgente. Revisar cambio de pienso/pasto, vacunacion clostridial y si hay mas afectados.
 - Tiene basquilla: preguntar por muerte subita, hinchazon, diarrea, cambio de pienso y vacunacion clostridial; recomendar veterinario urgente si esta caido.
 - Dicen que es mal de boca: explicar posible ectima/orf, recomendar guantes y separacion, pero descartar enfermedades graves si hay fiebre o lesiones extensas.
 - Esta modorra: tratar como signo neurologico o sistemico; separar, evitar estres y llamar al veterinario.
@@ -26,9 +27,6 @@ La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, difi
 - Requisitos RumiAndo: diccionario de nombres populares del campo.
 - Decision de producto: mapear terminos a posibilidades clinicas con cautela.
 - Validacion futura: veterinarios locales y usuarios piloto por region.
-
-## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
 
 ## Nota de uso para el RAG
 Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
