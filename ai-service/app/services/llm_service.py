@@ -105,31 +105,34 @@ def build_llm_answer(
 
         client = OpenAI(api_key=settings.openai_api_key)
         response = client.responses.create(
-            model=settings.openai_model,
-            instructions=SYSTEM_PROMPT,
-            input=(
-                "Mensaje del usuario:\n"
-                f"{message}\n\n"
-                "Historial reciente de esta conversacion:\n"
-                f"{_format_history_for_prompt(history or [])}\n\n"
-                "Triaje local previo sin coste:\n"
-                f"{triage.as_prompt_block() if triage else 'No hay triaje local.'}\n\n"
-                "Perfil interno seleccionado:\n"
-                f"{intent.kind if intent else 'general'}"
-                f" ({intent.reason if intent else 'sin clasificacion especifica'})\n\n"
-                "Fuentes RAG recuperadas:\n"
-                f"{_format_sources_for_prompt(sources)}\n\n"
-                "Resultados de tools internas:\n"
-                f"{_format_tools_for_prompt(tool_calls)}\n\n"
-                f"requires_confirmation: {requires_confirmation}\n\n"
-                "Redacta la mejor respuesta final para el usuario. "
-                "No digas 'he procesado la consulta'. "
-                "Si no hay fuentes suficientes, dilo de forma honesta pero da una orientacion segura. "
-                "Si una tool no encontro animales, no lo conviertas en el centro salvo "
-                "que el usuario haya pedido buscar un animal concreto."
-            )
-        )
+    model=settings.openai_model,
+    instructions=SYSTEM_PROMPT,
+    input=(
+        "Mensaje del usuario:\n"
+        f"{message}\n\n"
+        "Historial reciente de esta conversacion:\n"
+        f"{_format_history_for_prompt(history or [])}\n\n"
+        "Triaje local previo sin coste:\n"
+        f"{triage.as_prompt_block() if triage else 'No hay triaje local.'}\n\n"
+        "Perfil interno seleccionado:\n"
+        f"{intent.kind if intent else 'general'}"
+        f" ({intent.reason if intent else 'sin clasificacion especifica'})\n\n"
+        "Fuentes RAG recuperadas:\n"
+        f"{_format_sources_for_prompt(sources)}\n\n"
+        "Resultados de tools internas:\n"
+        f"{_format_tools_for_prompt(tool_calls)}\n\n"
+        f"requires_confirmation: {requires_confirmation}\n\n"
+        "Redacta la mejor respuesta final para el usuario. "
+        "No digas 'he procesado la consulta'. "
+        "Si no hay fuentes suficientes, dilo de forma honesta pero da una orientacion segura. "
+        "Si una tool no encontro animales, no lo conviertas en el centro salvo "
+        "que el usuario haya pedido buscar un animal concreto."
+    ),
+    max_output_tokens=settings.openai_max_output_tokens
+)
 
         return getattr(response, "output_text", None)
-    except Exception:
-        return None
+    except Exception as err:
+    if settings.environment == "development":
+        print(f"[LLM ERROR] {type(err).__name__}: {err}")
+    return None

@@ -39,7 +39,8 @@ class Settings(BaseModel):
     openai_fallback_on_unknown: bool = os.getenv("OPENAI_FALLBACK_ON_UNKNOWN", "false").lower() == "true"
     use_llm: bool = os.getenv("USE_LLM", "false").lower() == "true"
     openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.2")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+    openai_max_output_tokens: int = int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "350"))
 
 
 @lru_cache

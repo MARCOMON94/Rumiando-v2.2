@@ -32,7 +32,9 @@ HEALTH_CONTEXT_TERMS = [
     "herida", "sangre", "hinchado", "hinchada", "parto", "aborto", "ubre",
     "respira", "dolor", "llora", "queja", "picor", "parasitos", "bulto",
     "pus", "purgando", "secrecion", "ojo", "oreja", "boca", "lengua",
-    "pisado", "atropellado", "atropelle", "no mueve la pata", "se comio"
+    "pisado", "atropellado", "atropelle", "no mueve la pata", "se comio", "pario", "parida", "recien parida", "cria", "crias", "calostro",
+"no ha mamado", "no mama", "madre desconocida", "no se cual es la madre",
+"abandono de cria", "cria tirada", "dejo a la cria", "rechaza la cria"
 ]
 
 
@@ -145,7 +147,8 @@ RULES = [
             "atropello", "no mueve la pata", "no apoya la pata", "no puede apoyar",
             "cojera tras golpe", "cayo del techo", "cayo de alto", "caida fuerte",
             "se cayo del techo", "cuello roto", "solo mueve los ojos",
-            "no mueve el cuerpo", "no mueve nada"
+            "no mueve el cuerpo", "no mueve nada", "golpe", "golpe del coche", "coche", "atropello con coche",
+"le di con el coche", "le he dado con el coche", "accidente con coche"
         ],
         reasons=[
             "la perdida de sangre y el shock pueden avanzar rapido",
@@ -351,6 +354,41 @@ RULES = [
         app_record="Registrar incidente, animales implicados, ubicacion, heridas visibles y medidas de separacion.",
         rag_query="mordeduras ataques perros gatos aves ganado heridas separacion bioseguridad"
     ),
+    TriageRule(
+    code="neonate_colostrum",
+    title="Cria recien nacida sin madre confirmada o sin calostro",
+    priority="HIGH",
+    terms=[
+        "no se cual es la madre", "madre desconocida", "cria tirada",
+        "dejo a la cria", "rechaza la cria", "no ha mamado",
+        "no mama", "calostro", "cria abandonada", "cordero recien nacido",
+        "cabrito recien nacido", "pario dejo a la cria"
+    ],
+    reasons=[
+        "una cria recien nacida necesita calostro pronto para recibir energia e inmunidad",
+        "si esta fria, debil o no mama, puede empeorar rapido"
+    ],
+    immediate_actions=[
+        "separar la cria en cama limpia, seca y templada",
+        "comprobar si esta fria, debil, mojada o si puede mantenerse de pie",
+        "intentar identificar a la madre observando ubres llenas, restos de parto, lamido o llamada",
+        "avisar al veterinario o responsable si no sabes si tomo calostro"
+    ],
+    do_not=[
+        "no dejarla tirada en frio o entre el lote",
+        "no forzar alimentacion si esta muy debil, fria o no traga bien",
+        "no asumir que ya tomo calostro si no lo viste"
+    ],
+    vet_when=(
+        "Alta prioridad si no sabes si tomo calostro, esta fria, debil, no se levanta, "
+        "no mama o no localizas a la madre."
+    ),
+    app_record=(
+        "Registrar nacimiento/incidencia neonatal con hora aproximada, cria, posible madre, "
+        "si tomo calostro y estado inicial."
+    ),
+    rag_query="cria recien nacida calostro madre desconocida abandono neonatal ovino caprino"
+),
     TriageRule(
         code="hoof_bleeding",
         title="Cojera, pezuna o una cortada con sangrado",
@@ -601,13 +639,7 @@ def classify_triage(message, context=None):
             len(current_matches) * 3 + len(context_matches)
         )
 
-        if best_rule is None:
-            best_rule = rule
-            best_matches = matches
-            best_rank = rank
-            continue
-
-        if rank > best_rank:
+        if best_rank is None or rank > best_rank:
             best_rule = rule
             best_matches = matches
             best_rank = rank

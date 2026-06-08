@@ -136,7 +136,7 @@ def _build_triage_answer(message, triage, sources):
             "apetito, mucosas, temperatura, diarrea, heridas, abdomen y parto. Si hay dolor fuerte, "
             "sangre, no se levanta, respira mal o empeora, llama al veterinario."
         )
-
+    
     if triage.code == "birth_abortion_postpartum":
         return (
             "URGENTE: llama al veterinario ya.\n\n"
@@ -147,7 +147,17 @@ def _build_triage_answer(message, triage, sources):
             "para el veterinario y no mediques por tu cuenta. El veterinario valorara extraccion, "
             "limpieza y medicacion necesaria."
         )
-
+    if triage.code == "neonate_colostrum":
+        return (
+            "Prioridad alta: esa cria necesita control ya, sobre todo por el calostro.\n\n"
+            "Apartala en cama limpia, seca y templada. Mira si esta fria, mojada, debil, "
+            "si se mantiene de pie y si intenta mamar.\n\n"
+            "Intenta identificar a la madre: ubre llena, restos de parto, lamido, llamada o "
+            "interes por la cria. Si no sabes si tomo calostro, esta fria/debil o no mama, "
+            "llama al veterinario o responsable cuanto antes.\n\n"
+            "No asumas que ya comio calostro si no lo viste. Registralo en RumiAndo como "
+            "incidencia neonatal/nacimiento dudoso con hora aproximada y posible madre."
+        )
     if triage.code == "convulsions_neuro":
         return (
             "URGENTE: llama al veterinario ya.\n\n"
@@ -448,13 +458,23 @@ def _should_use_context(message):
     if normalized in {"si", "sí", "vale", "ok"}:
         return True
 
-    followup_starts = ("pero ", "y ", "tambien ", "también ", "ahora ", "entonces ")
+    followup_starts = (
+    "pero ", "y ", "tambien ", "también ", "ahora ", "entonces ",
+    "yo creo", "creo que", "me parece", "pues "
+)
     context_terms = [
-        "solo la pata", "la pata", "eso", "lo mismo", "sigue", "no mejora",
-        "yo que hago", "que hago yo", "conmigo", "lo intente mover", "chilla",
-        "jadea", "sale gas", "saliendo gas", "pincho", "se ha muerto", "murio",
-        "sangre", "sale sangre", "lo intente", "le pincho"
-    ]
+    "solo la pata", "la pata", "eso", "lo mismo", "sigue", "no mejora",
+    "yo que hago", "que hago yo", "conmigo", "lo intente mover", "chilla",
+    "jadea", "sale gas", "saliendo gas", "pincho", "se ha muerto", "murio",
+    "sangre", "sale sangre", "lo intente", "le pincho",
+
+    "golpe", "coche", "atropello", "atropellado", "atropellada",
+    "fue del golpe", "creo que fue", "le di", "le he dado",
+    "accidente", "trauma",
+
+    "pario", "parida", "cria", "crias", "madre", "calostro",
+    "no mama", "no ha mamado", "no se cual es la madre"
+]
     return normalized.startswith(followup_starts) or any(term in normalized for term in context_terms)
 
 
