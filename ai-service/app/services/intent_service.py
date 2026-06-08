@@ -31,7 +31,7 @@ HEALTH_TERMS = [
     "he sacado la pata", "solo saco una pata", "pata en la mano",
     "espuma por la boca", "se ha muerto", "se murio", "sale gas",
     "saliendo gas", "pincho", "pinchar", "chilla", "cuello roto",
-    "solo mueve los ojos", "cayo del techo", "cayo de alto""pario", "parida", "parida reciente", "recien parida",
+    "solo mueve los ojos", "cayo del techo", "cayo de alto", "pario", "parida", "parida reciente", "recien parida",
 "cria", "crias", "cordero recien nacido", "cabrito recien nacido",
 "calostro", "no ha mamado", "no mama", "no se engancha",
 "madre desconocida", "no se cual es la madre", "abandono de cria",
