@@ -1,4 +1,4 @@
-﻿
+
 import { createContext, useContext, useEffect, useState } from 'react';
 import { get, post } from '../api/apiClient';
 
@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
 
         setUser(currentUser);
         localStorage.setItem('rumiando_user', JSON.stringify(currentUser));
-      } catch (err) {
+      } catch {
         localStorage.removeItem('rumiando_token');
         localStorage.removeItem('rumiando_user');
         setToken(null);

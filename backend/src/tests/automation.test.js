@@ -1,4 +1,7 @@
 const request = require('supertest');
+
+process.env.N8N_API_KEY = process.env.N8N_API_KEY || 'ci-integration-key';
+
 const app = require('../app');
 const prisma = require('../config/prisma');
 
@@ -36,7 +39,7 @@ describe('Automation API', () => {
   test('GET /api/automation/daily-operational-summary devuelve avisos automaticos con API key', async () => {
     const res = await request(app)
       .get(`/api/automation/daily-operational-summary?cuentaGanaderaId=${cuentaGanaderaId}`)
-      .set('x-api-key', process.env.N8N_API_KEY || 'rumiando-demo-token-2026');
+      .set('x-api-key', process.env.N8N_API_KEY || 'ci-integration-key');
 
     expect(res.statusCode).toBe(200);
     expect(res.body.type).toBe('DAILY_OPERATIONAL_SUMMARY');
@@ -56,7 +59,7 @@ describe('Automation API', () => {
   test('GET /api/automation/weekly-health-summary devuelve resumen sanitario con API key', async () => {
     const res = await request(app)
       .get(`/api/automation/weekly-health-summary?cuentaGanaderaId=${cuentaGanaderaId}`)
-      .set('x-api-key', process.env.N8N_API_KEY || 'rumiando-demo-token-2026');
+      .set('x-api-key', process.env.N8N_API_KEY || 'ci-integration-key');
 
     expect(res.statusCode).toBe(200);
     expect(res.body.type).toBe('WEEKLY_HEALTH_SUMMARY');

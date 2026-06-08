@@ -17,6 +17,7 @@ const reproductiveEventRoutes = require('./routes/reproductiveEventRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 const automationRoutes = require('./routes/automationRoutes');
 
@@ -59,6 +60,7 @@ app.use('/api/reproductive-events', reproductiveEventRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.use('/api/automation', automationRoutes);
 
@@ -131,6 +133,10 @@ app.get('/', (req, res) => {
 'GET /api/exports/reminders',
 
 'GET /api/dashboard',
+
+'GET /api/ai/health',
+'POST /api/ai/chat',
+'GET /api/ai/chat/history/:conversationId',
 
 'GET /api/automation/daily-operational-summary',
 'GET /api/automation/weekly-health-summary',

@@ -10,6 +10,18 @@ async function getDailyOperationalSummary(req, res, next) {
   }
 }
 
+async function getDailyOperationalSummaryForUser(req, res, next) {
+  try {
+    const summary = await automationService.getDailyOperationalSummary({
+      cuentaGanaderaId: req.user.cuentaGanaderaId
+    });
+
+    res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function getWeeklyHealthSummary(req, res, next) {
   try {
     const summary = await automationService.getWeeklyHealthSummary(req.query);
@@ -22,5 +34,6 @@ async function getWeeklyHealthSummary(req, res, next) {
 
 module.exports = {
   getDailyOperationalSummary,
+  getDailyOperationalSummaryForUser,
   getWeeklyHealthSummary
 };

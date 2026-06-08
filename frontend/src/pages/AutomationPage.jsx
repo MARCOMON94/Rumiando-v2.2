@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-const API_KEY = 'rumiando-demo-token-2026';
+import { get } from '../api/apiClient';
 
 export default function AutomationPage() {
   const [summary, setSummary] = useState(null);
-  const [cuentaGanaderaId, setCuentaGanaderaId] = useState('1');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -14,21 +11,7 @@ export default function AutomationPage() {
     setError('');
 
     try {
-      const response = await fetch(
-        `${API_URL}/automation/daily-operational-summary?cuentaGanaderaId=${cuentaGanaderaId}`,
-        {
-          headers: {
-            'x-api-key': API_KEY
-          }
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Error al cargar avisos');
-      }
-
+      const data = await get('/automation/daily-operational-summary/app');
       setSummary(data);
     } catch (err) {
       setError(err.message);
@@ -54,14 +37,6 @@ export default function AutomationPage() {
       </header>
 
       <div className="filters-card">
-        <label>
-          Cuenta ganadera ID
-          <input
-            value={cuentaGanaderaId}
-            onChange={(event) => setCuentaGanaderaId(event.target.value)}
-          />
-        </label>
-
         <button type="button" onClick={loadSummary}>
           Recargar avisos
         </button>

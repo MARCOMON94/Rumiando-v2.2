@@ -1,9 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-const API_KEY = 'rumiando-demo-token-2026';
-const DEFAULT_FARM_ACCOUNT_ID = '1';
+import { get } from '../api/apiClient';
 
 function getLevelClass(level) {
   return String(level || 'LOW').toLowerCase();
@@ -38,21 +35,7 @@ export default function RemindersPage() {
     setError('');
 
     try {
-      const response = await fetch(
-        `${API_URL}/automation/daily-operational-summary?cuentaGanaderaId=${DEFAULT_FARM_ACCOUNT_ID}`,
-        {
-          headers: {
-            'x-api-key': API_KEY
-          }
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Error cargando avisos automáticos');
-      }
-
+      const data = await get('/automation/daily-operational-summary/app');
       setAutomaticAlerts(data.automaticAlerts?.items || []);
     } catch (err) {
       setError(err.message || 'Error cargando avisos automáticos');
