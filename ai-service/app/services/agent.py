@@ -1,9 +1,9 @@
 import re
 import unicodedata
-from typing import Any, TypedDict
+from typing import Any, NotRequired, Required, TypedDict, cast
 
 from app.config import get_settings
-from app.schemas import ChatMessage, ChatRequest, ChatResponse, ToolCall
+from app.schemas import ChatMessage, ChatRequest, ChatResponse, ToolCall, RagSource
 from app.services import history_store
 from app.services.intent_service import IntentResult, classify_intent
 from app.services.learning_queue import add_unresolved_question
@@ -31,31 +31,39 @@ RAG_PREFIXES = {
     "general": None
 }
 
+class RetrievedState(TypedDict):
+    sources: list[RagSource]
+    tool_calls: list[ToolCall]
 
 class AgentGraphState(TypedDict, total=False):
-    request: ChatRequest
-    authorization: str | None
-    previous_history: list[ChatMessage]
-    context: str | None
-    triage: Any
-    intent: Any
-    search_query: str
-    retrieved_state: dict[str, Any]
-    orchestrator: str
-    sources: list[Any]
-    tool_calls: list[ToolCall]
-    requires_confirmation: bool
-    answer: str
-    answer_from_unknown_fallback: bool
-    graph_engine: str
-    graph_error: str | None
+    request: Required[ChatRequest]
+    authorization: NotRequired[str | None]
+    previous_history: NotRequired[list[ChatMessage]]
+    context: NotRequired[str | None]
+    triage: NotRequired[Any]
+    intent: NotRequired[Any]
+    search_query: NotRequired[str]
+    retrieved_state: NotRequired[RetrievedState]
+    orchestrator: NotRequired[str]
+    sources: NotRequired[list[RagSource]]
+    tool_calls: NotRequired[list[ToolCall]]
+    requires_confirmation: NotRequired[bool]
+    answer: NotRequired[str]
+    answer_from_unknown_fallback: NotRequired[bool]
+    graph_engine: NotRequired[str]
+    graph_error: NotRequired[str | None]
 
 
 _LANGGRAPH_APP = None
 _LANGGRAPH_ERROR = None
 
 
-def _run_sequential(message, search_query, intent, authorization=None):
+def _run_sequential(
+    message: str,
+    search_query: str,
+    intent: IntentResult,
+    authorization: str | None = None,
+) -> RetrievedState:
     run_tools = intent.kind in {"app_query", "app_action"} or intent.requires_confirmation
     return {
         "sources": search_documents(
@@ -64,7 +72,6 @@ def _run_sequential(message, search_query, intent, authorization=None):
         ),
         "tool_calls": run_app_tools(message, authorization) if run_tools else []
     }
-
 
 def _format_sources(sources):
     if not sources:
@@ -145,13 +152,17 @@ def _contains_term(normalized, term):
     return re.search(rf"\b{re.escape(term)}\b", normalized) is not None
 
 
-def _priority_label(priority):
+def _priority_label(priority: str | None) -> str:
     labels = {
         "URGENT": "urgencia veterinaria",
         "HIGH": "prioridad alta",
         "MEDIUM": "prioridad media",
-        "LOW": "prioridad baja"
+        "LOW": "prioridad baja",
     }
+
+    if not priority:
+        return "prioridad media"
+
     return labels.get(priority, priority.lower())
 
 
@@ -1240,18 +1251,26 @@ def _graph_analyze(state: AgentGraphState):
 def _graph_retrieve(state: AgentGraphState):
     request = state["request"]
     authorization = state.get("authorization")
-    intent = state["intent"]
-    search_query = state["search_query"]
+
+    intent = cast(IntentResult | None, state.get("intent"))
+    if intent is None:
+        raise RuntimeError("AgentGraphState missing 'intent'. _graph_analyze must run before _graph_retrieve.")
+
+    search_query = state.get("search_query")
+    if search_query is None:
+        raise RuntimeError("AgentGraphState missing 'search_query'. _graph_analyze must run before _graph_retrieve.")
+
     previous_history = state.get("previous_history", [])
     action_confirmation_tool = _build_action_confirmation_tool(request.message, previous_history)
     pending_discharge_tool = _build_pending_discharge_tool(request.message, previous_history)
 
     if action_confirmation_tool:
-        retrieved_state = {
+        retrieved_state: RetrievedState = {
             "sources": [],
             "tool_calls": [action_confirmation_tool],
         }
         orchestrator = "app_action: confirmacion de accion pendiente"
+
     elif pending_discharge_tool:
         retrieved_state = {
             "sources": search_documents(
@@ -1261,9 +1280,11 @@ def _graph_retrieve(state: AgentGraphState):
             "tool_calls": [pending_discharge_tool],
         }
         orchestrator = "app_action: seguimiento de baja de animal"
+
     elif intent.kind == "memory":
         retrieved_state = {"sources": [], "tool_calls": []}
         orchestrator = "memoria local"
+
     else:
         retrieved_state = _run_sequential(request.message, search_query, intent, authorization)
         orchestrator = f"{intent.kind}: {intent.reason}"
@@ -1273,12 +1294,19 @@ def _graph_retrieve(state: AgentGraphState):
         "orchestrator": orchestrator,
     }
 
-
 def _graph_prepare_context(state: AgentGraphState):
-    intent = state["intent"]
-    retrieved_state = state.get("retrieved_state", {})
+    intent = cast(IntentResult | None, state.get("intent"))
+    if intent is None:
+        raise RuntimeError("AgentGraphState missing 'intent'. _graph_analyze must run before _graph_prepare_context.")
+
+    retrieved_state = cast(
+        RetrievedState,
+        state.get("retrieved_state", {"sources": [], "tool_calls": []})
+    )
+
     sources = _dedupe_sources_by_file(retrieved_state.get("sources", []))
     tool_calls = retrieved_state.get("tool_calls", [])
+
     requires_confirmation = intent.requires_confirmation or any(
         tool.data and tool.data.get("requires_confirmation")
         for tool in tool_calls
@@ -1290,15 +1318,21 @@ def _graph_prepare_context(state: AgentGraphState):
         "requires_confirmation": requires_confirmation,
     }
 
-
 def _graph_compose_answer(state: AgentGraphState):
     request = state["request"]
     previous_history = state.get("previous_history", [])
     context = state.get("context")
-    triage = state["triage"]
-    intent = state["intent"]
-    sources = state.get("sources", [])
-    tool_calls = state.get("tool_calls", [])
+
+    triage = state.get("triage")
+    if triage is None:
+        raise RuntimeError("AgentGraphState missing 'triage'. _graph_analyze must run before _graph_compose_answer.")
+
+    intent = cast(IntentResult | None, state.get("intent"))
+    if intent is None:
+        raise RuntimeError("AgentGraphState missing 'intent'. _graph_analyze must run before _graph_compose_answer.")
+
+    sources = cast(list[RagSource], state.get("sources", []))
+    tool_calls = cast(list[ToolCall], state.get("tool_calls", []))
     requires_confirmation = state.get("requires_confirmation", False)
 
     context_answer = _build_context_followup_answer(request.message, context)
@@ -1337,12 +1371,18 @@ def _graph_compose_answer(state: AgentGraphState):
         "answer_from_unknown_fallback": answer_from_unknown_fallback,
     }
 
-
 def _graph_queue_learning(state: AgentGraphState):
     request = state["request"]
-    triage = state["triage"]
-    intent = state["intent"]
-    sources = state.get("sources", [])
+
+    triage = state.get("triage")
+    if triage is None:
+        raise RuntimeError("AgentGraphState missing 'triage'. _graph_analyze must run before _graph_queue_learning.")
+
+    intent = cast(IntentResult | None, state.get("intent"))
+    if intent is None:
+        raise RuntimeError("AgentGraphState missing 'intent'. _graph_analyze must run before _graph_queue_learning.")
+
+    sources = cast(list[RagSource], state.get("sources", []))
     answer = state.get("answer")
     answer_from_unknown_fallback = state.get("answer_from_unknown_fallback", False)
 
@@ -1361,7 +1401,6 @@ def _graph_queue_learning(state: AgentGraphState):
         )
 
     return {}
-
 
 def _build_langgraph_app():
     global _LANGGRAPH_APP, _LANGGRAPH_ERROR
@@ -1396,8 +1435,12 @@ def _build_langgraph_app():
     return _LANGGRAPH_APP
 
 
-def _run_graph_nodes_sequentially(initial_state: AgentGraphState, engine="sequential_fallback"):
-    state = dict(initial_state)
+def _run_graph_nodes_sequentially(
+    initial_state: AgentGraphState,
+    engine: str = "sequential_fallback",
+) -> AgentGraphState:
+    state: AgentGraphState = dict(initial_state)  # type: ignore[assignment]
+
     for node in (
         _graph_analyze,
         _graph_retrieve,
@@ -1405,12 +1448,12 @@ def _run_graph_nodes_sequentially(initial_state: AgentGraphState, engine="sequen
         _graph_compose_answer,
         _graph_queue_learning,
     ):
-        state.update(node(state))
+        node_result = cast(AgentGraphState, node(state))
+        state.update(node_result)
 
     state["graph_engine"] = engine
     state["graph_error"] = _LANGGRAPH_ERROR
     return state
-
 
 def _run_agent_orchestrator(initial_state: AgentGraphState):
     app = _build_langgraph_app()
@@ -1452,9 +1495,12 @@ def build_chat_response(request: ChatRequest, authorization=None):
         "previous_history": previous_history,
     })
 
-    intent = graph_state["intent"]
-    sources = graph_state.get("sources", [])
-    tool_calls = graph_state.get("tool_calls", [])
+    intent = cast(IntentResult | None, graph_state.get("intent"))
+    if intent is None:
+        raise RuntimeError("AgentGraphState missing 'intent' after orchestrator execution.")
+
+    sources = cast(list[RagSource], graph_state.get("sources", []))
+    tool_calls = cast(list[ToolCall], graph_state.get("tool_calls", []))
     requires_confirmation = graph_state.get("requires_confirmation", False)
     answer = graph_state.get("answer", "")
     orchestrator = graph_state.get("orchestrator", intent.kind)
@@ -1475,6 +1521,7 @@ def build_chat_response(request: ChatRequest, authorization=None):
             for tool in tool_calls
             if tool.data and tool.data.get("requires_confirmation")
         ]
+
         if action_summaries:
             answer_parts.append(
                 "Borrador de accion pendiente de confirmacion:\n"
@@ -1488,6 +1535,7 @@ def build_chat_response(request: ChatRequest, authorization=None):
 
     if settings.include_safety_notice_in_answer:
         answer_parts.append(SAFETY_NOTICE)
+
     final_answer = "\n\n".join(answer_parts)
     history_store.append_message(conversation_id, "assistant", final_answer)
 

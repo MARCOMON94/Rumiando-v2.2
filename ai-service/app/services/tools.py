@@ -367,10 +367,17 @@ def _field(obj, *names, default=None):
     return default
 
 
-def _nested_name(obj, key, fallback="N/D"):
+def _nested_name(obj, key: str, fallback: str | None = "N/D") -> str | None:
     value = obj.get(key) if isinstance(obj, dict) else None
+
     if isinstance(value, dict):
-        return value.get("nombre") or value.get("crotal") or value.get("codigoRega") or fallback
+        return (
+            value.get("nombre")
+            or value.get("crotal")
+            or value.get("codigoRega")
+            or fallback
+        )
+
     return fallback
 
 
@@ -752,13 +759,15 @@ def _summarize_dashboard(data, query_text=""):
     if "oveja" in normalized_query or "ovino" in normalized_query:
         total, label = _find_species_count(species, ["ovino", "oveja"])
         if total is not None:
-            return f"Tienes {total} ovejas registradas ({label.lower()})."
+            label_text = label or "ovino"
+            return f"Tienes {total} ovejas registradas ({label_text.lower()})."
 
     if "cabra" in normalized_query or "caprino" in normalized_query:
         total, label = _find_species_count(species, ["caprino", "cabra"])
         if total is not None:
-            return f"Tienes {total} cabras registradas ({label.lower()})."
-
+            label_text = label or "caprino"
+            return f"Tienes {total} cabras registradas ({label_text.lower()})."
+    
     if "por especie" in normalized_query or normalized_query.strip() in {"especie", "especies"}:
         return f"Por especie: {species_summary}." if species_summary else "No veo desglose por especie en el dashboard."
 
