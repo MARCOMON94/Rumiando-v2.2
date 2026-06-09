@@ -1,13 +1,78 @@
-﻿import { Outlet } from 'react-router-dom';
+﻿import { useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 export default function AppLayout() {
+  const { user, logout } = useAuth();
+  const location = useLocation();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  function toggleSettings() {
+    setSettingsOpen((current) => !current);
+  }
+
+  function handleLogout() {
+    setSettingsOpen(false);
+    logout();
+  }
+
   return (
     <div className="app-shell clean-app-shell">
-      <main className="main-content clean-main-content">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">R</div>
+          <div>
+            <h1>RumiAndo</h1>
+            <p>Gestión ganadera</p>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          <NavLink to="/dashboard">Dashboard</NavLink>
+          <NavLink to="/animals">Animales</NavLink>
+          <NavLink to="/reminders">Avisos</NavLink>
+          <NavLink to="/pens">Corrales</NavLink>
+          <NavLink to="/health">Sanidad</NavLink>
+          <NavLink to="/movements">Movimientos</NavLink>
+          <NavLink to="/ai-chat">Asistente IA</NavLink>
+        </nav>
+
+        <div className="sidebar-user">
+          <p>{user?.nombre || user?.email}</p>
+          <span>{user?.rol}</span>
+          <button type="button" onClick={logout}>
+            Cerrar sesión
+          </button>
+        </div>
+      </aside>
+
+      <main className="main-content clean-main-content" key={location.pathname}>
         <Outlet />
       </main>
 
-      <nav className="mobile-bottom-nav" aria-label="Navegación principal">
+      {settingsOpen && (
+        <div className="mobile-settings-panel">
+          <div>
+            <strong>{user?.nombre || user?.email || 'Usuario'}</strong>
+            <span>{user?.rol || 'Sesión activa'}</span>
+          </div>
+
+          <button type="button" onClick={handleLogout}>
+            Cerrar sesión
+          </button>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className={`mobile-settings-button ${settingsOpen ? 'open' : ''}`}
+        onClick={toggleSettings}
+        aria-label="Abrir configuración"
+      >
+        <span className="css-settings-icon" aria-hidden="true" />
+      </button>
+
+      <nav className="mobile-bottom-nav" aria-label="Navegación principal móvil">
         <button type="button" className="mobile-nav-button">
           1
         </button>
