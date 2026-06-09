@@ -3,6 +3,17 @@ import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import AnimalsPage from './pages/AnimalsPage';
+import AnimalDetailPage from './pages/AnimalDetailPage';
+import CreateAnimalPage from './pages/CreateAnimalPage';
+import AutomationPage from './pages/AutomationPage';
+import PensPage from './pages/PensPage';
+import HealthPage from './pages/HealthPage';
+import MovementsPage from './pages/MovementsPage';
+import CreateMovementPage from './pages/CreateMovementPage';
+import RemindersPage from './pages/RemindersPage';
+import AiChatPage from './pages/AiChatPage';
 import HomePage from './pages/HomePage';
 
 export default function App() {
@@ -18,7 +29,19 @@ export default function App() {
         }
       >
         <Route path="/home" element={<HomePage />} />
-        <Route path="*" element={<Navigate to="/home" replace />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/animals" element={<AnimalsPage />} />
+        <Route path="/animals/new" element={<CreateAnimalPage />} />
+        <Route path="/animals/:id" element={<AnimalDetailPage />} />
+        <Route path="/automation" element={<AutomationPage />} />
+        <Route path="/pens" element={<PensPage />} />
+        <Route path="/health" element={<HealthPage />} />
+        <Route path="/movements/new" element={<CreateMovementPage />} />
+        <Route path="/movements" element={<MovementsPage />} />
+        <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/ai-chat" element={<AiChatPage />} />
+        <Route path="/ai-vet" element={<Navigate to="/ai-chat" replace />} />
+        <Route path="/ai-manager" element={<Navigate to="/ai-chat" replace />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/home" replace />} />

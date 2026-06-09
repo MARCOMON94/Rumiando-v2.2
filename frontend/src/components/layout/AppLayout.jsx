@@ -11,8 +11,12 @@ export default function AppLayout() {
     setSettingsOpen((current) => !current);
   }
 
-  function handleLogout() {
+  function closeSettings() {
     setSettingsOpen(false);
+  }
+
+  function handleLogout() {
+    closeSettings();
     logout();
   }
 
@@ -73,23 +77,23 @@ export default function AppLayout() {
       </button>
 
       <nav className="mobile-bottom-nav" aria-label="Navegación principal móvil">
-        <button type="button" className="mobile-nav-button">
+        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
           1
         </button>
 
-        <button type="button" className="mobile-nav-button">
+        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
           2
         </button>
 
-        <button type="button" className="mobile-search-button" aria-label="Buscar">
+        <button type="button" className="mobile-search-button" aria-label="Buscar" onClick={closeSettings}>
           <span className="css-search-icon" aria-hidden="true" />
         </button>
 
-        <button type="button" className="mobile-nav-button">
+        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
           3
         </button>
 
-        <button type="button" className="mobile-nav-button">
+        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
           4
         </button>
       </nav>
