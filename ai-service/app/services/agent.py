@@ -5,7 +5,7 @@ from typing import Any, TypedDict
 from app.config import get_settings
 from app.schemas import ChatMessage, ChatRequest, ChatResponse, ToolCall
 from app.services import history_store
-from app.services.intent_service import classify_intent
+from app.services.intent_service import IntentResult, classify_intent
 from app.services.learning_queue import add_unresolved_question
 from app.services.llm_service import build_llm_answer
 from app.services.rag_service import search_documents
@@ -402,17 +402,129 @@ def _build_triage_answer(message, triage, sources):
     )
 
 
-def _build_memory_answer(history):
+def _is_count_memory_question(message):
+    normalized = _normalize_message(message)
+    return any(term in normalized for term in [
+        "cuantas cosas te he preguntado",
+        "cuantas preguntas te he hecho",
+        "cuantos mensajes te he mandado",
+        "cuantas cosas dije",
+    ])
+
+
+def _looks_like_case_memory_question(message):
+    normalized = _normalize_message(message)
+    return any(term in normalized for term in [
+        "que le pasaba",
+        "que tenia",
+        "que le ocurria",
+        "lo de la oveja",
+        "lo del animal",
+        "como iba lo de",
+    ])
+
+
+def _looks_like_case_update(message):
+    normalized = _normalize_message(message)
+    noise = ["hola", "pareces un robot", "que te he preguntado", "cuantas cosas"]
+    if any(term in normalized for term in noise):
+        return False
+
+    terms = [
+        "oveja", "cabra", "perro", "gallina", "animal", "coja", "cojo",
+        "no se mueve", "no se levanta", "tumbada", "tumbado", "parto",
+        "pariendo", "cria", "pata", "jalado", "tirado", "sacado",
+        "huele fatal", "diarrea", "espuma", "vomita", "no respira",
+        "sangre", "fiebre", "ubre", "leche", "atropell", "pisado",
+    ]
+    return any(term in normalized for term in terms)
+
+
+def _case_update_label(message):
+    normalized = _normalize_message(message)
+    if "coja" in normalized or "cojo" in normalized or "cojera" in normalized:
+        return "cojera o problema de pata"
+    if "no se mueve" in normalized or "no se levanta" in normalized or "tumbad" in normalized:
+        return "luego estaba tumbada, no se movia o no se levantaba"
+    if "parto" in normalized or "pariendo" in normalized:
+        return "despues aparecio el contexto de parto"
+    if any(term in normalized for term in ["jalado", "tirado", "sacado"]) and ("cria" in normalized or "pata" in normalized):
+        return "habias tirado o sacado cria/pata durante el parto"
+    if "huele fatal" in normalized or "mal olor" in normalized:
+        return "aparecio mal olor, que en parto/posparto es una senal mala"
+    return message
+
+
+def _build_case_memory_answer(message, history):
+    if not _looks_like_case_memory_question(message):
+        return None
+
+    normalized = _normalize_message(message)
+    wants_sheep = "oveja" in normalized or "ovejas" in normalized
+    user_messages = [
+        item.content.strip()
+        for item in history
+        if item.role == "user" and item.content.strip()
+    ]
+
+    case_messages = []
+    case_started = not wants_sheep
+    for item in user_messages[-12:]:
+        item_normalized = _normalize_message(item)
+        if wants_sheep and ("oveja" in item_normalized or "ovejas" in item_normalized):
+            case_started = True
+        if case_started and _looks_like_case_update(item):
+            case_messages.append(item)
+
+    if not case_messages:
+        return (
+            "No tengo suficiente hilo anterior para reconstruir ese caso. "
+            "Dime especie y que signo viste primero, y lo retomamos."
+        )
+
+    labels = []
+    for item in case_messages[-6:]:
+        label = _case_update_label(item)
+        if label not in labels:
+            labels.append(label)
+
+    lines = "\n".join(f"{index}. {label}." for index, label in enumerate(labels, start=1))
+    return (
+        "De ese caso, lo que me habias contado era:\n"
+        f"{lines}\n\n"
+        "Con esa secuencia no lo trataria como una duda leve: si hay parto, animal caido, "
+        "tirones de la cria/pata o mal olor, es para veterinario cuanto antes."
+    )
+
+
+def _build_memory_answer(history, current_message=None):
     user_messages = [
         message.content.strip()
         for message in history
         if message.role == "user" and message.content.strip()
     ]
 
+    if current_message:
+        case_answer = _build_case_memory_answer(current_message, history)
+        if case_answer:
+            return case_answer
+
     if not user_messages:
         return (
             "En esta conversacion todavia no tengo preguntas anteriores guardadas. "
             "A partir de ahora puedo usar este hilo para mantener contexto."
+        )
+
+    recent = user_messages[-10:]
+
+    if current_message and _is_count_memory_question(current_message):
+        lines = "\n".join(
+            f"{index}. {content}"
+            for index, content in enumerate(recent, start=1)
+        )
+        return (
+            f"Me has preguntado {len(user_messages)} cosas en esta conversacion. "
+            "Las ultimas son:\n" + lines
         )
 
     recent = user_messages[-10:]
@@ -581,9 +693,12 @@ def _build_app_query_answer(tool_calls, sources):
 
 
 def _build_app_action_answer(tool_calls):
-    ok_tools = [tool for tool in tool_calls if tool.status == "ok"]
-    if ok_tools:
-        return "\n\n".join(tool.output_summary for tool in ok_tools)
+    visible_tools = [
+        tool for tool in tool_calls
+        if tool.status in {"ok", "skipped"} and tool.output_summary
+    ]
+    if visible_tools:
+        return "\n\n".join(tool.output_summary for tool in visible_tools)
 
     if tool_calls:
         return (
@@ -623,6 +738,78 @@ def _build_human_exposure_answer():
         "mayor o alguien con defensas bajas, llama a un medico/urgencias.\n\n"
         "Apunta cuanto bebiste y a que hora. No des esa leche a nadie y guarda la informacion para el veterinario."
     )
+
+
+def _build_specific_health_answer(message, context=None):
+    normalized = _normalize_message(message)
+    combined = f"{_normalize_message(context or '')}\n{normalized}"
+
+    if "no respira" in normalized or "ha dejado de respirar" in normalized:
+        return (
+            "URGENTE: si no respira, llama al veterinario o urgencias veterinarias ya.\n\n"
+            "No le des agua, comida ni medicacion. Comprueba que no tenga la boca obstruida y dejalo con cuello/cabeza "
+            "en una posicion que no cierre la via respiratoria, moviendolo lo minimo.\n\n"
+            "Si sabes hacer reanimacion basica en esa especie, empieza mientras llega ayuda. Si no, prioriza avisar y "
+            "mantenerlo sin golpes ni presion en el pecho."
+        )
+
+    if "perro" in combined and any(term in normalized for term in ["vomita", "vomitando", "vomitos", "vomito"]):
+        if any(term in normalized for term in ["sangre", "no para", "muchas veces", "decaido", "no se mueve", "no respira"]):
+            return (
+                "Prioridad alta: un perro vomitando asi necesita veterinario.\n\n"
+                "Retira comida, deja agua disponible sin forzar y no le des medicacion humana. Mira si hay sangre, barriga hinchada, "
+                "arcadas sin echar nada, veneno, restos, huesos o productos de la nave.\n\n"
+                "Urgente si esta decaido, vomita repetido, no puede respirar, tiene barriga hinchada o pudo comer toxicos."
+            )
+
+        return (
+            "Si el perro esta vomitando, primero quitale comida y observa.\n\n"
+            "Deja agua cerca sin obligarlo, mantenlo tranquilo y mira si pudo comer veneno, pienso raro, huesos, basura o restos. "
+            "No le des ibuprofeno, paracetamol ni medicacion humana.\n\n"
+            "Veterinario hoy si repite vomitos, esta apagado, hay sangre, diarrea fuerte, barriga hinchada, dolor o no retiene agua."
+        )
+
+    if any(term in combined for term in ["oveja", "cabra"]) and any(term in normalized for term in ["coja", "cojo", "cojera"]):
+        return (
+            "Si esta coja, tratala como dolor de pata hasta verla bien.\n\n"
+            "Apartala en suelo seco y mira la pezuna: piedra clavada, barro, mal olor, pus, calor, hinchazon, herida o si no apoya nada. "
+            "No recortes a ciegas si no ves claro donde esta el problema.\n\n"
+            "Veterinario o alguien con experiencia si no apoya, hay pus/mal olor, esta muy dolorida, hay fiebre o ves varias cojas."
+        )
+
+    if any(term in normalized for term in ["esta de parto", "esta pariendo", "de parto", "pariendo"]):
+        if any(term in combined for term in ["no se mueve", "no se levanta", "tumbada", "tumbado", "caida", "caido"]):
+            return (
+                "Si esta de parto y ademas esta tumbada o no se mueve, tratalo como urgencia.\n\n"
+                "Apartala en cama limpia, mira si asoma bolsa, cabeza o patas, si sangra, si huele mal y cuanto tiempo lleva asi. "
+                "No tires fuerte ni metas la mano sin higiene y sin saber la postura.\n\n"
+                "Llama al veterinario ya si lleva rato haciendo fuerza sin avanzar, solo sale una pata/cabeza, hay mal olor, sangre, esta agotada o no se levanta."
+            )
+
+        return (
+            "Si esta de parto, vigila sin precipitarte.\n\n"
+            "Mira desde cuando hace fuerza, si asoma bolsa, cabeza o dos patas, y si la madre esta alerta. Prepara cama limpia y dejala tranquila.\n\n"
+            "Llama al veterinario si no avanza, solo sale una pata, hay mal olor, sangre, la madre esta muy agotada/tumbada o has tenido que tirar."
+        )
+
+    if any(term in combined for term in ["parto", "pariendo", "parida"]) and any(term in normalized for term in ["jalado", "tirado", "sacado la cria", "saque la cria", "sacado solo", "solo una pata"]):
+        return (
+            "URGENTE: llama al veterinario ya.\n\n"
+            "Si has tirado de la cria o solo ha salido una pata, no sigas tirando. Puede quedar otra cria/feto dentro, haber desgarro, "
+            "hemorragia o infeccion.\n\n"
+            "Deja a la madre en cama limpia, no metas mas la mano si no hace falta y guarda placenta/restos para ensenarselos al veterinario. "
+            "Mira si sangra mucho, huele mal, esta caida o sigue haciendo fuerza."
+        )
+
+    if any(term in combined for term in ["parto", "pariendo", "parida", "cria", "placenta"]) and any(term in normalized for term in ["huele fatal", "mal olor", "olor fatal", "huele mal"]):
+        return (
+            "URGENTE: mal olor en parto o posparto es mala senal.\n\n"
+            "Puede haber feto/placenta retenida, infeccion o tejido muerto. Apartala en limpio, no sigas manipulando y no dejes restos al alcance "
+            "de perros, gatos o aves.\n\n"
+            "Llama al veterinario ya, sobre todo si esta decaida, tiene fiebre, sangra, no se levanta o sigue expulsando liquido con mal olor."
+        )
+
+    return None
 
 
 def _is_style_feedback(message):
@@ -685,12 +872,13 @@ def _should_use_context(message):
     "yo que hago", "que hago yo", "conmigo", "lo intente mover", "chilla",
     "jadea", "sale gas", "saliendo gas", "pincho", "se ha muerto", "murio",
     "sangre", "sale sangre", "lo intente", "le pincho",
+    "huele fatal", "huele mal", "mal olor", "jalado", "he jalado",
 
     "golpe", "coche", "atropello", "atropellado", "atropellada",
     "fue del golpe", "creo que fue", "le di", "le he dado",
     "accidente", "trauma",
 
-    "pario", "parida", "cria", "crias", "madre", "calostro",
+    "parto", "pariendo", "pario", "parida", "cria", "crias", "madre", "calostro",
     "no mama", "no ha mamado", "no se cual es la madre",
     "diarrea", "tiene mucha", "tiene mucho", "no come", "no bebe",
     "esta peor", "empeoro", "ha empeorado", "sigue igual",
@@ -764,6 +952,188 @@ def _history_from_request_context(context, current_message=None):
     return messages[-settings.max_history_messages:]
 
 
+def _extract_ear_tags(text):
+    return [
+        token.upper()
+        for token in re.findall(
+            r"\b(?:es[-_]?)?[a-z]{0,12}\d[a-z0-9_/-]{2,}\b",
+            text or "",
+            flags=re.IGNORECASE,
+        )
+    ]
+
+
+def _discharge_reason_from_text(normalized):
+    if any(term in normalized for term in ["muerte", "muerto", "muerta", "murio", "fallecio", "fallecido", "fallecida"]):
+        return "muerte"
+    if any(term in normalized for term in ["venta", "vendido", "vendida", "vender"]):
+        return "venta"
+    if any(term in normalized for term in ["sacrificio", "matadero", "sacrificado", "sacrificada"]):
+        return "sacrificio"
+    if any(term in normalized for term in ["traslado", "salida", "otra explotacion", "otro rega"]):
+        return "traslado"
+    return None
+
+
+def _date_from_text(normalized):
+    if "hoy" in normalized:
+        return "hoy"
+    if "ayer" in normalized:
+        return "ayer"
+    if "manana" in normalized:
+        return "manana"
+
+    match = re.search(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", normalized)
+    return match.group(0) if match else None
+
+
+def _discharge_notes_from_text(normalized):
+    no_cause_terms = [
+        "sin causa", "sin mas causa", "sin mas causas", "no hay causa",
+        "no hay mas causa", "no hay mas causas", "ninguna causa",
+        "sin detalles", "no hay detalles"
+    ]
+    if any(term in normalized for term in no_cause_terms):
+        return "sin causa adicional"
+    return None
+
+
+def _pending_discharge_details(message, history):
+    user_messages = [
+        item.content.strip()
+        for item in history
+        if item.role == "user" and item.content.strip()
+    ]
+    recent = user_messages[-8:]
+    normalized_recent = [_normalize_message(item) for item in recent]
+    normalized_current = _normalize_message(message)
+    combined_text = "\n".join(recent + [message])
+    combined_normalized = _normalize_message(combined_text)
+
+    has_previous_discharge = any(
+        ("baja" in item or "dar de baja" in item or "fecha salida" in item)
+        and _extract_ear_tags(original)
+        for item, original in zip(normalized_recent, recent)
+    )
+    if not has_previous_discharge:
+        return None
+
+    is_followup = (
+        bool(_discharge_reason_from_text(normalized_current))
+        or bool(_date_from_text(normalized_current))
+        or bool(_discharge_notes_from_text(normalized_current))
+        or normalized_current.strip() in {"por muerte", "por venta", "por sacrificio", "por traslado"}
+    )
+    if not is_followup:
+        return None
+
+    ear_tags = _extract_ear_tags(combined_text)
+    reason = _discharge_reason_from_text(combined_normalized)
+    when = _date_from_text(combined_normalized)
+    notes = _discharge_notes_from_text(combined_normalized)
+
+    return {
+        "crotal": ear_tags[-1] if ear_tags else None,
+        "motivo": reason,
+        "fecha": when,
+        "observaciones": notes,
+    }
+
+
+def _build_pending_discharge_tool(message, history):
+    details = _pending_discharge_details(message, history)
+    if not details:
+        return None
+
+    crotal = details.get("crotal")
+    reason = details.get("motivo")
+    when = details.get("fecha")
+    notes = details.get("observaciones")
+    missing = []
+    if not crotal:
+        missing.append("crotal")
+    if not reason:
+        missing.append("motivo")
+    if not when:
+        missing.append("fecha")
+
+    if missing:
+        if reason and not when:
+            summary = (
+                f"Vale, dejo el motivo como {reason}. "
+                "Dime la fecha de baja; si es hoy puedes decir solo: hoy."
+            )
+        else:
+            summary = (
+                "Puedo preparar la baja, pero falta "
+                + ", ".join(missing)
+                + ". No la registro sin confirmacion final."
+            )
+    else:
+        note_text = notes or "sin causa adicional indicada"
+        summary = (
+            f"Tengo preparada la baja de {crotal} por {reason}, con fecha {when}. "
+            f"Observaciones: {note_text}.\nConfirma si quieres registrarla."
+        )
+
+    return ToolCall(
+        name="preparar_animal_discharge",
+        status="ok",
+        input={"message": message, "from_context": True},
+        output_summary=summary,
+        data={
+            "requires_confirmation": True,
+            "action_type": "ANIMAL_DISCHARGE",
+            "draft": details,
+            "original_message": message,
+        },
+    )
+
+
+def _build_action_confirmation_tool(message, history):
+    normalized = _normalize_message(message).strip()
+    confirmation_terms = [
+        "confirmo", "confirmado", "registrala", "registralo", "hazlo",
+        "adelante", "muevelo", "muevela", "dale", "ejecuta"
+    ]
+    if not any(term in normalized for term in confirmation_terms):
+        return None
+
+    recent_text = "\n".join(
+        item.content.strip()
+        for item in history[-8:]
+        if item.content.strip()
+    )
+    recent_normalized = _normalize_message(recent_text)
+
+    if "tengo preparado el movimiento" in recent_normalized:
+        action_type = "CHANGE_PEN"
+        summary = (
+            "Confirmacion recibida para el movimiento. "
+            "En esta version lo dejo como borrador pendiente; no modifico el corral desde el chat hasta cerrar la ejecucion real."
+        )
+    elif "tengo preparada la baja" in recent_normalized:
+        action_type = "ANIMAL_DISCHARGE"
+        summary = (
+            "Confirmacion recibida para la baja. "
+            "En esta version la dejo como borrador pendiente; no cambio el estado del animal desde el chat hasta cerrar la ejecucion real."
+        )
+    else:
+        return None
+
+    return ToolCall(
+        name="confirmacion_accion_pendiente",
+        status="skipped",
+        input={"message": message, "from_context": True},
+        output_summary=summary,
+        data={
+            "requires_confirmation": False,
+            "action_type": action_type,
+            "execution_status": "pending_final_route",
+        },
+    )
+
+
 def _build_context_followup_answer(message, context):
     normalized = _normalize_message(message).strip()
     combined = f"{_normalize_message(context or '')}\n{normalized}"
@@ -788,13 +1158,17 @@ def _build_context_followup_answer(message, context):
     return None
 
 
-def _build_local_answer(message, sources, tool_calls, triage, intent):
+def _build_local_answer(message, sources, tool_calls, triage, intent, context=None):
     common_term_answer = _build_common_field_term_answer(message)
     if common_term_answer:
         return common_term_answer
 
     if _is_laying_question(message):
         return _build_laying_answer(message)
+
+    specific_health_answer = _build_specific_health_answer(message, context=context)
+    if specific_health_answer:
+        return specific_health_answer
 
     if intent.kind == "app_action":
         return _build_app_action_answer(tool_calls)
@@ -832,6 +1206,27 @@ def _graph_analyze(state: AgentGraphState):
     context = _recent_user_context(previous_history) if use_context else None
     triage = classify_triage(request.message, context=context)
     intent = classify_intent(request.message, triage)
+
+    if _build_action_confirmation_tool(request.message, previous_history):
+        intent = IntentResult(
+            kind="app_action",
+            reason="confirmacion de accion pendiente",
+            requires_confirmation=False,
+            search_query="confirmacion accion app pendiente"
+        )
+    elif _build_pending_discharge_tool(request.message, previous_history):
+        intent = IntentResult(
+            kind="app_action",
+            reason="seguimiento de baja de animal",
+            requires_confirmation=True,
+            search_query="baja animal confirmacion app"
+        )
+    elif _looks_like_case_memory_question(request.message):
+        intent = IntentResult(
+            kind="memory",
+            reason="pregunta sobre caso anterior"
+        )
+
     search_query = intent.search_query or triage.suggested_rag_query or request.message
 
     return {
@@ -847,8 +1242,26 @@ def _graph_retrieve(state: AgentGraphState):
     authorization = state.get("authorization")
     intent = state["intent"]
     search_query = state["search_query"]
+    previous_history = state.get("previous_history", [])
+    action_confirmation_tool = _build_action_confirmation_tool(request.message, previous_history)
+    pending_discharge_tool = _build_pending_discharge_tool(request.message, previous_history)
 
-    if intent.kind == "memory":
+    if action_confirmation_tool:
+        retrieved_state = {
+            "sources": [],
+            "tool_calls": [action_confirmation_tool],
+        }
+        orchestrator = "app_action: confirmacion de accion pendiente"
+    elif pending_discharge_tool:
+        retrieved_state = {
+            "sources": search_documents(
+                search_query,
+                allowed_prefixes=RAG_PREFIXES.get("app_action")
+            ),
+            "tool_calls": [pending_discharge_tool],
+        }
+        orchestrator = "app_action: seguimiento de baja de animal"
+    elif intent.kind == "memory":
         retrieved_state = {"sources": [], "tool_calls": []}
         orchestrator = "memoria local"
     else:
@@ -895,7 +1308,7 @@ def _graph_compose_answer(state: AgentGraphState):
     answer_from_unknown_fallback = False
 
     if intent.kind == "memory":
-        answer = _build_memory_answer(previous_history)
+        answer = _build_memory_answer(previous_history, request.message)
     elif style_feedback:
         answer = _build_style_feedback_answer()
     elif context_answer:
@@ -903,7 +1316,7 @@ def _graph_compose_answer(state: AgentGraphState):
     elif human_exposure:
         answer = _build_human_exposure_answer()
     else:
-        answer = _build_local_answer(request.message, sources, tool_calls, triage, intent)
+        answer = _build_local_answer(request.message, sources, tool_calls, triage, intent, context=context)
         if _is_low_confidence_local_answer(answer) and _should_try_unknown_llm_fallback(intent, triage, sources):
             fallback_answer = build_llm_answer(
                 request.message,

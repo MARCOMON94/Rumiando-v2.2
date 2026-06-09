@@ -30,7 +30,7 @@ HEALTH_CONTEXT_TERMS = [
     "no come", "no bebe", "tumbado", "tumbada", "decaido", "decaida", "debil",
     "fiebre", "tos", "mocos", "diarrea", "vomita", "vomitos", "cojo", "coja",
     "herida", "sangre", "hinchado", "hinchada", "parto", "aborto", "ubre",
-    "respira", "dolor", "llora", "queja", "picor", "parasitos", "bulto",
+    "respira", "no respira", "dolor", "llora", "queja", "picor", "parasitos", "bulto",
     "pus", "purgando", "secrecion", "ojo", "oreja", "boca", "lengua",
     "pisado", "atropellado", "atropelle", "no mueve la pata", "se comio", "pario", "parida", "recien parida", "cria", "crias", "calostro",
 "no ha mamado", "no mama", "madre desconocida", "no se cual es la madre",
@@ -178,6 +178,7 @@ RULES = [
         priority="URGENT",
         terms=[
             "respira mal", "no puede respirar", "asfixia", "se ahoga", "ahogando",
+            "no respira", "dejo de respirar", "ha dejado de respirar",
             "jadea", "boca abierta", "pico abierto", "respira con pico abierto",
             "mucosas azules", "lengua azulada", "ruido al respirar", "cuello estirado",
             "respira muy rapido", "le falta aire"
@@ -273,7 +274,9 @@ RULES = [
             "solo saco una pata", "solo sale una pata", "he sacado solo la pata",
             "he sacado la pata", "sacado la pata", "pata en la mano",
             "me quede con la pata", "me he quedado con la pata", "arranque la pata",
-            "se arranco la pata", "jale la pata", "jalando la pata", "tirando de la pata"
+            "se arranco la pata", "jale la pata", "jalando la pata", "tirando de la pata",
+            "he jalado", "he tirado", "he sacado la cria", "saque la cria",
+            "sacado la cria", "tirado de la cria", "jalado de la cria"
         ],
         reasons=[
             "los partos bloqueados, prolapsos y abortos pueden comprometer a madre y cria",

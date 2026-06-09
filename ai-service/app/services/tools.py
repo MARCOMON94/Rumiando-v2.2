@@ -398,6 +398,189 @@ def _animal_query_from_message(message):
     return None
 
 
+def _ear_tags_from_message(message):
+    tokens = re.findall(
+        r"\b(?:es[-_]?)?[a-z]{0,12}\d[a-z0-9_/-]{2,}\b",
+        message or "",
+        flags=re.IGNORECASE,
+    )
+    return [token.upper() for token in tokens]
+
+
+def _relative_date_from_message(normalized):
+    if "hoy" in normalized:
+        return "hoy"
+    if "ayer" in normalized:
+        return "ayer"
+    if "manana" in normalized:
+        return "manana"
+
+    match = re.search(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", normalized)
+    return match.group(0) if match else None
+
+
+def _movement_destination_from_message(normalized):
+    aliases = [
+        ("secado", "secado"),
+        ("cebo", "cebo"),
+        ("produccion", "produccion"),
+        ("lactacion", "lactacion"),
+        ("lactancia", "lactancia"),
+        ("paridas", "paridas"),
+        ("parida", "paridas"),
+        ("gestantes", "gestantes"),
+        ("gestante", "gestantes"),
+        ("prenadas", "gestantes"),
+        ("reposicion", "reposicion"),
+        ("lazareto", "lazareto"),
+        ("enfermeria", "lazareto"),
+    ]
+    for term, label in aliases:
+        if term in normalized:
+            return label
+
+    match = re.search(
+        r"\b(?:al|a la|a|hacia|para)\s+(?:corral|lote)?\s*([a-z0-9 _/-]{2,40})",
+        normalized,
+    )
+    if not match:
+        return None
+
+    candidate = match.group(1).strip(" .,:;")
+    stop = re.search(r"\b(?:hoy|ayer|porque|por|con|y|pero|confirmo)\b", candidate)
+    if stop:
+        candidate = candidate[:stop.start()].strip(" .,:;")
+    return candidate or None
+
+
+def _discharge_reason_from_message(normalized):
+    if any(term in normalized for term in ["muerte", "muerto", "muerta", "murio", "murio", "fallecio", "fallecida", "fallecido"]):
+        return "muerte"
+    if any(term in normalized for term in ["venta", "vendido", "vendida", "vender"]):
+        return "venta"
+    if any(term in normalized for term in ["sacrificio", "matadero", "sacrificado", "sacrificada"]):
+        return "sacrificio"
+    if any(term in normalized for term in ["traslado", "salida", "otro rega", "otra explotacion"]):
+        return "traslado"
+    return None
+
+
+def _discharge_notes_from_message(normalized):
+    no_cause_terms = [
+        "sin causa", "sin mas causa", "sin mas causas", "no hay causa",
+        "no hay mas causa", "no hay mas causas", "ninguna causa",
+        "no se sabe", "no hay detalles", "sin detalles"
+    ]
+    if any(term in normalized for term in no_cause_terms):
+        return "sin causa adicional"
+    return None
+
+
+def _friendly_missing_list(items):
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + " y " + items[-1]
+
+
+def _prepare_change_pen_summary(message, endpoint):
+    normalized = _normalize(message)
+    ear_tags = _ear_tags_from_message(message)
+    destination = _movement_destination_from_message(normalized)
+    when = _relative_date_from_message(normalized)
+
+    missing = []
+    if not ear_tags:
+        missing.append("el crotal o la lectura RFID")
+    if not destination:
+        missing.append("el corral o lote destino")
+
+    lines = []
+    if not missing:
+        lines.append("Tengo preparado el movimiento, pero no lo ejecuto hasta que confirmes.")
+    else:
+        lines.append("Puedo preparar el movimiento, pero falta " + _friendly_missing_list(missing) + ".")
+
+    if ear_tags:
+        label = "Animal" if len(ear_tags) == 1 else "Animales"
+        lines.append(f"{label}: {', '.join(ear_tags)}.")
+    if destination:
+        lines.append(f"Destino solicitado: {destination}.")
+    if when:
+        lines.append(f"Fecha indicada: {when}.")
+
+    if not missing:
+        lines.append("Confirma con algo como: confirmo moverlo.")
+    else:
+        lines.append("Cuando me lo des, te preparo el resumen final para confirmar.")
+
+    return "\n".join(lines), {
+        "crotales": ear_tags,
+        "destino_solicitado": destination,
+        "fecha": when,
+        "missing": missing,
+        "technical_contract": endpoint,
+    }
+
+
+def _prepare_discharge_summary(message, endpoint):
+    normalized = _normalize(message)
+    ear_tags = _ear_tags_from_message(message)
+    reason = _discharge_reason_from_message(normalized)
+    when = _relative_date_from_message(normalized)
+    notes = _discharge_notes_from_message(normalized)
+
+    missing = []
+    if not ear_tags:
+        missing.append("el crotal")
+    if not reason:
+        missing.append("el motivo de baja")
+    if not when:
+        missing.append("la fecha")
+
+    if not ear_tags:
+        summary = (
+            "Puedo preparar la baja, pero necesito el crotal exacto del animal. "
+            "Despues te pedire motivo y fecha antes de confirmar."
+        )
+    elif missing:
+        summary = (
+            f"Para preparar la baja de {ear_tags[0]} necesito "
+            f"{_friendly_missing_list([item for item in missing if item != 'el crotal'])}. "
+            "No la registro sin confirmacion final."
+        )
+    else:
+        note_text = f" Observaciones: {notes}." if notes else ""
+        summary = (
+            f"Tengo preparada la baja de {ear_tags[0]} por {reason}, con fecha {when}."
+            f"{note_text}\nConfirma si quieres registrarla."
+        )
+
+    return summary, {
+        "crotales": ear_tags,
+        "motivo": reason,
+        "fecha": when,
+        "observaciones": notes,
+        "missing": missing,
+        "technical_contract": endpoint,
+    }
+
+
+def _prepare_generic_action_summary(action_key, endpoint):
+    required = ", ".join(endpoint["required"])
+    optional = ", ".join(endpoint["optional"]) if endpoint["optional"] else "sin opcionales"
+    return (
+        f"Puedo preparar {endpoint['label'].lower()}, pero antes necesito los datos concretos "
+        "y una confirmacion final.\n"
+        f"Datos que faltan o debo validar: {required}.\n"
+        f"Opcionales: {optional}."
+    ), {
+        "missing": endpoint["required"],
+        "technical_contract": endpoint,
+    }
+
+
 def _has_movement_intent(normalized):
     if any(phrase in normalized for phrase in ["pasa algo", "que pasa si", "puede pasar algo"]):
         return False
@@ -432,6 +615,7 @@ def _has_create_or_update_word(normalized):
         for term in [
             "crear", "crea", "registrar", "registra", "guardar", "guarda",
             "anadir", "anade", "añadir", "añade", "alta", "dar de alta",
+            "baja", "dar de baja", "da de baja",
             "nuevo", "nueva", "actualizar", "actualiza", "modificar", "modifica",
             "cambiar", "cambia", "cerrar", "cierra", "completar", "completa",
             "abrir", "abre", "posponer", "pospone", "exportar", "exporta",
@@ -806,24 +990,23 @@ def _summarize_endpoint_catalog():
 
 def _prepare_action_tool(action_key, message):
     endpoint = ACTION_ENDPOINTS[action_key]
-    required = ", ".join(endpoint["required"])
-    optional = ", ".join(endpoint["optional"]) if endpoint["optional"] else "sin opcionales"
+    if action_key == "change_pen":
+        output_summary, draft = _prepare_change_pen_summary(message, endpoint)
+    elif action_key == "animal_discharge":
+        output_summary, draft = _prepare_discharge_summary(message, endpoint)
+    else:
+        output_summary, draft = _prepare_generic_action_summary(action_key, endpoint)
 
     return ToolCall(
         name=f"preparar_{action_key}",
         status="ok",
         input={"message": message},
-        output_summary=(
-            f"Puedo preparar {endpoint['label'].lower()}.\n\n"
-            f"Ruta: {endpoint['method']} {endpoint['path']}.\n"
-            f"Datos minimos: {required}.\n"
-            f"Opcionales: {optional}.\n\n"
-            "Antes de ejecutar necesito que el usuario confirme el borrador con los datos exactos."
-        ),
+        output_summary=output_summary,
         data={
             "requires_confirmation": True,
             "action_type": action_key.upper(),
             "endpoint": endpoint,
+            "draft": draft,
             "original_message": message,
         },
     )

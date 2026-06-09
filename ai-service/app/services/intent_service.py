@@ -22,13 +22,14 @@ SPECIES_TERMS = [
 HEALTH_TERMS = [
     "no come", "no bebe", "no se levanta", "tumbado", "tumbada",
     "decaido", "decaida", "fiebre", "diarrea", "tos", "mocos",
-    "respira mal", "asfixia", "sangre", "sangrando", "herida",
+    "respira mal", "no respira", "asfixia", "sangre", "sangrando", "herida",
     "cojo", "coja", "cojera", "convulsion", "ataque", "ubre",
     "mastitis", "parto", "aborto", "dolor", "vomita", "vomitos",
     "pico abierto", "no se mueve", "orina", "veneno", "toxica", "toxico",
     "pisado", "pisada", "pisoton", "atropelle", "atropellado",
     "no mueve la pata", "no apoya la pata", "se comio", "comio un pato",
-    "he sacado la pata", "solo saco una pata", "pata en la mano",
+    "he sacado la pata", "he sacado la cria", "he jalado", "he tirado",
+    "solo saco una pata", "pata en la mano",
     "espuma por la boca", "se ha muerto", "se murio", "sale gas",
     "saliendo gas", "pincho", "pinchar", "chilla", "cuello roto",
     "solo mueve los ojos", "cayo del techo", "cayo de alto",
@@ -90,6 +91,10 @@ def _is_memory_question(normalized):
         "que te he preguntado",
         "que preguntas te he hecho",
         "que preguntas hice",
+        "cuantas cosas te he preguntado",
+        "cuantas preguntas te he hecho",
+        "cuantos mensajes te he mandado",
+        "cuantas cosas dije",
         "cuales han sido mis preguntas",
         "que hemos hablado",
         "de que hemos hablado",
@@ -104,6 +109,9 @@ def _is_memory_question(normalized):
 def _is_app_action_request(normalized):
     if _contains_any(normalized, ["pasa algo", "que pasa si", "puede pasar algo"]):
         return False
+
+    if _contains_any(normalized, ["dar de baja", "da de baja", "baja a", "baja el", "baja la"]):
+        return True
 
     movement_words = [
         "mover", "mueve", "muevo", "traslada", "trasladar", "pasar",

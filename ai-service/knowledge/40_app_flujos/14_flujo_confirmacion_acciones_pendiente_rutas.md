@@ -15,12 +15,17 @@ Describe el flujo que debe seguir la IA antes de ejecutar acciones sensibles: mo
 - Paso 7: comunicar resultado real. Indicar exitos, fallos, animales omitidos, errores de permisos y elementos pendientes.
 - Si el usuario cancela, no se modifica nada. Puede quedar borrador si el sistema lo permite, marcado como no ejecutado.
 - Si el usuario cambia destino o lista de animales, reiniciar resumen y confirmacion. Nada de reciclar confirmaciones viejas, que luego vienen fantasmas en la base de datos.
+- La respuesta visible no debe ensenar rutas, metodos HTTP ni payloads salvo que el usuario pida "endpoints", "rutas" o informacion tecnica. El ganadero debe ver: que accion se ha entendido, que animal/lote afecta, que falta y que debe confirmar.
 
 ## Casos frecuentes
 - Mueve estas a paridas: pedir crotales, validar, resumir y confirmar.
 - He leido estos crotales: usar lectura como seleccion provisional y preguntar accion.
 - Quita los no encontrados y sigue: recalcular lote valido y pedir nueva confirmacion.
 - Registra tratamiento a todo el corral: validar animales, producto, dosis, via, retirada y confirmar reforzado.
+- "DEMOAUTO001 pasame ese animal a secado": preparar movimiento de DEMOAUTO001 a secado. Si falta corral real o unidad REGA, decirlo en lenguaje natural y pedir confirmacion.
+- "Da de baja a DEMOAUTO001" -> pedir motivo y fecha. Si responde "por muerte" -> guardar motivo y pedir fecha. Si responde "hoy" -> preparar baja con fecha hoy y pedir confirmacion final. Si dice "hoy y no hay mas causas" -> observaciones "sin causa adicional".
+- Las continuaciones cortas ("hoy", "por muerte", "sin mas causas", "confirmo") pertenecen al ultimo borrador de accion si la conversacion anterior lo deja claro.
+- Mientras la ejecucion definitiva desde chat este pausada, una confirmacion clara debe responder "confirmacion recibida" y dejar el borrador pendiente, sin modificar datos reales.
 
 ## Limites y cautelas
 Este documento no fija endpoints ni payloads definitivos. La IA debe respetar permisos, auditoria y validaciones del backend. La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, dificultad respiratoria, sangre, aborto, mortalidad, dolor intenso, sospecha zoonotica o varios animales afectados, debe recomendar contactar con veterinario. Si una norma depende de MAPA, CCAA o criterio veterinario, debe verificarse antes de aplicarla en produccion.
