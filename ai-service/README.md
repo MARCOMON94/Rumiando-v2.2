@@ -13,11 +13,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Para activar LangGraph/ChromaDB en una iteracion posterior:
-
-```bash
-pip install -r requirements-rag.txt
-```
+El flujo del chat usa LangGraph como orquestador cuando la dependencia esta
+instalada. Si una maquina local no tiene LangGraph disponible, el servicio cae
+al mismo flujo secuencial para no bloquear desarrollo.
 
 ## Endpoints
 
@@ -62,6 +60,21 @@ completas.
 El servicio lee documentos `.md` y `.txt` desde `ai-service/knowledge/`.
 No se incluyen documentos de dominio inventados. La guia de generacion esta en
 `docs/rag-documentos-necesarios.md`.
+
+## Orquestacion IA
+
+El agente mantiene la logica de respuestas locales, RAG, tools de app,
+fallback OpenAI y cola de aprendizaje, pero el recorrido se organiza en un
+grafo:
+
+1. `analyze`: contexto conversacional, triaje e intencion.
+2. `retrieve`: busqueda RAG y tools de datos/acciones.
+3. `prepare_context`: deduplicacion de fuentes y confirmaciones.
+4. `compose_answer`: respuesta local o fallback si procede.
+5. `queue_learning`: registro redactado de preguntas no cubiertas.
+
+`GET /api/health` devuelve `agent.orchestrator` para comprobar si esta usando
+`langgraph` o `sequential_fallback`.
 
 ## Despliegue en Railway
 

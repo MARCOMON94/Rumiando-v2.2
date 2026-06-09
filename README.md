@@ -130,9 +130,10 @@ El objetivo principal es ofrecer una herramienta sencilla y trazable para que un
 
 * FastAPI.
 * Pydantic v2.
-* Memoria conversacional persistida en JSON local para desarrollo.
+* Memoria conversacional de sesion y almacenamiento opcional para desarrollo.
 * RAG local sobre documentos Markdown o TXT.
-* LangGraph y ChromaDB preparados como dependencias opcionales en `ai-service/requirements-rag.txt`.
+* ChromaDB para vector store local.
+* LangGraph como orquestador del flujo IA, con fallback secuencial si la dependencia no esta disponible en local.
 
 ### Testing y herramientas
 

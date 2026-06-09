@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from typing import Any, TypedDict
 
 from app.config import get_settings
 from app.schemas import ChatMessage, ChatRequest, ChatResponse, ToolCall
@@ -29,6 +30,29 @@ RAG_PREFIXES = {
     "memory": (),
     "general": None
 }
+
+
+class AgentGraphState(TypedDict, total=False):
+    request: ChatRequest
+    authorization: str | None
+    previous_history: list[ChatMessage]
+    context: str | None
+    triage: Any
+    intent: Any
+    search_query: str
+    retrieved_state: dict[str, Any]
+    orchestrator: str
+    sources: list[Any]
+    tool_calls: list[ToolCall]
+    requires_confirmation: bool
+    answer: str
+    answer_from_unknown_fallback: bool
+    graph_engine: str
+    graph_error: str | None
+
+
+_LANGGRAPH_APP = None
+_LANGGRAPH_ERROR = None
 
 
 def _run_sequential(message, search_query, intent, authorization=None):
@@ -677,6 +701,34 @@ def _should_use_context(message):
     return normalized.startswith(followup_starts) or any(term in normalized for term in context_terms)
 
 
+def _is_clear_app_action_message(message):
+    normalized = _normalize_message(message)
+    if any(phrase in normalized for phrase in ["pasa algo", "que pasa si", "puede pasar algo"]):
+        return False
+
+    movement_words = [
+        "mover", "mueve", "muevo", "traslada", "trasladar", "pasar",
+        "pasa", "mete", "meter", "aparta", "apartar", "cambio de corral",
+        "cambiar de corral",
+    ]
+    movement_context = ["corral", "lote", "crotal", "crotales", "rfid", "lector"]
+    if any(word in normalized for word in movement_words) and any(word in normalized for word in movement_context):
+        return True
+
+    action_verbs = [
+        "crea", "crear", "registra", "registrar", "alta", "dar de alta",
+        "actualiza", "actualizar", "modifica", "modificar", "abre", "abrir",
+        "cierra", "cerrar", "completa", "completar", "pospone", "posponer",
+        "exporta", "exportar",
+    ]
+    app_terms = [
+        "animal", "crotal", "corral", "lote", "rega", "aviso", "recordatorio",
+        "caso sanitario", "tratamiento", "vacuna", "vacunacion",
+        "desparasitacion", "evento reproductivo", "gestacion", "exportacion",
+    ]
+    return any(verb in normalized for verb in action_verbs) and any(term in normalized for term in app_terms)
+
+
 def _recent_user_context(history, limit=3):
     messages = [
         message.content.strip()
@@ -773,32 +825,68 @@ def _is_low_confidence_local_answer(answer):
     ))
 
 
-def build_chat_response(request: ChatRequest, authorization=None):
-    settings = get_settings()
-    conversation_id = history_store.get_or_create_conversation_id(request.conversation_id)
-    backend_history = history_store.get_history(conversation_id)
-    frontend_history = _history_from_request_context(request.context, request.message)
-    previous_history = frontend_history or backend_history
-    history_store.append_message(conversation_id, "user", request.message)
-
-    context = _recent_user_context(previous_history) if _should_use_context(request.message) else None
+def _graph_analyze(state: AgentGraphState):
+    request = state["request"]
+    previous_history = state.get("previous_history", [])
+    use_context = _should_use_context(request.message) and not _is_clear_app_action_message(request.message)
+    context = _recent_user_context(previous_history) if use_context else None
     triage = classify_triage(request.message, context=context)
     intent = classify_intent(request.message, triage)
     search_query = intent.search_query or triage.suggested_rag_query or request.message
 
+    return {
+        "context": context,
+        "triage": triage,
+        "intent": intent,
+        "search_query": search_query,
+    }
+
+
+def _graph_retrieve(state: AgentGraphState):
+    request = state["request"]
+    authorization = state.get("authorization")
+    intent = state["intent"]
+    search_query = state["search_query"]
+
     if intent.kind == "memory":
-        state = {"sources": [], "tool_calls": []}
+        retrieved_state = {"sources": [], "tool_calls": []}
         orchestrator = "memoria local"
     else:
-        state = _run_sequential(request.message, search_query, intent, authorization)
+        retrieved_state = _run_sequential(request.message, search_query, intent, authorization)
         orchestrator = f"{intent.kind}: {intent.reason}"
 
-    sources = _dedupe_sources_by_file(state.get("sources", []))
-    tool_calls = state.get("tool_calls", [])
+    return {
+        "retrieved_state": retrieved_state,
+        "orchestrator": orchestrator,
+    }
+
+
+def _graph_prepare_context(state: AgentGraphState):
+    intent = state["intent"]
+    retrieved_state = state.get("retrieved_state", {})
+    sources = _dedupe_sources_by_file(retrieved_state.get("sources", []))
+    tool_calls = retrieved_state.get("tool_calls", [])
     requires_confirmation = intent.requires_confirmation or any(
         tool.data and tool.data.get("requires_confirmation")
         for tool in tool_calls
     )
+
+    return {
+        "sources": sources,
+        "tool_calls": tool_calls,
+        "requires_confirmation": requires_confirmation,
+    }
+
+
+def _graph_compose_answer(state: AgentGraphState):
+    request = state["request"]
+    previous_history = state.get("previous_history", [])
+    context = state.get("context")
+    triage = state["triage"]
+    intent = state["intent"]
+    sources = state.get("sources", [])
+    tool_calls = state.get("tool_calls", [])
+    requires_confirmation = state.get("requires_confirmation", False)
 
     context_answer = _build_context_followup_answer(request.message, context)
     human_exposure = _is_human_exposure_question(request.message, context=context)
@@ -831,6 +919,20 @@ def build_chat_response(request: ChatRequest, authorization=None):
                 answer = fallback_answer
                 answer_from_unknown_fallback = True
 
+    return {
+        "answer": answer,
+        "answer_from_unknown_fallback": answer_from_unknown_fallback,
+    }
+
+
+def _graph_queue_learning(state: AgentGraphState):
+    request = state["request"]
+    triage = state["triage"]
+    intent = state["intent"]
+    sources = state.get("sources", [])
+    answer = state.get("answer")
+    answer_from_unknown_fallback = state.get("answer_from_unknown_fallback", False)
+
     if _should_queue_for_review(intent, triage, answer_from_unknown_fallback, sources):
         add_unresolved_question(
             message=request.message,
@@ -844,6 +946,105 @@ def build_chat_response(request: ChatRequest, authorization=None):
             ),
             answer_preview=answer[:1200] if answer else None
         )
+
+    return {}
+
+
+def _build_langgraph_app():
+    global _LANGGRAPH_APP, _LANGGRAPH_ERROR
+
+    if _LANGGRAPH_APP is not None:
+        return _LANGGRAPH_APP
+
+    if _LANGGRAPH_ERROR is not None:
+        return None
+
+    try:
+        from langgraph.graph import END, StateGraph
+    except Exception as err:
+        _LANGGRAPH_ERROR = str(err)
+        return None
+
+    graph = StateGraph(AgentGraphState)
+    graph.add_node("analyze", _graph_analyze)
+    graph.add_node("retrieve", _graph_retrieve)
+    graph.add_node("prepare_context", _graph_prepare_context)
+    graph.add_node("compose_answer", _graph_compose_answer)
+    graph.add_node("queue_learning", _graph_queue_learning)
+
+    graph.set_entry_point("analyze")
+    graph.add_edge("analyze", "retrieve")
+    graph.add_edge("retrieve", "prepare_context")
+    graph.add_edge("prepare_context", "compose_answer")
+    graph.add_edge("compose_answer", "queue_learning")
+    graph.add_edge("queue_learning", END)
+
+    _LANGGRAPH_APP = graph.compile()
+    return _LANGGRAPH_APP
+
+
+def _run_graph_nodes_sequentially(initial_state: AgentGraphState, engine="sequential_fallback"):
+    state = dict(initial_state)
+    for node in (
+        _graph_analyze,
+        _graph_retrieve,
+        _graph_prepare_context,
+        _graph_compose_answer,
+        _graph_queue_learning,
+    ):
+        state.update(node(state))
+
+    state["graph_engine"] = engine
+    state["graph_error"] = _LANGGRAPH_ERROR
+    return state
+
+
+def _run_agent_orchestrator(initial_state: AgentGraphState):
+    app = _build_langgraph_app()
+
+    if app is None:
+        return _run_graph_nodes_sequentially(initial_state)
+
+    try:
+        result = app.invoke(dict(initial_state))
+        result["graph_engine"] = "langgraph"
+        result["graph_error"] = None
+        return result
+    except Exception as err:
+        global _LANGGRAPH_ERROR
+        _LANGGRAPH_ERROR = str(err)
+        return _run_graph_nodes_sequentially(initial_state, engine="sequential_fallback_after_langgraph_error")
+
+
+def agent_status():
+    app = _build_langgraph_app()
+    return {
+        "orchestrator": "langgraph" if app is not None else "sequential_fallback",
+        "langgraph_available": app is not None,
+        "fallback_reason": _LANGGRAPH_ERROR,
+    }
+
+
+def build_chat_response(request: ChatRequest, authorization=None):
+    settings = get_settings()
+    conversation_id = history_store.get_or_create_conversation_id(request.conversation_id)
+    backend_history = history_store.get_history(conversation_id)
+    frontend_history = _history_from_request_context(request.context, request.message)
+    previous_history = frontend_history or backend_history
+    history_store.append_message(conversation_id, "user", request.message)
+
+    graph_state = _run_agent_orchestrator({
+        "request": request,
+        "authorization": authorization,
+        "previous_history": previous_history,
+    })
+
+    intent = graph_state["intent"]
+    sources = graph_state.get("sources", [])
+    tool_calls = graph_state.get("tool_calls", [])
+    requires_confirmation = graph_state.get("requires_confirmation", False)
+    answer = graph_state.get("answer", "")
+    orchestrator = graph_state.get("orchestrator", intent.kind)
 
     answer_parts = [answer]
 
@@ -880,8 +1081,16 @@ def build_chat_response(request: ChatRequest, authorization=None):
     tool_calls.append(ToolCall(
         name="orquestador",
         status="ok",
-        input={"mode": orchestrator, "intent": intent.kind},
-        output_summary=f"Respuesta generada con {orchestrator}."
+        input={
+            "mode": orchestrator,
+            "intent": intent.kind,
+            "engine": graph_state.get("graph_engine"),
+            "fallback_reason": graph_state.get("graph_error"),
+        },
+        output_summary=(
+            f"Respuesta generada con {orchestrator} "
+            f"via {graph_state.get('graph_engine')}."
+        )
     ))
 
     return ChatResponse(

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.schemas import ChatHistoryResponse, ChatRequest, ChatResponse
-from app.services.agent import build_chat_response
+from app.services.agent import agent_status, build_chat_response
 from app.services.history_store import get_history
 from app.services.learning_queue import build_weekly_summary, list_unresolved_questions
 from app.services.rag_service import count_documents, rag_status
@@ -53,7 +53,8 @@ def health():
         "service": settings.service_name,
         "environment": settings.environment,
         "rag_documents_indexed": count_documents(),
-        "rag": rag_status()
+        "rag": rag_status(),
+        "agent": agent_status()
     }
 
 
