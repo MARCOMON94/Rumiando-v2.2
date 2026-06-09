@@ -11,6 +11,10 @@ Si el usuario pregunta por datos que existen en la app, la IA debe intentar cons
 - "Cuantas ovejas tengo" -> consultar dashboard y responder conteo por especie si existe.
 - "Cuantas cabras tengo" -> consultar dashboard y responder conteo por especie si existe.
 - "Cuantos animales tengo" -> totalAnimals y activeAnimals.
+- "Por especie" despues de preguntar por animales -> responder animalsBySpecies.
+- "Por estado" o "estado gestacional/reproductivo" -> responder animalsByReproductiveStatus.
+- "Por corral" -> responder animalsByPen si el dashboard lo devuelve.
+- "Cuantos animales tengo en produccion/lactacion" -> sumar estados reproductivos que contengan produccion, lactacion u ordeno.
 - "Cuantos corrales tengo" -> totalPens.
 - "Que avisos tengo pendientes" -> listar avisos pendientes.
 - "Resumen de la explotacion" -> dashboard.

@@ -1,11 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { post } from '../api/apiClient';
 
-const QUICK_PROMPTS = [
-  'Resume los avisos pendientes de hoy',
-  'Busca el animal con crotal ES0001',
-  'Que debo revisar antes de mover un lote de corral'
-];
+const ASSISTANT_MODES = {
+  vet: {
+    title: 'Vet IA auxiliar',
+    welcome: 'Cuentame que esta pasando con el animal y te digo el siguiente paso.',
+    placeholder: 'Describe especie, sintomas y desde cuando...',
+    quickPrompts: [
+      'Tengo una oveja en el suelo que no se levanta',
+      'Una gallina respira pero no se mueve',
+      'Que hago si sospecho lengua azul'
+    ]
+  },
+  manager: {
+    title: 'Gestor IA',
+    welcome: 'Dime que dato o accion de la explotacion quieres preparar.',
+    placeholder: 'Pregunta por animales, REGA, corrales, avisos o movimientos...',
+    quickPrompts: [
+      'Cuantos animales tengo por especie',
+      'Cual es mi numero REGA',
+      'Prepara un cambio de corral'
+    ]
+  }
+};
 
 
 function ChatMessage({ message }) {
@@ -24,12 +41,13 @@ function ChatMessage({ message }) {
 }
 
 
-export default function AiChatPage() {
+export default function AiChatPage({ mode = 'vet' }) {
+  const assistant = ASSISTANT_MODES[mode] || ASSISTANT_MODES.vet;
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Cuentame que esta pasando y te ayudo a decidir el siguiente paso.'
+      content: assistant.welcome
     }
   ]);
   const [input, setInput] = useState('');
@@ -74,6 +92,7 @@ export default function AiChatPage() {
         message: trimmed,
         conversation_id: conversationId,
         context: {
+          assistant_mode: mode,
           recent_messages: recentMessages
         }
       });
@@ -129,7 +148,7 @@ export default function AiChatPage() {
     <section className="page ai-chat-page">
       <header className="page-header">
         <div>
-          <h2>Asistente IA</h2>
+          <h2>{assistant.title}</h2>
         </div>
       </header>
 
@@ -162,7 +181,7 @@ export default function AiChatPage() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleComposerKeyDown}
-              placeholder="Pregunta por animales, sanidad, avisos o movimientos..."
+              placeholder={assistant.placeholder}
             />
             <button type="submit" disabled={loading || !input.trim()}>
               Enviar
@@ -173,7 +192,7 @@ export default function AiChatPage() {
         <aside className="chat-side-panel">
           <h3>Consultas rapidas</h3>
           <div className="quick-prompts">
-            {QUICK_PROMPTS.map((prompt) => (
+            {assistant.quickPrompts.map((prompt) => (
               <button
                 key={prompt}
                 type="button"

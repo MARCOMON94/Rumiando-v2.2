@@ -50,7 +50,10 @@ APP_CONTEXT_TERMS = [
     "corral", "lote", "rfid", "crotal", "lector", "lectura", "paridas",
     "gestantes", "secado", "lazareto", "reposicion", "cebo", "estado",
     "caso", "aviso", "recordatorio", "tratamiento", "baja", "movimiento",
-    "ficha", "animal"
+    "ficha", "animal", "animales", "especie", "especies", "catalogo",
+    "catalogos", "unidad rega", "rega", "vacuna", "vacunacion",
+    "desparasitacion", "desparasitar", "evento reproductivo",
+    "gestacion", "gestacional", "parto", "exportacion", "endpoint", "ruta"
 ]
 
 APP_QUERY_TERMS = [
@@ -59,7 +62,12 @@ APP_QUERY_TERMS = [
     "localiza", "ficha", "crotal", "rfid", "lector", "lectura", "identificador",
     "donde esta", "en que corral", "rega", "unidad rega", "numero rega",
     "codigo rega", "cuantas", "cuantos", "cuanto ganado", "numero de animales",
-    "ovejas tengo", "cabras tengo", "animales tengo"
+    "ovejas tengo", "cabras tengo", "animales tengo", "por especie",
+    "por estado", "por corral", "en produccion", "en lactacion",
+    "corrales tengo", "corrales", "catalogo", "catalogos", "movimientos",
+    "casos sanitarios", "tratamientos", "vacunaciones", "desparasitaciones",
+    "eventos reproductivos", "endpoints", "rutas", "que puedes hacer",
+    "herramientas", "acciones disponibles"
 ]
 
 
@@ -107,7 +115,7 @@ def _is_app_action_request(normalized):
         return True
 
     direct_action = re.search(
-        r"\b(crea|crear|borra|borrar|actualiza|actualizar|registra|registrar|anade|anadir|guarda|guardar)\b",
+        r"\b(crea|crear|borra|borrar|actualiza|actualizar|registra|registrar|anade|anadir|guarda|guardar|alta|nuevo|nueva|modifica|modificar|cambia|cambiar|abre|abrir|cierra|cerrar|completa|completar|pospone|posponer|exporta|exportar|envia|enviar)\b",
         normalized
     )
     if direct_action and has_app_context:
@@ -154,6 +162,18 @@ def classify_intent(message, triage=None):
 
     action = _is_app_action_request(normalized)
 
+    if _is_app_data_query(normalized):
+        return IntentResult(kind="app_query", reason="consulta de datos de app")
+
+    if (
+        action
+        and triage
+        and triage.code == "generic_health"
+        and _contains_any(normalized, ["mover", "mueve", "trasladar", "traslada", "cambio de corral", "cambiar de corral"])
+        and _contains_any(normalized, ["corral", "lote"])
+    ):
+        return IntentResult(kind="app_action", reason="movimiento de app con contexto de corral", requires_confirmation=True)
+
     # Sanidad gana prioridad de respuesta; la accion queda solo como confirmacion pendiente.
     if _is_health_question(normalized, triage):
         return IntentResult(
@@ -172,8 +192,5 @@ def classify_intent(message, triage=None):
 
     if action:
         return IntentResult(kind="app_action", reason="accion de app con contexto", requires_confirmation=True)
-
-    if _is_app_data_query(normalized):
-        return IntentResult(kind="app_query", reason="consulta de datos de app")
 
     return IntentResult(kind="general", reason="consulta general")

@@ -131,6 +131,54 @@ async function getAnimalsByPen(cuentaGanaderaId) {
   }));
 }
 
+async function getAnimalsByReproductiveStatus(cuentaGanaderaId) {
+  const statuses = await prisma.catalogoEstadoReproductivo.findMany({
+    where: {
+      cuentaGanaderaId
+    },
+    include: {
+      _count: {
+        select: {
+          animales: true
+        }
+      }
+    },
+    orderBy: [
+      {
+        orden: 'asc'
+      },
+      {
+        nombre: 'asc'
+      }
+    ]
+  });
+
+  const withoutStatus = await prisma.animal.count({
+    where: {
+      estadoReproductivoId: null,
+      unidadRega: {
+        cuentaGanaderaId
+      }
+    }
+  });
+
+  const result = statuses.map((item) => ({
+    id: item.id,
+    name: item.nombre,
+    total: item._count.animales
+  }));
+
+  if (withoutStatus > 0) {
+    result.push({
+      id: null,
+      name: 'Sin estado',
+      total: withoutStatus
+    });
+  }
+
+  return result;
+}
+
 async function getRecentMovements(cuentaGanaderaId) {
   return prisma.movimientoTransaccion.findMany({
     where: {
@@ -201,6 +249,7 @@ async function getDashboard(cuentaGanaderaId) {
     totals,
     animalsBySpecies,
     animalsByPen,
+    animalsByReproductiveStatus,
     recentMovements,
     upcomingReminders,
     healthCasesByStatus
@@ -208,6 +257,7 @@ async function getDashboard(cuentaGanaderaId) {
     getTotals(cuentaGanaderaId),
     getAnimalsBySpecies(cuentaGanaderaId),
     getAnimalsByPen(cuentaGanaderaId),
+    getAnimalsByReproductiveStatus(cuentaGanaderaId),
     getRecentMovements(cuentaGanaderaId),
     getUpcomingReminders(cuentaGanaderaId),
     getHealthCasesByStatus(cuentaGanaderaId)
@@ -217,6 +267,7 @@ async function getDashboard(cuentaGanaderaId) {
     totals,
     animalsBySpecies,
     animalsByPen,
+    animalsByReproductiveStatus,
     recentMovements,
     upcomingReminders,
     healthCasesByStatus

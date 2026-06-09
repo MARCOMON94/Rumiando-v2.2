@@ -1,3 +1,4 @@
+import re
 import unicodedata
 
 from app.config import get_settings
@@ -31,7 +32,7 @@ RAG_PREFIXES = {
 
 
 def _run_sequential(message, search_query, intent, authorization=None):
-    run_tools = intent.kind in {"app_query", "app_action"}
+    run_tools = intent.kind in {"app_query", "app_action"} or intent.requires_confirmation
     return {
         "sources": search_documents(
             search_query,
@@ -109,7 +110,15 @@ def _is_health_or_symptom_query(message):
         "muerto", "decaida", "decaido", "debil", "respira mal", "asfixia",
         "no se levanta", "lengua azul", "mal de boca", "basquilla"
     ]
-    return any(keyword in normalized for keyword in keywords)
+
+    return any(_contains_term(normalized, keyword) for keyword in keywords)
+
+
+def _contains_term(normalized, term):
+    if " " in term:
+        return term in normalized
+
+    return re.search(rf"\b{re.escape(term)}\b", normalized) is not None
 
 
 def _priority_label(priority):
@@ -332,6 +341,25 @@ def _build_triage_answer(message, triage, sources):
             "Si hay fiebre, dolor, decaimiento o leche rara, llama al veterinario pronto."
         )
 
+    if triage.code == "diarrhea_dehydration":
+        species = "la oveja" if "ovino" in triage.detected_species else "el animal"
+        return (
+            f"Si {species} tiene mucha diarrea, separala y ponle agua limpia a mano. No le cortes el agua.\n\n"
+            "Mira si hay sangre, si esta decaida, si no come, si tiene fiebre, ojos hundidos, encia seca o si hay mas animales igual. "
+            "Revisa tambien cambio de pienso/pasto, parasitos y cama sucia.\n\n"
+            "Llama al veterinario pronto; urgente si es una cria, hay sangre, esta debil, no se levanta o hay varios afectados."
+        )
+
+    if triage.code == "generic_health":
+        normalized = _normalize_message(message)
+        if "llorando" in normalized or "queja" in normalized or "quejando" in normalized:
+            return (
+                "Si una oveja esta llorando o quejandose de forma rara, piensa en dolor o malestar hasta demostrar lo contrario.\n\n"
+                "Apartala un momento y revisa patas, barriga hinchada, heridas, ubre, parto/aborto, si come, si rumia y si se levanta normal. "
+                "Mira tambien si se ha separado de la cria o del lote.\n\n"
+                "Llama al veterinario si sigue quejandose, no come, no se levanta, respira raro, tiene diarrea, sangre, fiebre o dolor al tocarla."
+            )
+
     actions = "\n".join(f"- {item}" for item in triage.immediate_actions[:3])
     do_not = "\n".join(f"- {item}" for item in triage.do_not[:2])
 
@@ -528,6 +556,22 @@ def _build_app_query_answer(tool_calls, sources):
     )
 
 
+def _build_app_action_answer(tool_calls):
+    ok_tools = [tool for tool in tool_calls if tool.status == "ok"]
+    if ok_tools:
+        return "\n\n".join(tool.output_summary for tool in ok_tools)
+
+    if tool_calls:
+        return (
+            "He detectado una accion de la app, pero no he podido preparar el borrador. "
+            "Dime la accion y los datos clave otra vez: animal/crotal, corral, fecha y motivo si aplica."
+        )
+
+    return (
+        "Puedo preparar la accion, pero necesito datos concretos y confirmacion antes de tocar la explotacion."
+    )
+
+
 def _is_human_exposure_question(message, context=None):
     normalized = _normalize_message(message)
     combined = f"{_normalize_message(context or '')}\n{normalized}"
@@ -623,7 +667,12 @@ def _should_use_context(message):
     "accidente", "trauma",
 
     "pario", "parida", "cria", "crias", "madre", "calostro",
-    "no mama", "no ha mamado", "no se cual es la madre"
+    "no mama", "no ha mamado", "no se cual es la madre",
+    "diarrea", "tiene mucha", "tiene mucho", "no come", "no bebe",
+    "esta peor", "empeoro", "ha empeorado", "sigue igual",
+
+    "por especie", "por estado", "por corral", "en produccion",
+    "en lactacion", "las ovejas", "las cabras", "solo activos"
 ]
     return normalized.startswith(followup_starts) or any(term in normalized for term in context_terms)
 
@@ -695,23 +744,17 @@ def _build_local_answer(message, sources, tool_calls, triage, intent):
     if _is_laying_question(message):
         return _build_laying_answer(message)
 
+    if intent.kind == "app_action":
+        return _build_app_action_answer(tool_calls)
+
+    if intent.kind == "app_query":
+        return _build_app_query_answer(tool_calls, sources)
+
     if intent.kind == "veterinary" or triage.is_relevant or _is_health_or_symptom_query(message):
         return _build_triage_answer(message, triage, sources)
 
     if intent.kind == "management" or _is_management_or_cohabitation_question(message):
         return _build_management_answer(message)
-
-    if any(tool.name == "preparar_cambio_corral" for tool in tool_calls):
-        return (
-            "He detectado una intencion de cambio de corral.\n\n"
-            "Puedo preparar el borrador con animales leidos por crotal/RFID, corral destino, "
-            "origen actual y posibles duplicados. La ruta definitiva de ejecucion queda pendiente, "
-            "asi que de momento debe confirmarse en el flujo de movimientos.\n\n"
-            "Datos que necesito: crotales o lectura RFID, corral destino y fecha del movimiento."
-        )
-
-    if intent.kind == "app_query":
-        return _build_app_query_answer(tool_calls, sources)
 
     return (
         "No tengo una respuesta fiable con la base actual. Lo dejo marcado para revisar y añadir "
@@ -812,11 +855,22 @@ def build_chat_response(request: ChatRequest, authorization=None):
     elif settings.include_debug_sections_in_answer and intent.kind != "memory":
         answer_parts.append(_format_sources(sources))
 
-    if requires_confirmation:
-        answer_parts.append(
-            "Accion pendiente de confirmacion: la IA puede preparar datos, pero el usuario debe confirmar "
-            "antes de ejecutar cambios sobre animales, corrales, estados, tratamientos o bajas."
-        )
+    if requires_confirmation and intent.kind != "app_action":
+        action_summaries = [
+            tool.output_summary
+            for tool in tool_calls
+            if tool.data and tool.data.get("requires_confirmation")
+        ]
+        if action_summaries:
+            answer_parts.append(
+                "Borrador de accion pendiente de confirmacion:\n"
+                + "\n\n".join(action_summaries)
+            )
+        else:
+            answer_parts.append(
+                "Accion pendiente de confirmacion: la IA puede preparar datos, pero el usuario debe confirmar "
+                "antes de ejecutar cambios sobre animales, corrales, estados, tratamientos o bajas."
+            )
 
     if settings.include_safety_notice_in_answer:
         answer_parts.append(SAFETY_NOTICE)

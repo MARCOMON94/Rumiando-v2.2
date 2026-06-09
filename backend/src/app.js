@@ -131,13 +131,17 @@ app.get('/', (req, res) => {
 'GET /api/exports/health-cases',
 'GET /api/exports/movements',
 'GET /api/exports/reminders',
+'POST /api/exports/send-request',
 
 'GET /api/dashboard',
 
 'GET /api/ai/health',
 'POST /api/ai/chat',
 'GET /api/ai/chat/history/:conversationId',
+'GET /api/ai/learning/unresolved',
+'GET /api/ai/learning/weekly-summary',
 
+'GET /api/automation/daily-operational-summary/app',
 'GET /api/automation/daily-operational-summary',
 'GET /api/automation/weekly-health-summary',
 
