@@ -12,6 +12,7 @@ import './styles/forms.css';
 import './styles/cards.css';
 import './styles/chat.css';
 import './styles/reader.css';
+import './styles/mobile-shell.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -14,6 +14,7 @@ import MovementsPage from './pages/MovementsPage';
 import CreateMovementPage from './pages/CreateMovementPage';
 import RemindersPage from './pages/RemindersPage';
 import AiChatPage from './pages/AiChatPage';
+import HomePage from './pages/HomePage';
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           </ProtectedRoute>
         }
       >
+        <Route path="/home" element={<HomePage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/animals" element={<AnimalsPage />} />
         <Route path="/animals/new" element={<CreateAnimalPage />} />
@@ -42,8 +44,8 @@ export default function App() {
         <Route path="/ai-manager" element={<Navigate to="/ai-chat" replace />} />
       </Route>
 
-      <Route path="/" element={<Navigate to="/animals" replace />} />
-      <Route path="*" element={<Navigate to="/animals" replace />} />
+      <Route path="/" element={<Navigate to="/home" replace />} />
+      <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );
 }

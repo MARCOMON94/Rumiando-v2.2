@@ -1,68 +1,33 @@
-﻿import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+﻿import { Outlet } from 'react-router-dom';
 
 export default function AppLayout() {
-  const { user, logout } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const location = useLocation();
-
-  function closeMenu() {
-    setMenuOpen(false);
-  }
-
   return (
-    <div className="app-shell">
-      <header className="mobile-topbar">
-        <div className="brand">
-          <div className="brand-mark">R</div>
-          <div>
-            <h1>RumiAndo</h1>
-            <p>Gestión ganadera</p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="menu-button"
-          onClick={() => setMenuOpen((current) => !current)}
-          aria-label="Abrir menú"
-        >
-          ☰
-        </button>
-      </header>
-
-      {menuOpen && <div className="sidebar-overlay" onClick={closeMenu} />}
-
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
-        <div className="brand">
-          <div className="brand-mark">R</div>
-          <div>
-            <h1>RumiAndo</h1>
-            <p>Gestión ganadera</p>
-          </div>
-        </div>
-
-        <nav className="sidebar-nav">
-          <NavLink to="/dashboard" onClick={closeMenu}>Dashboard</NavLink>
-          <NavLink to="/animals" onClick={closeMenu}>Animales</NavLink>
-          <NavLink to="/reminders" onClick={closeMenu}>Avisos</NavLink>
-          <NavLink to="/pens" onClick={closeMenu}>Corrales</NavLink>
-          <NavLink to="/health" onClick={closeMenu}>Sanidad</NavLink>
-          <NavLink to="/movements" onClick={closeMenu}>Movimientos</NavLink>
-          <NavLink to="/ai-chat" onClick={closeMenu}>Asistente IA</NavLink>
-        </nav>
-
-        <div className="sidebar-user">
-          <p>{user?.nombre || user?.email}</p>
-          <span>{user?.rol}</span>
-          <button type="button" onClick={logout}>Cerrar sesión</button>
-        </div>
-      </aside>
-
-      <main className="main-content" key={location.pathname}>
+    <div className="app-shell clean-app-shell">
+      <main className="main-content clean-main-content">
         <Outlet />
       </main>
+
+      <nav className="mobile-bottom-nav" aria-label="Navegación principal">
+        <button type="button" className="mobile-nav-button">
+          1
+        </button>
+
+        <button type="button" className="mobile-nav-button">
+          2
+        </button>
+
+        <button type="button" className="mobile-search-button" aria-label="Buscar">
+          <span className="css-search-icon" aria-hidden="true" />
+        </button>
+
+        <button type="button" className="mobile-nav-button">
+          3
+        </button>
+
+        <button type="button" className="mobile-nav-button">
+          4
+        </button>
+      </nav>
     </div>
   );
 }
