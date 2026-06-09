@@ -50,8 +50,7 @@ export default function AppLayout() {
           <NavLink to="/pens" onClick={closeMenu}>Corrales</NavLink>
           <NavLink to="/health" onClick={closeMenu}>Sanidad</NavLink>
           <NavLink to="/movements" onClick={closeMenu}>Movimientos</NavLink>
-          <NavLink to="/ai-vet" onClick={closeMenu}>Vet IA auxiliar</NavLink>
-          <NavLink to="/ai-manager" onClick={closeMenu}>Gestor IA</NavLink>
+          <NavLink to="/ai-chat" onClick={closeMenu}>Asistente IA</NavLink>
         </nav>
 
         <div className="sidebar-user">

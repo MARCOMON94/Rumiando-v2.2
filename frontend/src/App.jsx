@@ -37,9 +37,9 @@ export default function App() {
         <Route path="/movements/new" element={<CreateMovementPage />} />
         <Route path="/movements" element={<MovementsPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
-        <Route path="/ai-vet" element={<AiChatPage mode="vet" />} />
-        <Route path="/ai-manager" element={<AiChatPage mode="manager" />} />
-        <Route path="/ai-chat" element={<AiChatPage mode="vet" />} />
+        <Route path="/ai-chat" element={<AiChatPage />} />
+        <Route path="/ai-vet" element={<Navigate to="/ai-chat" replace />} />
+        <Route path="/ai-manager" element={<Navigate to="/ai-chat" replace />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/animals" replace />} />
