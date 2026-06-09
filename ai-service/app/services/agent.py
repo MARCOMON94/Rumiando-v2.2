@@ -1335,7 +1335,8 @@ def _build_death_discharge_tool(message, history, context=None):
             f"Motivo: muerte.\n"
             f"Fecha provisional: {when}.\n"
             f"Observaciones: {notes}.\n\n"
-            "Para preparar la baja necesito el crotal/RFID o identificar el animal. "
+            "Pasa el lector o dime el crotal/RFID del animal. "
+            "La causa queda opcional: si quieres anadirla, dimela; si no, con la lectura basta. "
             "No registro nada sin confirmacion final."
         )
 

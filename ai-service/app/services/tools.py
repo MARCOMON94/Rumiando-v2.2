@@ -588,6 +588,99 @@ def _prepare_generic_action_summary(action_key, endpoint):
     }
 
 
+READER_ACTION_DRAFTS = {
+    "create_health_case": {
+        "summary": (
+            "Puedo abrir un caso sanitario como borrador.\n"
+            "Pasa el lector para identificar animal(es) o usa la pestana Corral si afecta a un corral completo. "
+            "Despues necesito fecha, signos principales y gravedad. No registro nada sin confirmacion final."
+        ),
+        "missing": ["lectura RFID/crotal o corral", "fecha", "signos principales"],
+        "preferred_mode": "lote",
+    },
+    "create_treatment": {
+        "summary": (
+            "Puedo preparar un tratamiento como borrador.\n"
+            "Pasa el lector para identificar animal(es) o usa Corral si se aplico al corral completo. "
+            "Despues necesito medicamento/producto, fecha y dosis si la tienes. No decido medicacion por mi cuenta."
+        ),
+        "missing": ["lectura RFID/crotal o corral", "medicamento/producto", "fecha"],
+        "preferred_mode": "lote",
+    },
+    "create_vaccination": {
+        "summary": (
+            "Puedo preparar una vacunacion como borrador.\n"
+            "Pasa el lector para animales sueltos/lote o usa Corral para corral completo. "
+            "Despues necesito nombre de vacuna, fecha y lote de vacuna si lo tienes. No registro nada sin confirmacion final."
+        ),
+        "missing": ["lectura RFID/crotal o corral", "vacuna", "fecha"],
+        "preferred_mode": "corral",
+    },
+    "create_deworming": {
+        "summary": (
+            "Puedo preparar una desparasitacion como borrador.\n"
+            "Pasa el lector para animales sueltos/lote o usa Corral para corral completo. "
+            "Despues necesito producto, tipo si es interno/externo y fecha. No registro nada sin confirmacion final."
+        ),
+        "missing": ["lectura RFID/crotal o corral", "producto", "fecha"],
+        "preferred_mode": "corral",
+    },
+    "create_reproductive_event": {
+        "summary": (
+            "Puedo preparar un evento reproductivo o estado gestacional como borrador.\n"
+            "Pasa el lector del animal. Despues necesito si es celo, cubricion, ecografia, gestacion, parto o aborto, "
+            "y la fecha. No registro nada sin confirmacion final."
+        ),
+        "missing": ["lectura RFID/crotal", "tipo de evento", "fecha"],
+        "preferred_mode": "unitario",
+    },
+}
+
+
+def _prepare_reader_action_summary(action_key, endpoint, message):
+    config = READER_ACTION_DRAFTS[action_key]
+    normalized = _normalize(message)
+    ear_tags = _ear_tags_from_message(message)
+    when = _relative_date_from_message(normalized)
+    preferred_mode = config["preferred_mode"]
+
+    if any(term in normalized for term in ["corral completo", "todo el corral", "por corral"]):
+        preferred_mode = "corral"
+    elif "lote" in normalized:
+        preferred_mode = "lote"
+    elif len(ear_tags) == 1:
+        preferred_mode = "unitario"
+    elif len(ear_tags) > 1:
+        preferred_mode = "lote"
+
+    extra = []
+    if ear_tags:
+        extra.append(f"Lecturas detectadas: {', '.join(ear_tags)}.")
+    if when:
+        extra.append(f"Fecha indicada: {when}.")
+
+    summary = config["summary"]
+    if extra:
+        summary += "\n" + "\n".join(extra)
+
+    return summary, {
+        "crotales": ear_tags,
+        "fecha": when,
+        "missing": config["missing"],
+        "preferred_mode": preferred_mode,
+        "technical_contract": endpoint,
+    }
+
+
+def _looks_like_advice_not_action(normalized):
+    advice_terms = [
+        "que vacuna", "que tratamiento", "que medicamento", "que antibiotico",
+        "que le doy", "que le pongo", "como trato", "como medico",
+        "puedo darle", "puedo ponerle", "debo darle", "debo ponerle"
+    ]
+    return any(term in normalized for term in advice_terms)
+
+
 def _has_movement_intent(normalized):
     if any(phrase in normalized for phrase in ["pasa algo", "que pasa si", "puede pasar algo"]):
         return False
@@ -630,12 +723,19 @@ def _has_create_or_update_word(normalized):
             "nuevo", "nueva", "actualizar", "actualiza", "modificar", "modifica",
             "cambiar", "cambia", "cerrar", "cierra", "completar", "completa",
             "abrir", "abre", "posponer", "pospone", "exportar", "exporta",
-            "enviar", "envia",
+            "enviar", "envia", "poner", "pon", "aplicar", "aplica",
+            "vacunar", "vacuna este", "vacuna esta", "vacuna estos", "vacuna estas",
+            "vacune", "he vacunado", "medicar", "medica", "he medicado",
+            "tratar", "trata", "he tratado", "desparasitar", "desparasita",
+            "he desparasitado",
         ]
     )
 
 
 def _action_key_from_message(normalized):
+    if _looks_like_advice_not_action(normalized):
+        return None
+
     if not _has_create_or_update_word(normalized) and not _has_movement_intent(normalized):
         return None
 
@@ -654,10 +754,10 @@ def _action_key_from_message(normalized):
     if any(term in normalized for term in ["baja", "dar de baja", "fecha salida", "salida"]):
         return "animal_discharge"
 
-    if any(term in normalized for term in ["tratamiento", "medicamento", "medicacion", "retirada"]):
+    if any(term in normalized for term in ["tratamiento", "medicamento", "medicacion", "retirada", "medicar", "medica", "tratar", "trata", "he medicado", "he tratado"]):
         return "update_treatment" if any(term in normalized for term in ["actualiza", "modifica", "cambia", "cerrar"]) else "create_treatment"
 
-    if any(term in normalized for term in ["vacuna", "vacunacion", "revacunacion"]):
+    if any(term in normalized for term in ["vacuna", "vacunacion", "revacunacion", "vacunar", "vacune", "he vacunado"]):
         return "update_vaccination" if any(term in normalized for term in ["actualiza", "modifica", "cambia"]) else "create_vaccination"
 
     if any(term in normalized for term in ["desparasit", "antiparasitario", "parasitos"]):
@@ -1007,6 +1107,8 @@ def _prepare_action_tool(action_key, message):
         output_summary, draft = _prepare_change_pen_summary(message, endpoint)
     elif action_key == "animal_discharge":
         output_summary, draft = _prepare_discharge_summary(message, endpoint)
+    elif action_key in READER_ACTION_DRAFTS:
+        output_summary, draft = _prepare_reader_action_summary(action_key, endpoint, message)
     else:
         output_summary, draft = _prepare_generic_action_summary(action_key, endpoint)
 

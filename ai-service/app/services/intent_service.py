@@ -56,6 +56,8 @@ APP_CONTEXT_TERMS = [
     "ficha", "animal", "animales", "especie", "especies", "catalogo",
     "catalogos", "unidad rega", "rega", "vacuna", "vacunacion",
     "desparasitacion", "desparasitar", "evento reproductivo",
+    "medica", "medicar", "medicado", "trata", "tratar", "tratado",
+    "vacunar", "vacunado", "desparasita", "desparasitado",
     "gestacion", "gestacional", "parto", "exportacion", "endpoint", "ruta"
 ]
 
@@ -122,6 +124,13 @@ def _is_app_action_request(normalized):
     if _contains_any(normalized, ["pasa algo", "que pasa si", "puede pasar algo"]):
         return False
 
+    if _contains_any(normalized, [
+        "que vacuna", "que tratamiento", "que medicamento", "que antibiotico",
+        "que le doy", "que le pongo", "como trato", "como medico",
+        "puedo darle", "puedo ponerle", "debo darle", "debo ponerle"
+    ]):
+        return False
+
     if _contains_any(normalized, ["dar de baja", "da de baja", "baja a", "baja el", "baja la"]):
         return True
 
@@ -142,7 +151,7 @@ def _is_app_action_request(normalized):
         return True
 
     direct_action = re.search(
-        r"\b(crea|crear|borra|borrar|actualiza|actualizar|registra|registrar|anade|anadir|guarda|guardar|alta|nuevo|nueva|modifica|modificar|cambia|cambiar|abre|abrir|cierra|cerrar|completa|completar|pospone|posponer|exporta|exportar|envia|enviar)\b",
+        r"\b(crea|crear|borra|borrar|actualiza|actualizar|registra|registrar|anade|anadir|guarda|guardar|alta|nuevo|nueva|modifica|modificar|cambia|cambiar|abre|abrir|cierra|cerrar|completa|completar|pospone|posponer|exporta|exportar|envia|enviar|pon|poner|aplica|aplicar|vacuna|vacunar|vacune|vacunado|medica|medicar|trata|tratar|desparasita|desparasitar)\b",
         normalized
     )
     if direct_action and has_app_context:

@@ -8,6 +8,26 @@ const QUICK_PROMPTS = [
   'Prepara un cambio de corral'
 ];
 
+const READER_ACTION_TYPES = [
+  'ANIMAL_DISCHARGE',
+  'CHANGE_PEN',
+  'CREATE_HEALTH_CASE',
+  'CREATE_TREATMENT',
+  'CREATE_VACCINATION',
+  'CREATE_DEWORMING',
+  'CREATE_REPRODUCTIVE_EVENT'
+];
+
+const ACTION_TITLES = {
+  ANIMAL_DISCHARGE: 'Leer animal para baja',
+  CHANGE_PEN: 'Leer animales para movimiento',
+  CREATE_HEALTH_CASE: 'Leer animales para caso sanitario',
+  CREATE_TREATMENT: 'Leer animales para tratamiento',
+  CREATE_VACCINATION: 'Leer animales para vacunacion',
+  CREATE_DEWORMING: 'Leer animales para desparasitacion',
+  CREATE_REPRODUCTIVE_EVENT: 'Leer animal para reproduccion'
+};
+
 
 function ChatMessage({ message }) {
   const isAssistant = message.role === 'assistant';
@@ -27,7 +47,7 @@ function ChatMessage({ message }) {
 function readerRequestFromToolCalls(toolCalls = []) {
   const tool = toolCalls.find((item) => {
     const actionType = item?.data?.action_type || item?.data?.actionType;
-    return ['ANIMAL_DISCHARGE', 'CHANGE_PEN'].includes(actionType);
+    return READER_ACTION_TYPES.includes(actionType);
   });
 
   if (!tool) {
@@ -39,16 +59,34 @@ function readerRequestFromToolCalls(toolCalls = []) {
     actionType,
     toolName: tool.name,
     summary: tool.output_summary,
-    draft: tool.data?.draft || null
+    draft: tool.data?.draft || null,
+    preferredMode: tool.data?.draft?.preferred_mode || null,
+    originalMessage: tool.data?.original_message || tool.data?.originalMessage || ''
   };
 }
 
 function summarizeReaderDraft(draft) {
   if (!draft) return 'Lectura finalizada.';
+  const actionLabel = draft.actionKind ? ` para ${draft.actionKind.replaceAll('_', ' ')}` : '';
   if (draft.mode === 'corral') {
-    return `Lectura finalizada: ${draft.pens.length} corral(es) seleccionados. Queda como borrador pendiente.`;
+    return `Lectura finalizada${actionLabel}: ${draft.pens.length} corral(es) seleccionados. Queda como borrador pendiente.`;
   }
-  return `Lectura finalizada: ${draft.animals.length} animal(es) y ${draft.unknownCodes.length} lectura(s) no encontrada(s). Queda como borrador pendiente.`;
+  return `Lectura finalizada${actionLabel}: ${draft.animals.length} animal(es) y ${draft.unknownCodes.length} lectura(s) no encontrada(s). Queda como borrador pendiente.`;
+}
+
+function initialModeForReader(request) {
+  if (!request) return 'lote';
+  if (request.preferredMode) return request.preferredMode;
+  if (request.actionType === 'ANIMAL_DISCHARGE' || request.actionType === 'CREATE_REPRODUCTIVE_EVENT') {
+    return 'unitario';
+  }
+
+  const text = `${request.originalMessage || ''} ${request.summary || ''}`.toLowerCase();
+  if (text.includes('corral completo') || text.includes('todo el corral') || text.includes('por corral')) {
+    return 'corral';
+  }
+
+  return 'lote';
 }
 
 
@@ -219,9 +257,9 @@ export default function AiChatPage() {
           {readerRequest && (
             <AnimalReaderPanel
               compact
-              title={readerRequest.actionType === 'ANIMAL_DISCHARGE' ? 'Leer animal para baja' : 'Leer animales'}
+              title={ACTION_TITLES[readerRequest.actionType] || 'Leer animales'}
               subtitle="Pasa el lector. Los crotales repetidos se ignoran."
-              initialMode={readerRequest.actionType === 'ANIMAL_DISCHARGE' ? 'unitario' : 'lote'}
+              initialMode={initialModeForReader(readerRequest)}
               actionRequest={readerRequest}
               onFinish={handleReaderFinish}
             />

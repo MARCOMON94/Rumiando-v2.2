@@ -13,6 +13,7 @@ const ACTIONS = [
   { key: 'tratamiento', label: 'Tratamiento' },
   { key: 'vacunacion', label: 'Vacunacion' },
   { key: 'desparasitacion', label: 'Desparasitacion' },
+  { key: 'reproduccion', label: 'Evento reproductivo' },
   { key: 'baja_muerte', label: 'Baja por muerte' }
 ];
 
@@ -61,12 +62,23 @@ function actionFromRequest(request) {
   const actionType = request?.actionType || request?.action_type || request?.data?.action_type;
   if (actionType === 'ANIMAL_DISCHARGE') return 'baja_muerte';
   if (actionType === 'CHANGE_PEN') return 'cambio_corral';
+  if (['CREATE_HEALTH_CASE', 'UPDATE_HEALTH_CASE'].includes(actionType)) return 'sanidad';
+  if (['CREATE_TREATMENT', 'UPDATE_TREATMENT'].includes(actionType)) return 'tratamiento';
+  if (['CREATE_VACCINATION', 'UPDATE_VACCINATION'].includes(actionType)) return 'vacunacion';
+  if (['CREATE_DEWORMING', 'UPDATE_DEWORMING'].includes(actionType)) return 'desparasitacion';
+  if (['CREATE_REPRODUCTIVE_EVENT', 'UPDATE_REPRODUCTIVE_EVENT'].includes(actionType)) return 'reproduccion';
   return 'cambio_corral';
 }
 
 function modeFromRequest(request, fallback) {
   const actionType = request?.actionType || request?.action_type || request?.data?.action_type;
+  const requestText = String(request?.originalMessage || request?.original_message || request?.data?.original_message || '').toLowerCase();
+  const preferredMode = request?.preferredMode || request?.preferred_mode || request?.data?.draft?.preferred_mode;
+  if (preferredMode) return preferredMode;
   if (actionType === 'ANIMAL_DISCHARGE') return 'unitario';
+  if (requestText.includes('corral completo') || requestText.includes('todo el corral') || requestText.includes('por corral')) {
+    return 'corral';
+  }
   return fallback;
 }
 
@@ -288,7 +300,7 @@ export default function AnimalReaderPanel({
     };
 
     setLastDraft(draft);
-    setStatusText('Movimiento preparado como borrador.');
+    setStatusText('Borrador preparado.');
     onFinish?.(draft);
   }
 

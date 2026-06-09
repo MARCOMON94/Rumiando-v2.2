@@ -27,6 +27,7 @@ Describe el flujo que debe seguir la IA antes de ejecutar acciones sensibles: mo
 - Las continuaciones cortas ("hoy", "por muerte", "sin mas causas", "confirmo") pertenecen al ultimo borrador de accion si la conversacion anterior lo deja claro.
 - Mientras la ejecucion definitiva desde chat este pausada, una confirmacion clara debe responder "confirmacion recibida" y dejar el borrador pendiente, sin modificar datos reales.
 - Si en una conversacion sanitaria el usuario afirma muerte ("ha muerto", "esta muerto", "fallecio"), la IA debe preparar baja por muerte. Si no hay crotal/RFID, debe pedir lectura del animal. Si venia de atropello/golpe, incluir esa causa en observaciones.
+- Movimientos, casos sanitarios, tratamientos, vacunas, desparasitaciones, bajas y eventos reproductivos deben compartir la misma base de lectura: unitario, lote o corral completo. El lector selecciona animales/corrales y deja borrador pendiente; la ejecucion real requiere datos minimos y confirmacion.
 
 ## Limites y cautelas
 Este documento no fija endpoints ni payloads definitivos. La IA debe respetar permisos, auditoria y validaciones del backend. La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, dificultad respiratoria, sangre, aborto, mortalidad, dolor intenso, sospecha zoonotica o varios animales afectados, debe recomendar contactar con veterinario. Si una norma depende de MAPA, CCAA o criterio veterinario, debe verificarse antes de aplicarla en produccion.
@@ -35,12 +36,6 @@ Este documento no fija endpoints ni payloads definitivos. La IA debe respetar pe
 - Requisitos RumiAndo: flujo de confirmacion de acciones.
 - Decision de producto: confirmar antes de modificar datos.
 - Estado tecnico: documento pendiente de rutas finales.
-
-## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
-
-## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
 
 ## Nota de uso para el RAG
 Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
