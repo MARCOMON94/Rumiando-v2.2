@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { post } from '../api/apiClient';
+import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
 
 const QUICK_PROMPTS = [
   'Cuantos animales tengo por especie',
@@ -23,6 +24,33 @@ function ChatMessage({ message }) {
   );
 }
 
+function readerRequestFromToolCalls(toolCalls = []) {
+  const tool = toolCalls.find((item) => {
+    const actionType = item?.data?.action_type || item?.data?.actionType;
+    return ['ANIMAL_DISCHARGE', 'CHANGE_PEN'].includes(actionType);
+  });
+
+  if (!tool) {
+    return null;
+  }
+
+  const actionType = tool.data?.action_type || tool.data?.actionType;
+  return {
+    actionType,
+    toolName: tool.name,
+    summary: tool.output_summary,
+    draft: tool.data?.draft || null
+  };
+}
+
+function summarizeReaderDraft(draft) {
+  if (!draft) return 'Lectura finalizada.';
+  if (draft.mode === 'corral') {
+    return `Lectura finalizada: ${draft.pens.length} corral(es) seleccionados. Queda como borrador pendiente.`;
+  }
+  return `Lectura finalizada: ${draft.animals.length} animal(es) y ${draft.unknownCodes.length} lectura(s) no encontrada(s). Queda como borrador pendiente.`;
+}
+
 
 export default function AiChatPage() {
   const [messages, setMessages] = useState([
@@ -36,6 +64,7 @@ export default function AiChatPage() {
   const [conversationId, setConversationId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [readerRequest, setReaderRequest] = useState(null);
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -78,6 +107,11 @@ export default function AiChatPage() {
         }
       });
 
+      const nextReaderRequest = readerRequestFromToolCalls(data.tool_calls || []);
+      if (nextReaderRequest) {
+        setReaderRequest(nextReaderRequest);
+      }
+
       setConversationId(data.conversation_id);
       setMessages((current) => [
         ...current,
@@ -103,6 +137,17 @@ export default function AiChatPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleReaderFinish(draft) {
+    setMessages((current) => [
+      ...current,
+      {
+        id: `reader-${Date.now()}`,
+        role: 'assistant',
+        content: summarizeReaderDraft(draft)
+      }
+    ]);
   }
 
   function fillPrompt(prompt) {
@@ -171,6 +216,17 @@ export default function AiChatPage() {
         </section>
 
         <aside className="chat-side-panel">
+          {readerRequest && (
+            <AnimalReaderPanel
+              compact
+              title={readerRequest.actionType === 'ANIMAL_DISCHARGE' ? 'Leer animal para baja' : 'Leer animales'}
+              subtitle="Pasa el lector. Los crotales repetidos se ignoran."
+              initialMode={readerRequest.actionType === 'ANIMAL_DISCHARGE' ? 'unitario' : 'lote'}
+              actionRequest={readerRequest}
+              onFinish={handleReaderFinish}
+            />
+          )}
+
           <h3>Consultas rapidas</h3>
           <div className="quick-prompts">
             {QUICK_PROMPTS.map((prompt) => (

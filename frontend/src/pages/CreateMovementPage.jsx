@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { post } from '../api/apiClient';
+import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
 import { useCatalogs } from '../context/CatalogsContext';
 
 export default function CreateMovementPage() {
@@ -12,10 +13,9 @@ export default function CreateMovementPage() {
     motivo: 'Movimiento de manejo',
     fecha: '',
     unidadRegaId: '',
-    corralDestinoId: '',
-    crotalesTexto: ''
+    corralDestinoId: ''
   });
-
+  const [readerDraft, setReaderDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -39,15 +39,28 @@ export default function CreateMovementPage() {
   }
 
   function getCrotales() {
-    return formData.crotalesTexto
-      .split(/\n|,|;/)
-      .map((value) => value.trim())
+    if (!readerDraft) {
+      return [];
+    }
+
+    const animalCodes = readerDraft.animals
+      .map((animal) => animal.crotal || animal.numeroInterno)
       .filter(Boolean);
+    const unknownCodes = readerDraft.unknownCodes.map((item) => item.code);
+
+    return [...new Set([...animalCodes, ...unknownCodes])];
+  }
+
+  function operationTypeFromReaderMode() {
+    if (readerDraft?.mode === 'unitario') return 'INDIVIDUAL';
+    if (readerDraft?.mode === 'corral') return 'CORRAL_COMPLETO';
+    if (readerDraft?.mode === 'lote') return 'LOTE';
+    return formData.tipoOperacion;
   }
 
   function buildPayload() {
     return {
-      tipoOperacion: formData.tipoOperacion,
+      tipoOperacion: operationTypeFromReaderMode(),
       motivo: formData.motivo || null,
       fecha: formData.fecha || null,
       unidadRegaId: Number(formData.unidadRegaId),
@@ -65,13 +78,13 @@ export default function CreateMovementPage() {
       const crotales = getCrotales();
 
       if (crotales.length === 0) {
-        throw new Error('Debes indicar al menos un crotal.');
+        throw new Error('Debes leer o seleccionar al menos un crotal.');
       }
 
       const createdMovement = await post('/movements', buildPayload());
 
       if (!createdMovement?.id) {
-        throw new Error('El movimiento se creó, pero no se recibió un id válido.');
+        throw new Error('El movimiento se creo, pero no se recibio un id valido.');
       }
 
       navigate('/movements');
@@ -83,11 +96,11 @@ export default function CreateMovementPage() {
   }
 
   if (loadingCatalogs) {
-    return <p>Cargando catálogos...</p>;
+    return <p>Cargando catalogos...</p>;
   }
 
   if (catalogsError) {
-    return <p className="alert error">Error cargando catálogos: {catalogsError}</p>;
+    return <p className="alert error">Error cargando catalogos: {catalogsError}</p>;
   }
 
   return (
@@ -96,9 +109,7 @@ export default function CreateMovementPage() {
         <div>
           <p className="eyebrow">Movimiento de animales</p>
           <h2>Registrar movimiento</h2>
-          <p>
-            Registra un movimiento individual o en lote hacia un corral destino.
-          </p>
+          <p>Registra un movimiento individual, en lote o por corral completo.</p>
         </div>
 
         <Link className="button secondary" to="/movements">
@@ -109,7 +120,7 @@ export default function CreateMovementPage() {
       <form className="form-card wide-form" onSubmit={handleSubmit}>
         <div className="form-grid">
           <label>
-            Tipo de operación *
+            Tipo de operacion *
             <select
               name="tipoOperacion"
               value={formData.tipoOperacion}
@@ -177,22 +188,17 @@ export default function CreateMovementPage() {
           </label>
         </div>
 
-        <label>
-          Crotales *
-          <textarea
-            name="crotalesTexto"
-            value={formData.crotalesTexto}
-            onChange={handleChange}
-            rows="8"
-            placeholder={'Introduce un crotal por línea, o separados por coma/;'}
-            required
-          />
-        </label>
+        <AnimalReaderPanel
+          title="Seleccionar animales"
+          subtitle="Usa el lector en unitario, lote o corral completo. Los repetidos se ignoran."
+          initialMode={formData.tipoOperacion === 'INDIVIDUAL' ? 'unitario' : 'lote'}
+          onFinish={setReaderDraft}
+        />
 
         <div className="panel">
           <h3>Vista previa</h3>
           <p>
-            Se enviarán <strong>{getCrotales().length}</strong> crotales al backend.
+            Se enviaran <strong>{getCrotales().length}</strong> crotales al backend.
           </p>
         </div>
 

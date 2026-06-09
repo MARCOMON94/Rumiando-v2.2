@@ -37,6 +37,14 @@ HEALTH_CONTEXT_TERMS = [
 "abandono de cria", "cria tirada", "dejo a la cria", "rechaza la cria"
 ]
 
+DEATH_TERMS = [
+    "se ha muerto", "se murio", "ha muerto", "esta muerto", "esta muerta",
+    "aparecio muerto", "aparecio muerta", "muerte subita", "muerto de repente",
+    "muerta de repente", "he matado", "mate sin querer", "matado sin querer",
+    "lo mate sin querer", "la mate sin querer", "he matado sin querer",
+    "fallecio", "fallecido", "fallecida"
+]
+
 
 @dataclass
 class TriageRule:
@@ -100,8 +108,14 @@ def _detected_species(normalized):
     return found
 
 
+def _contains_term(normalized, term):
+    if " " in term:
+        return term in normalized
+    return re.search(rf"\b{re.escape(term)}\b", normalized) is not None
+
+
 def _matched_terms(normalized, terms):
-    return [term for term in terms if term in normalized]
+    return [term for term in terms if _contains_term(normalized, term)]
 
 
 RULES = [
@@ -514,7 +528,8 @@ RULES = [
             "se ha muerto", "se murio", "ha muerto", "esta muerto", "esta muerta",
             "aparecio muerto", "aparecio muerta", "muerte subita", "muerto de repente",
             "muerta de repente", "he matado", "mate sin querer", "matado sin querer",
-            "lo mate sin querer", "la mate sin querer", "he matado sin querer"
+            "lo mate sin querer", "la mate sin querer", "he matado sin querer",
+            "fallecio", "fallecido", "fallecida"
         ],
         reasons=[
             "puede haber riesgo para otros animales si fue intoxicacion, contagio o problema de manejo",
@@ -567,7 +582,9 @@ RULES = [
         priority="URGENT",
         terms=[
             "gato no orina", "gata no orina", "no puede orinar", "intenta orinar",
-            "maulla al orinar", "sangre en orina", "orina con sangre", "vejiga"
+            "maulla al orinar", "sangre en orina", "orina con sangre", "vejiga",
+            "gato no mea", "gata no mea", "no puede mear", "no hace pis",
+            "intenta mear", "intenta hacer pis"
         ],
         reasons=[
             "un bloqueo urinario en gato puede ser mortal en poco tiempo",
@@ -627,6 +644,24 @@ def classify_triage(message, context=None):
         else current_normalized
     )
     species = _detected_species(normalized)
+    current_death_matches = _matched_terms(current_normalized, DEATH_TERMS)
+
+    if current_death_matches:
+        death_rule = next(rule for rule in RULES if rule.code == "death_event")
+        return TriageResult(
+            is_relevant=True,
+            code=death_rule.code,
+            priority=death_rule.priority,
+            title=death_rule.title,
+            matched_terms=current_death_matches,
+            detected_species=species,
+            reasons=death_rule.reasons,
+            immediate_actions=death_rule.immediate_actions,
+            do_not=death_rule.do_not,
+            vet_when=death_rule.vet_when,
+            app_record=death_rule.app_record,
+            suggested_rag_query=death_rule.rag_query
+        )
 
     best_rule = None
     best_matches = []
@@ -668,7 +703,7 @@ def classify_triage(message, context=None):
         )
 
     has_species = bool(species)
-    has_health_context = any(term in normalized for term in HEALTH_CONTEXT_TERMS)
+    has_health_context = any(_contains_term(normalized, term) for term in HEALTH_CONTEXT_TERMS)
     looks_like_health_question = bool(re.search(r"\b(que hago|que puede ser|esta raro|esta rara|esta mala|esta malo)\b", normalized))
 
     if has_species and (has_health_context or looks_like_health_question):

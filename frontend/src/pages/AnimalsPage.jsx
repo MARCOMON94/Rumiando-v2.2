@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { get } from '../api/apiClient';
+import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
 
 function getAnimalsFromResponse(data) {
   if (Array.isArray(data)) return data;
@@ -141,12 +142,19 @@ export default function AnimalsPage() {
         </Link>
       </header>
 
+      <AnimalReaderPanel
+        title="Lectura rapida"
+        subtitle="Prueba lectura unitaria, por lote o por corral completo."
+        animals={animals}
+        initialMode="unitario"
+      />
+
       <div className="filters-card animals-search-panel">
         <label className="search-wide">
           Buscar animal
           <input
             type="search"
-            placeholder="Pega o escribe un crotal..."
+            placeholder="Lee o escribe un crotal..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             autoFocus
@@ -212,13 +220,13 @@ export default function AnimalsPage() {
       </div>
 
       {!hasActiveSearch && (
-  <div className="panel">
-    <h3>Buscar animal</h3>
-    <p className="muted">
-      Escribe o pega un crotal para abrir la ficha del animal. También puedes usar los filtros superiores.
-    </p>
-  </div>
-)}
+        <div className="panel">
+          <h3>Buscar animal</h3>
+          <p className="muted">
+            Lee o escribe un crotal para abrir la ficha del animal. También puedes usar los filtros superiores.
+          </p>
+        </div>
+      )}
 
       {hasActiveSearch && filteredAnimals.length === 0 && (
         <div className="empty-state">

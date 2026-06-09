@@ -26,6 +26,7 @@ Describe el flujo que debe seguir la IA antes de ejecutar acciones sensibles: mo
 - "Da de baja a DEMOAUTO001" -> pedir motivo y fecha. Si responde "por muerte" -> guardar motivo y pedir fecha. Si responde "hoy" -> preparar baja con fecha hoy y pedir confirmacion final. Si dice "hoy y no hay mas causas" -> observaciones "sin causa adicional".
 - Las continuaciones cortas ("hoy", "por muerte", "sin mas causas", "confirmo") pertenecen al ultimo borrador de accion si la conversacion anterior lo deja claro.
 - Mientras la ejecucion definitiva desde chat este pausada, una confirmacion clara debe responder "confirmacion recibida" y dejar el borrador pendiente, sin modificar datos reales.
+- Si en una conversacion sanitaria el usuario afirma muerte ("ha muerto", "esta muerto", "fallecio"), la IA debe preparar baja por muerte. Si no hay crotal/RFID, debe pedir lectura del animal. Si venia de atropello/golpe, incluir esa causa en observaciones.
 
 ## Limites y cautelas
 Este documento no fija endpoints ni payloads definitivos. La IA debe respetar permisos, auditoria y validaciones del backend. La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, dificultad respiratoria, sangre, aborto, mortalidad, dolor intenso, sospecha zoonotica o varios animales afectados, debe recomendar contactar con veterinario. Si una norma depende de MAPA, CCAA o criterio veterinario, debe verificarse antes de aplicarla en produccion.

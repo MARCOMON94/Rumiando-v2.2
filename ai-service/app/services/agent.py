@@ -551,6 +551,7 @@ def _is_management_or_cohabitation_question(message):
     management_terms = [
         "duermen", "dormir", "conviven", "convivir", "juntos", "juntas",
         "mezclar", "compartir", "mismo corral", "misma nave", "misma cama",
+        "pueden estar", "puedo tener",
         "gallinas con ovejas", "patos con cabras", "perros con ovejas",
         "gatos con cabras", "pavos reales"
     ]
@@ -597,6 +598,71 @@ def _build_management_answer(message):
         "y acceso de perros, gatos o aves a placentas, cadaveres, leche de descarte, piensos "
         "medicados o material sanitario. Si hay crias, paridas, enfermos o animales debiles, "
         "mejor separarlos."
+    )
+
+
+def _is_feeding_question(message):
+    normalized = _normalize_message(message)
+    feeding_terms = [
+        "comer", "come", "comen", "darle", "darles", "pienso", "paja", "heno",
+        "alfalfa", "grano", "cebada", "maiz", "avena", "sal", "bloque",
+        "agua", "bebedero", "moho", "moj", "pan", "bellota", "lechuga",
+        "col", "patata", "cebolla", "chocolate", "sobras", "ensilado"
+    ]
+    return any(term in normalized for term in feeding_terms)
+
+
+def _build_feeding_answer(message):
+    normalized = _normalize_message(message)
+
+    if "pienso de gallina" in normalized and any(term in normalized for term in ["oveja", "ovejas", "cabra", "cabras", "cordero", "cabrito"]):
+        return (
+            "No uses pienso de gallina para ovejas o cabras.\n\n"
+            "Esta pensado para aves y puede llevar niveles de minerales, aditivos o medicaciones que no corresponden a rumiantes. "
+            "Ademas, cambiar de pienso de golpe puede provocar diarrea, acidosis o timpanismo.\n\n"
+            "Retiralo y usa alimento de rumiantes. Si ya comio bastante y ves panza hinchada, espuma, diarrea, temblores o decaimiento, llama al veterinario."
+        )
+
+    if "pan" in normalized and any(term in normalized for term in ["oveja", "ovejas", "cabra", "cabras", "cordero", "cabrito"]):
+        return (
+            "Mejor no dar pan como alimento habitual a ovejas o cabras.\n\n"
+            "Un trozo pequeno, seco y sin moho no suele ser el mayor problema, pero mucho pan o pan mohoso puede alterar la panza. "
+            "No lo uses para sustituir heno/pasto/pienso de rumiantes.\n\n"
+            "Si ya comieron bastante y ves panza hinchada, diarrea, espuma, temblores o animales caidos, llama al veterinario."
+        )
+
+    if any(term in normalized for term in ["moho", "moj", "podrido", "podrida", "rancio"]):
+        return (
+            "No des comida con moho, mojada o podrida.\n\n"
+            "Retirala del lote y revisa si alguno tiene diarrea, temblores, espuma, no come o esta tumbado. "
+            "Si ya han comido bastante o ves sintomas, llama al veterinario y guarda una muestra del alimento."
+        )
+
+    if any(term in normalized for term in ["chocolate", "cebolla", "lejia", "raticida", "veneno", "pesticida", "herbicida"]):
+        return (
+            "No se lo des. Eso puede ser peligroso segun especie y cantidad.\n\n"
+            "Si ya lo comio, aparta el alimento, identifica cuanto y a que hora, y llama al veterinario. "
+            "No provoques vomito ni des remedios caseros sin indicacion."
+        )
+
+    if any(term in normalized for term in ["cambio de pienso", "cambie el pienso", "pienso nuevo", "mucho grano", "mucho maiz", "mucha cebada"]):
+        return (
+            "Con cambios de pienso o mucho grano, ve con cuidado.\n\n"
+            "Los cambios bruscos pueden dar diarrea, acidosis o timpanismo. Haz transicion progresiva, agua limpia siempre y vigila panza hinchada, "
+            "animal decaido, diarrea o que deje de rumiar. Si aparece alguno, llama al veterinario."
+        )
+
+    if "agua" in normalized or "bebedero" in normalized:
+        return (
+            "El agua es lo primero: limpia, accesible y suficiente.\n\n"
+            "Revisa que el bebedero funcione, que no este sucio, con algas, barro o animales dominantes bloqueando. "
+            "Si un animal no bebe y esta decaido, con diarrea, fiebre o no se levanta, no lo dejes pasar."
+        )
+
+    return (
+        "Como norma de campo: comida limpia, sin moho, cambios poco a poco y agua siempre.\n\n"
+        "Para ovejas y cabras, cuidado con exceso de grano, pienso nuevo de golpe, plantas raras, sal sin control o restos de cocina. "
+        "Si tras comer aparece panza hinchada, diarrea, espuma, temblores o animales caidos, llama al veterinario."
     )
 
 
@@ -780,12 +846,51 @@ def _build_specific_health_answer(message, context=None):
             "Veterinario hoy si repite vomitos, esta apagado, hay sangre, diarrea fuerte, barriga hinchada, dolor o no retiene agua."
         )
 
+    if any(term in combined for term in ["cordero", "cabrito", "cria", "pollito"]) and "diarrea" in normalized:
+        return (
+            "Prioridad alta: una cria con diarrea se deshidrata rapido.\n\n"
+            "Apartala en cama seca, confirma que bebe o mama, mira si hay sangre, ojos hundidos, frio, debilidad o mas crias igual. "
+            "No le cortes el agua ni mediques a ciegas.\n\n"
+            "Llama al veterinario pronto; urgente si esta debil, no mama, hay sangre o son varias crias."
+        )
+
+    if any(term in combined for term in ["gallina", "gallo", "pato", "pavo", "ave"]) and any(term in normalized for term in ["diarrea", "caca liquida", "culo sucio"]):
+        return (
+            "En aves, diarrea o culo sucio merece separarla y mirar el lote.\n\n"
+            "Ponla en sitio seco, revisa agua, pienso, calor/frio, si esta embolada, respira con pico abierto o hay mas aves igual. "
+            "No mezcles con crias ni des antibioticos sin veterinario.\n\n"
+            "Veterinario si esta apagada, no come, hay sangre, varias aves afectadas o muertes."
+        )
+
+    if any(term in combined for term in ["gallina", "gallo", "pato", "pavo", "ave"]) and any(term in normalized for term in ["en el suelo", "tumbada", "tumbado", "no se mueve", "no levanta"]):
+        return (
+            "Prioridad alta: una ave en el suelo que respira pero no se mueve no es normal.\n\n"
+            "Separala en una caja o zona tranquila, seca y templada. Mira si respira con pico abierto, si esta fria, tiene heridas, diarrea, abdomen duro, cuello raro o patas abiertas. "
+            "No la fuerces a comer ni a beber.\n\n"
+            "Veterinario si no se levanta pronto, respira mal, esta muy fria/caliente, hay golpes, varias aves igual o sospechas huevo retenido/intoxicacion."
+        )
+
     if any(term in combined for term in ["oveja", "cabra"]) and any(term in normalized for term in ["coja", "cojo", "cojera"]):
         return (
             "Si esta coja, tratala como dolor de pata hasta verla bien.\n\n"
             "Apartala en suelo seco y mira la pezuna: piedra clavada, barro, mal olor, pus, calor, hinchazon, herida o si no apoya nada. "
             "No recortes a ciegas si no ves claro donde esta el problema.\n\n"
             "Veterinario o alguien con experiencia si no apoya, hay pus/mal olor, esta muy dolorida, hay fiebre o ves varias cojas."
+        )
+
+    if any(term in combined for term in ["caballo", "yegua", "potro", "burro", "mula", "vaca", "ternero"]) and any(term in normalized for term in ["cojea", "coja", "cojo", "cojera", "no apoya"]):
+        return (
+            "Si un caballo, burro o vaca cojea, no lo fuerces a andar.\n\n"
+            "Dejalo quieto en suelo seguro y revisa casco/pezuna y pata: piedra, clavo, herida, calor, hinchazon, deformidad o si no apoya nada. "
+            "No des medicacion humana ni intentes corregir una postura rara a la fuerza.\n\n"
+            "Llama al veterinario o herrador/veterinario segun el caso; urgente si no apoya, hay herida profunda, hinchazon fuerte, mucho dolor o empeora rapido."
+        )
+
+    if any(term in combined for term in ["oveja", "cabra"]) and any(term in normalized for term in ["llorando", "quejando", "queja", "balando raro"]):
+        return (
+            "Si una oveja o cabra esta llorando o quejandose raro, piensa en dolor o estres.\n\n"
+            "Apartala un momento y revisa patas, barriga hinchada, heridas, ubre, parto/aborto, si come, si rumia y si se ha separado de la cria o del lote.\n\n"
+            "Llama al veterinario si sigue quejandose, no come, no se levanta, respira raro, tiene diarrea, sangre, fiebre o dolor al tocarla."
         )
 
     if any(term in normalized for term in ["esta de parto", "esta pariendo", "de parto", "pariendo"]):
@@ -818,6 +923,48 @@ def _build_specific_health_answer(message, context=None):
             "Puede haber feto/placenta retenida, infeccion o tejido muerto. Apartala en limpio, no sigas manipulando y no dejes restos al alcance "
             "de perros, gatos o aves.\n\n"
             "Llama al veterinario ya, sobre todo si esta decaida, tiene fiebre, sangra, no se levanta o sigue expulsando liquido con mal olor."
+        )
+
+    has_respiratory_sign = any(
+        _contains_term(normalized, term)
+        for term in ["tos", "mocos", "estornuda", "ruido al respirar"]
+    )
+    if has_respiratory_sign:
+        if any(term in normalized for term in ["respira mal", "boca abierta", "pico abierto", "azul", "no se levanta"]):
+            return (
+                "URGENTE: si ademas de tos o mocos respira mal, llama al veterinario ya.\n\n"
+                "Apartalo sin estresarlo, evita polvo y corrientes fuertes, y revisa si hay mas animales igual. "
+                "No lo fuerces a caminar ni le des medicacion humana."
+            )
+
+        return (
+            "Tos o mocos pueden empezar leve, pero mira el lote.\n\n"
+            "Aparta si esta decaido, revisa ventilacion, polvo, humedad de cama, fiebre, apetito y si hay mas animales con tos. "
+            "Veterinario si respira raro, no come, tiene fiebre, es cria o hay varios afectados."
+        )
+
+    if any(term in normalized for term in ["ojo blanco", "ojo cerrado", "ojo hinchado", "lagrimea", "nube en el ojo", "ciego"]):
+        return (
+            "Un ojo cerrado, blanco o hinchado no lo dejes pasar.\n\n"
+            "Aparta al animal si se golpea o si hay varios con ojos mal, evita polvo y no metas productos fuertes en el ojo. "
+            "Veterinario si hay nube/blanco, herida, pus, dolor, no abre el ojo o afecta a varios."
+        )
+
+    if any(term in normalized for term in ["bulto", "masa", "hinchazon", "absceso", "grano grande"]):
+        if "ubre" in combined:
+            return None
+
+        return (
+            "Un bulto puede ser golpe, absceso, hernia, picadura u otra cosa; no lo pinches a ciegas.\n\n"
+            "Mira si esta caliente, duele, crece rapido, supura, huele mal o el animal esta decaido. "
+            "Si hay fiebre, dolor fuerte, pus, mal olor o esta cerca de garganta/ubre/barriga, llama al veterinario."
+        )
+
+    if any(term in normalized for term in ["gusanos", "larvas", "bicheras", "coquera", "huele podrido"]):
+        return (
+            "Prioridad alta: si hay gusanos, larvas o herida con mal olor, necesita limpieza correcta.\n\n"
+            "Apartalo en limpio, evita que otros animales laman la zona y no arranques tejido ni metas productos fuertes. "
+            "Llama al veterinario para limpiar bien y valorar tratamiento."
         )
 
     return None
@@ -882,6 +1029,8 @@ def _should_use_context(message):
     "solo la pata", "la pata", "eso", "lo mismo", "sigue", "no mejora",
     "yo que hago", "que hago yo", "conmigo", "lo intente mover", "chilla",
     "jadea", "sale gas", "saliendo gas", "pincho", "se ha muerto", "murio",
+    "ha muerto", "esta muerto", "esta muerta", "muerto", "muerta",
+    "fallecio", "fallecido", "fallecida", "no se mueve",
     "sangre", "sale sangre", "lo intente", "le pincho",
     "huele fatal", "huele mal", "mal olor", "jalado", "he jalado",
 
@@ -908,9 +1057,12 @@ def _is_clear_app_action_message(message):
     movement_words = [
         "mover", "mueve", "muevo", "traslada", "trasladar", "pasar",
         "pasa", "mete", "meter", "aparta", "apartar", "cambio de corral",
-        "cambiar de corral",
+        "cambiar", "cambia", "cambiar de corral", "cambiar de sitio", "cambia de sitio",
     ]
-    movement_context = ["corral", "lote", "crotal", "crotales", "rfid", "lector"]
+    movement_context = [
+        "corral", "lote", "crotal", "crotales", "rfid", "lector",
+        "sitio", "oveja", "ovejas", "cabra", "cabras", "ganado"
+    ]
     if any(word in normalized for word in movement_words) and any(word in normalized for word in movement_context):
         return True
 
@@ -1101,6 +1253,106 @@ def _build_pending_discharge_tool(message, history):
     )
 
 
+def _looks_like_death_report(message, context=None):
+    normalized = _normalize_message(message)
+    combined = f"{_normalize_message(context or '')}\n{normalized}"
+    death_terms = [
+        "se ha muerto", "se murio", "ha muerto", "esta muerto", "esta muerta",
+        "muerto", "muerta", "fallecio", "fallecido", "fallecida",
+        "he matado", "mate sin querer", "matado sin querer"
+    ]
+    human_terms = [
+        "mi hijo", "mi hija", "mi padre", "mi madre", "mi abuelo",
+        "mi abuela", "persona", "vecino", "hombre", "mujer"
+    ]
+    current_reports_death = any(term in normalized for term in death_terms)
+    context_reports_death = any(term in combined for term in death_terms)
+    current_has_ear_tag = bool(_extract_ear_tags(message))
+
+    if any(term in combined for term in human_terms):
+        return False
+
+    return (
+        current_reports_death
+        or (context_reports_death and current_has_ear_tag)
+    )
+
+
+def _death_observations_from_context(combined_normalized):
+    accident_terms = [
+        "atropell", "coche", "le di con el coche", "le he dado con el coche",
+        "accidente", "tractor", "quad", "remolque"
+    ]
+    trauma_terms = [
+        "golpe", "piedra", "aplast", "pisado", "pisoton", "caida",
+        "cayo", "techo", "patada", "cornada"
+    ]
+
+    if any(term in combined_normalized for term in accident_terms):
+        return "muerte tras atropello o accidente"
+    if any(term in combined_normalized for term in trauma_terms):
+        return "muerte tras traumatismo"
+    return "muerte indicada por el usuario"
+
+
+def _build_death_discharge_tool(message, history, context=None):
+    user_messages = [
+        item.content.strip()
+        for item in history
+        if item.role == "user" and item.content.strip()
+    ]
+    recent = user_messages[-8:]
+    combined_text = "\n".join(recent + [message])
+    combined_context = f"{context or ''}\n{combined_text}"
+
+    if not _looks_like_death_report(message, context=combined_context):
+        return None
+
+    combined_normalized = _normalize_message(combined_text)
+    ear_tags = _extract_ear_tags(combined_text)
+    crotal = ear_tags[-1] if ear_tags else None
+    when = _date_from_text(combined_normalized) or "hoy"
+    notes = _death_observations_from_context(combined_normalized)
+
+    details = {
+        "crotal": crotal,
+        "motivo": "muerte",
+        "fecha": when,
+        "observaciones": notes,
+    }
+
+    if crotal:
+        summary = (
+            f"He detectado muerte y tengo preparada la baja de {crotal}.\n\n"
+            f"Motivo: muerte.\n"
+            f"Fecha: {when}.\n"
+            f"Observaciones: {notes}.\n\n"
+            "Confirma si quieres registrarla. No ejecuto la baja sin confirmacion final."
+        )
+    else:
+        summary = (
+            "He detectado que el animal ha muerto, asi que toca gestionar una baja por muerte.\n\n"
+            f"Motivo: muerte.\n"
+            f"Fecha provisional: {when}.\n"
+            f"Observaciones: {notes}.\n\n"
+            "Para preparar la baja necesito el crotal/RFID o identificar el animal. "
+            "No registro nada sin confirmacion final."
+        )
+
+    return ToolCall(
+        name="preparar_baja_por_muerte",
+        status="ok",
+        input={"message": message, "from_context": True},
+        output_summary=summary,
+        data={
+            "requires_confirmation": True,
+            "action_type": "ANIMAL_DISCHARGE",
+            "draft": details,
+            "original_message": message,
+        },
+    )
+
+
 def _build_action_confirmation_tool(message, history):
     normalized = _normalize_message(message).strip()
     confirmation_terms = [
@@ -1190,6 +1442,9 @@ def _build_local_answer(message, sources, tool_calls, triage, intent, context=No
     if intent.kind == "veterinary" or triage.is_relevant or _is_health_or_symptom_query(message):
         return _build_triage_answer(message, triage, sources)
 
+    if _is_feeding_question(message):
+        return _build_feeding_answer(message)
+
     if intent.kind == "management" or _is_management_or_cohabitation_question(message):
         return _build_management_answer(message)
 
@@ -1224,6 +1479,13 @@ def _graph_analyze(state: AgentGraphState):
             reason="confirmacion de accion pendiente",
             requires_confirmation=False,
             search_query="confirmacion accion app pendiente"
+        )
+    elif _build_death_discharge_tool(request.message, previous_history, context=context):
+        intent = IntentResult(
+            kind="app_action",
+            reason="muerte detectada; preparar baja de animal",
+            requires_confirmation=True,
+            search_query="baja animal por muerte accidente cadaver"
         )
     elif _build_pending_discharge_tool(request.message, previous_history):
         intent = IntentResult(
@@ -1261,7 +1523,9 @@ def _graph_retrieve(state: AgentGraphState):
         raise RuntimeError("AgentGraphState missing 'search_query'. _graph_analyze must run before _graph_retrieve.")
 
     previous_history = state.get("previous_history", [])
+    context = state.get("context")
     action_confirmation_tool = _build_action_confirmation_tool(request.message, previous_history)
+    death_discharge_tool = _build_death_discharge_tool(request.message, previous_history, context=context)
     pending_discharge_tool = _build_pending_discharge_tool(request.message, previous_history)
 
     if action_confirmation_tool:
@@ -1270,6 +1534,16 @@ def _graph_retrieve(state: AgentGraphState):
             "tool_calls": [action_confirmation_tool],
         }
         orchestrator = "app_action: confirmacion de accion pendiente"
+
+    elif death_discharge_tool:
+        retrieved_state = {
+            "sources": search_documents(
+                search_query,
+                allowed_prefixes=RAG_PREFIXES.get("app_action")
+            ),
+            "tool_calls": [death_discharge_tool],
+        }
+        orchestrator = "app_action: baja por muerte detectada"
 
     elif pending_discharge_tool:
         retrieved_state = {

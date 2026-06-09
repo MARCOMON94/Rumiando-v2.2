@@ -595,11 +595,15 @@ def _has_movement_intent(normalized):
     action_words = [
         "mover", "mueve", "movimiento", "trasladar", "traslada",
         "pasar", "pasa", "meter", "mete", "apartar", "aparta",
-        "cambio de corral", "cambiar de corral",
+        "cambiar", "cambia",
+        "cambio de corral", "cambiar de corral", "cambiar de sitio",
+        "cambia de sitio", "cambio de sitio",
     ]
     context_words = [
         "corral", "lote", "crotales", "rfid", "lector", "paridas",
         "gestantes", "secado", "lazareto", "reposicion", "cebo",
+        "oveja", "ovejas", "cabra", "cabras", "cordero", "corderos",
+        "cabrito", "cabritos", "ganado", "rebano", "sitio",
     ]
 
     return any(word in normalized for word in action_words) and any(word in normalized for word in context_words)

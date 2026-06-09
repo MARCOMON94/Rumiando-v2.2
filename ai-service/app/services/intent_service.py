@@ -26,6 +26,7 @@ HEALTH_TERMS = [
     "cojo", "coja", "cojera", "convulsion", "ataque", "ubre",
     "mastitis", "parto", "aborto", "dolor", "vomita", "vomitos",
     "pico abierto", "no se mueve", "orina", "veneno", "toxica", "toxico",
+    "no puede mear", "no hace pis", "no mea", "intenta mear",
     "pisado", "pisada", "pisoton", "atropelle", "atropellado",
     "no mueve la pata", "no apoya la pata", "se comio", "comio un pato",
     "he sacado la pata", "he sacado la cria", "he jalado", "he tirado",
@@ -44,6 +45,7 @@ HEALTH_TERMS = [
 MANAGEMENT_TERMS = [
     "duermen", "dormir", "conviven", "convivir", "juntos", "juntas",
     "mezclar", "compartir", "mismo corral", "misma nave", "misma cama",
+    "pueden estar", "puedo tener",
     "bioseguridad", "cuarentena", "paridera", "cama", "comedero", "bebedero"
 ]
 
@@ -82,6 +84,16 @@ def _contains_any(normalized, terms):
     return any(term in normalized for term in terms)
 
 
+def _contains_term(normalized, term):
+    if " " in term:
+        return term in normalized
+    return re.search(rf"\b{re.escape(term)}\b", normalized) is not None
+
+
+def _contains_any_term(normalized, terms):
+    return any(_contains_term(normalized, term) for term in terms)
+
+
 def _species_count(normalized):
     return sum(1 for term in SPECIES_TERMS if term in normalized)
 
@@ -115,10 +127,17 @@ def _is_app_action_request(normalized):
 
     movement_words = [
         "mover", "mueve", "muevo", "traslada", "trasladar", "pasar",
-        "pasa", "pasa al", "pasa a", "mete", "meter", "aparta", "apartar"
+        "pasa", "pasa al", "pasa a", "mete", "meter", "aparta", "apartar",
+        "cambiar", "cambia",
+        "cambiar de sitio", "cambia de sitio", "cambio de sitio",
+        "cambiar ovejas de sitio", "cambiar cabras de sitio"
     ]
     has_movement = _contains_any(normalized, movement_words)
-    has_app_context = _contains_any(normalized, APP_CONTEXT_TERMS)
+    movement_species_context = [
+        "oveja", "ovejas", "cabra", "cabras", "cordero", "corderos",
+        "cabrito", "cabritos", "ganado", "rebano", "sitio"
+    ]
+    has_app_context = _contains_any(normalized, APP_CONTEXT_TERMS + movement_species_context)
     if has_movement and has_app_context:
         return True
 
@@ -156,7 +175,7 @@ def _is_health_question(normalized, triage):
     if triage and triage.is_relevant:
         return True
 
-    return _contains_any(normalized, HEALTH_TERMS) and (
+    return _contains_any_term(normalized, HEALTH_TERMS) and (
         _species_count(normalized) > 0
         or _contains_any(normalized, ["animal", "animales", "cria", "crias"])
     )
