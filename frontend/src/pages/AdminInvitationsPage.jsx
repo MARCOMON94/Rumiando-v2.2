@@ -22,13 +22,49 @@ function getStatusText(status) {
   return labels[status] || status || 'Sin estado';
 }
 
+function buildInvitationSubject() {
+  return 'Invitación para acceder a RumiAndo';
+}
+
+function buildInvitationBody({ invitationUrl, email, role }) {
+  return [
+    'Hola,',
+    '',
+    'Te he enviado una invitación para acceder a RumiAndo.',
+    '',
+    `Email invitado: ${email}`,
+    `Rol asignado: ${role}`,
+    '',
+    'Para aceptar la invitación, abre este enlace y entra con esa misma cuenta de Google:',
+    invitationUrl,
+    '',
+    'Si no esperabas esta invitación, puedes ignorar este correo.',
+    '',
+    'Un saludo.'
+  ].join('\n');
+}
+
+function buildMailtoUrl({ invitationUrl, email, role }) {
+  const subject = encodeURIComponent(buildInvitationSubject());
+  const body = encodeURIComponent(buildInvitationBody({ invitationUrl, email, role }));
+
+  return `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
+}
+
+function buildGmailComposeUrl({ invitationUrl, email, role }) {
+  const subject = encodeURIComponent(buildInvitationSubject());
+  const body = encodeURIComponent(buildInvitationBody({ invitationUrl, email, role }));
+
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${subject}&body=${body}`;
+}
+
 export default function AdminInvitationsPage() {
   const { user } = useAuth();
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('OPERARIO');
   const [invitations, setInvitations] = useState([]);
-  const [lastInvitationUrl, setLastInvitationUrl] = useState('');
+  const [lastInvitation, setLastInvitation] = useState(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -76,7 +112,12 @@ export default function AdminInvitationsPage() {
         rol: role
       });
 
-      setLastInvitationUrl(data.invitationUrl || '');
+      setLastInvitation({
+        url: data.invitationUrl || '',
+        email: normalizedEmail,
+        role
+      });
+
       setEmail('');
       setRole('OPERARIO');
       await loadInvitations();
@@ -88,10 +129,10 @@ export default function AdminInvitationsPage() {
   }
 
   async function handleCopyInvitationUrl() {
-    if (!lastInvitationUrl) return;
+    if (!lastInvitation?.url) return;
 
     try {
-      await navigator.clipboard.writeText(lastInvitationUrl);
+      await navigator.clipboard.writeText(lastInvitation.url);
       setCopied(true);
     } catch {
       setCopied(false);
@@ -142,8 +183,8 @@ export default function AdminInvitationsPage() {
           <div>
             <h3>Nueva invitación</h3>
             <p>
-              De momento se genera un enlace para copiar manualmente. Más adelante
-              lo enviaremos por email automáticamente.
+              Se generará un enlace seguro. Después podrás abrir Gmail con el
+              correo ya preparado para enviarlo al usuario invitado.
             </p>
           </div>
         </div>
@@ -179,22 +220,55 @@ export default function AdminInvitationsPage() {
           </div>
         </form>
 
-        {lastInvitationUrl && (
+        {lastInvitation?.url && (
           <div className="panel">
             <div className="section-header">
               <div>
-                <h3>Enlace generado</h3>
+                <h3>Invitación generada</h3>
                 <p>
-                  Copia este enlace y envíaselo al usuario invitado.
+                  Puedes enviarla por Gmail o copiar el enlace manualmente.
+                  El usuario invitado debe aceptar con el mismo email.
                 </p>
               </div>
             </div>
 
+            <p>
+              <strong>Email:</strong> {lastInvitation.email}
+            </p>
+
+            <p>
+              <strong>Rol:</strong> {lastInvitation.role}
+            </p>
+
             <p className="alert">
-              {lastInvitationUrl}
+              {lastInvitation.url}
             </p>
 
             <div className="form-actions">
+              <a
+                className="button"
+                href={buildGmailComposeUrl({
+                  invitationUrl: lastInvitation.url,
+                  email: lastInvitation.email,
+                  role: lastInvitation.role
+                })}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir Gmail
+              </a>
+
+              <a
+                className="button secondary"
+                href={buildMailtoUrl({
+                  invitationUrl: lastInvitation.url,
+                  email: lastInvitation.email,
+                  role: lastInvitation.role
+                })}
+              >
+                Abrir app de correo
+              </a>
+
               <button type="button" onClick={handleCopyInvitationUrl}>
                 {copied ? 'Copiado' : 'Copiar enlace'}
               </button>
