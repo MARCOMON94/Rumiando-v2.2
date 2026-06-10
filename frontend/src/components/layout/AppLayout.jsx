@@ -7,6 +7,8 @@ export default function AppLayout() {
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const isAdmin = user?.rol === 'ADMIN';
+
   function toggleSettings() {
     setSettingsOpen((current) => !current);
   }
@@ -39,6 +41,12 @@ export default function AppLayout() {
           <NavLink to="/health">Sanidad</NavLink>
           <NavLink to="/movements">Movimientos</NavLink>
           <NavLink to="/ai-chat">Asistente IA</NavLink>
+
+          {isAdmin && (
+            <NavLink to="/admin/invitations">
+              Invitaciones
+            </NavLink>
+          )}
         </nav>
 
         <div className="sidebar-user">
@@ -60,6 +68,12 @@ export default function AppLayout() {
             <strong>{user?.nombre || user?.email || 'Usuario'}</strong>
             <span>{user?.rol || 'Sesión activa'}</span>
           </div>
+
+          {isAdmin && (
+            <NavLink to="/admin/invitations" onClick={closeSettings}>
+              Invitaciones
+            </NavLink>
+          )}
 
           <button type="button" onClick={handleLogout}>
             Cerrar sesión

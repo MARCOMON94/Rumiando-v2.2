@@ -3,6 +3,7 @@ import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 import LoginPage from './pages/LoginPage';
+import InviteAcceptPage from './pages/InviteAcceptPage';
 import DashboardPage from './pages/DashboardPage';
 import AnimalsPage from './pages/AnimalsPage';
 import AnimalDetailPage from './pages/AnimalDetailPage';
@@ -15,11 +16,13 @@ import CreateMovementPage from './pages/CreateMovementPage';
 import RemindersPage from './pages/RemindersPage';
 import AiChatPage from './pages/AiChatPage';
 import HomePage from './pages/HomePage';
+import AdminInvitationsPage from './pages/AdminInvitationsPage';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/invite/:token" element={<InviteAcceptPage />} />
 
       <Route
         element={
@@ -40,6 +43,7 @@ export default function App() {
         <Route path="/movements" element={<MovementsPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/ai-chat" element={<AiChatPage />} />
+        <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
         <Route path="/ai-vet" element={<Navigate to="/ai-chat" replace />} />
         <Route path="/ai-manager" element={<Navigate to="/ai-chat" replace />} />
       </Route>
