@@ -2,7 +2,7 @@
 
 const express = require('express');
 const cors = require('cors');
-
+const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/authRoutes');
 const animalRoutes = require('./routes/animalRoutes');
 const catalogRoutes = require('./routes/catalogRoutes');
@@ -44,6 +44,7 @@ app.use(cors({
   credentials: true
 }));
 
+app.use(cookieParser());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

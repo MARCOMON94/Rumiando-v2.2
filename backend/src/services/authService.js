@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 
 const prisma = require('../config/prisma');
 const AppError = require('../utils/AppError');
+const { verifyGoogleCredential } = require('../utils/googleAuth');
 
 const SALT_ROUNDS = 10;
 
@@ -156,8 +157,69 @@ async function getProfile(userId) {
   return removePassword(user);
 }
 
+async function loginWithGoogle(data) {
+  const { credential } = data;
+
+  const googleUser = await verifyGoogleCredential(credential);
+
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { googleSub: googleUser.googleSub },
+        { email: googleUser.email }
+      ],
+      activo: true
+    },
+    include: {
+      cuentaGanadera: true
+    }
+  });
+
+  if (!user) {
+    throw new AppError('Usuario no invitado o no registrado en Rumiando', 403);
+  }
+
+  let finalUser = user;
+
+  if (!user.googleSub) {
+    finalUser = await prisma.user.update({
+      where: {
+        id: user.id
+      },
+      data: {
+        googleSub: googleUser.googleSub,
+        authProvider: 'GOOGLE',
+        nombre: user.nombre || googleUser.nombre
+      },
+      include: {
+        cuentaGanadera: true
+      }
+    });
+  }
+
+  if (finalUser.authProvider !== 'GOOGLE') {
+    finalUser = await prisma.user.update({
+      where: {
+        id: finalUser.id
+      },
+      data: {
+        authProvider: 'GOOGLE'
+      },
+      include: {
+        cuentaGanadera: true
+      }
+    });
+  }
+
+  return {
+    token: generateToken(finalUser),
+    user: removePassword(finalUser)
+  };
+}
+
 module.exports = {
   register,
   login,
+  loginWithGoogle,
   getProfile
 };
