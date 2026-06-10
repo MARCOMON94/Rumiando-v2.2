@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/authRoutes');
+const invitationRoutes = require('./routes/invitationRoutes');
 const animalRoutes = require('./routes/animalRoutes');
 const catalogRoutes = require('./routes/catalogRoutes');
 const penRoutes = require('./routes/penRoutes');
@@ -48,6 +49,7 @@ app.use(cookieParser());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
+app.use('/api/invitations', invitationRoutes);
 app.use('/api/animals', animalRoutes);
 app.use('/api/catalogs', catalogRoutes);
 app.use('/api/pens', penRoutes);
