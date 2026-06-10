@@ -2,18 +2,8 @@
 const AppError = require('../utils/AppError');
 const { readSessionToken } = require('../utils/sessionCookie');
 
-function getBearerToken(req) {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  return authHeader.split(' ')[1];
-}
-
 function authMiddleware(req, res, next) {
-  const token = readSessionToken(req) || getBearerToken(req);
+  const token = readSessionToken(req);
 
   if (!token) {
     return next(new AppError('Token no proporcionado', 401));
