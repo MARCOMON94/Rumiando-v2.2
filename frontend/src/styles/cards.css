@@ -7,13 +7,27 @@
 .metric-card,
 .panel,
 .animal-card {
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(216, 222, 215, 0.95);
   border-radius: var(--radius-lg);
-  background: var(--color-white);
-  box-shadow: var(--shadow-soft);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
-.metric-card {
+.metric-card:hover,
+.panel:hover,
+.animal-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(63, 107, 75, 0.24);
+}
+
+.metric-card,
+.panel,
+.animal-card {
   padding: 1.25rem;
 }
 
@@ -21,22 +35,24 @@
   display: block;
   color: var(--color-muted);
   font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .metric-card strong {
   display: block;
-  margin-top: 0.4rem;
-  font-size: 2rem;
+  margin-top: 0.35rem;
+  font-size: clamp(1.85rem, 4vw, 2.3rem);
+  line-height: 1;
   color: var(--color-primary-dark);
+  letter-spacing: -0.04em;
 }
 
-.panel {
-  padding: 1.25rem;
-}
-
-.panel h3 {
-  margin-top: 0;
+.panel h3,
+.animal-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
   color: var(--color-primary-dark);
+  letter-spacing: -0.025em;
 }
 
 .animals-grid,
@@ -44,10 +60,6 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
-}
-
-.animal-card {
-  padding: 1.2rem;
 }
 
 .animal-card-header {
@@ -64,11 +76,11 @@
 .priority {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.25rem 0.65rem;
   background: var(--color-secondary);
   color: var(--color-primary-dark);
-  font-weight: 800;
+  font-weight: 850;
   font-size: 0.78rem;
   line-height: 1.2;
 }
@@ -88,32 +100,21 @@
   color: var(--color-success);
 }
 
-.animal-card h3,
-.panel h3 {
-  margin: 0 0 1rem;
-  font-size: 1.35rem;
-  color: var(--color-primary-dark);
-}
-
 .animal-card dl {
   display: grid;
   gap: 0.75rem;
+  margin: 0;
 }
 
 .animal-card dt {
   color: var(--color-muted);
   font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .animal-card dd {
   margin: 0.15rem 0 0;
-  font-weight: 700;
-}
-
-.text-link {
-  display: inline-flex;
-  margin-top: 1rem;
-  color: var(--color-primary);
+  color: var(--color-primary-dark);
   font-weight: 800;
 }
 
@@ -144,7 +145,7 @@
 
 .bar-row-header span {
   color: var(--color-primary-dark);
-  font-weight: 700;
+  font-weight: 780;
 }
 
 .bar-row-header strong {
@@ -154,7 +155,7 @@
 .bar-track {
   height: 12px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-secondary);
 }
 
@@ -167,14 +168,6 @@
 .muted,
 .results-summary {
   color: var(--color-muted);
-}
-
-.animals-search-panel {
-  grid-template-columns: minmax(240px, 1.5fr) repeat(4, minmax(140px, 1fr)) auto;
-}
-
-.search-wide {
-  min-width: 0;
 }
 
 .section-header {
@@ -204,14 +197,29 @@
   max-width: 100px;
 }
 
-@media (max-width: 1200px) {
-  .animals-search-panel {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.compact-item {
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--color-border);
+}
 
-  .animals-search-panel .button {
-    width: 100%;
-  }
+.compact-item:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.compact-item p {
+  margin: 0.35rem 0;
+}
+
+.panel .panel {
+  box-shadow: none;
+  background: var(--surface-soft);
+}
+
+.animal-card-header .tag {
+  max-width: 60%;
+  white-space: normal;
+  text-align: left;
 }
 
 @media (max-width: 1000px) {
@@ -225,10 +233,6 @@
 
 @media (max-width: 800px) {
   .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .animals-search-panel {
     grid-template-columns: 1fr;
   }
 }
@@ -252,34 +256,7 @@
   .detail-grid {
     grid-template-columns: 1fr;
   }
-}
 
-.compact-item {
-  padding: 0.85rem 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.compact-item:first-of-type {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.compact-item p {
-  margin: 0.35rem 0;
-}
-
-.panel .panel {
-  box-shadow: none;
-  background: #fbfcfa;
-}
-
-.animal-card-header .tag {
-  max-width: 60%;
-  white-space: normal;
-  text-align: left;
-}
-
-@media (max-width: 650px) {
   .animal-card-header {
     flex-direction: column;
   }
@@ -287,9 +264,4 @@
   .animal-card-header .tag {
     max-width: 100%;
   }
-}
-
-.inline-link {
-  display: inline;
-  margin-top: 0;
 }

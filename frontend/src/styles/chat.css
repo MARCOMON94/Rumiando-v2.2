@@ -11,10 +11,10 @@
 
 .chat-panel,
 .chat-side-panel {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-white);
-  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
 }
 
 .chat-panel {
@@ -31,7 +31,9 @@
   gap: 0.9rem;
   padding: 1rem;
   overflow-y: auto;
-  background: #fbfcfa;
+  background:
+    radial-gradient(circle at top left, rgba(63, 107, 75, 0.06), transparent 20rem),
+    var(--surface-soft);
 }
 
 .chat-message {
@@ -39,15 +41,16 @@
   display: grid;
   gap: 0.65rem;
   padding: 0.95rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-white);
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--surface-card-strong);
+  box-shadow: 0 10px 24px rgba(35, 49, 39, 0.06);
   white-space: pre-wrap;
 }
 
 .chat-message.user {
   align-self: flex-end;
-  border-color: rgba(63, 107, 75, 0.24);
+  border-color: rgba(63, 107, 75, 0.22);
   background: var(--color-secondary);
 }
 
@@ -66,7 +69,7 @@
 }
 
 .chat-message-header strong {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.2rem 0.55rem;
   background: #fef3c7;
   color: var(--color-warning);
@@ -89,20 +92,20 @@
   font-weight: 800;
 }
 
+.chat-details li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
 .chat-details ul {
   display: grid;
   gap: 0.65rem;
   margin: 0.65rem 0 0;
   padding: 0;
   list-style: none;
-}
-
-.chat-details li {
-  display: grid;
-  gap: 0.25rem;
-  padding: 0.65rem;
-  border-radius: var(--radius-sm);
-  background: #f6f3eb;
 }
 
 .chat-details span {
@@ -141,6 +144,7 @@
 .chat-side-panel h3 {
   margin: 0;
   color: var(--color-primary-dark);
+  letter-spacing: -0.025em;
 }
 
 .quick-prompts {
@@ -153,6 +157,14 @@
   min-height: 44px;
   text-align: left;
   white-space: normal;
+  background: var(--color-secondary);
+  color: var(--color-primary-dark);
+  box-shadow: none;
+}
+
+.quick-prompts button:hover {
+  background: #cfdfd1;
+  box-shadow: 0 12px 26px rgba(35, 49, 39, 0.08);
 }
 
 .chat-note {
@@ -200,4 +212,3 @@
     width: 100%;
   }
 }
-
