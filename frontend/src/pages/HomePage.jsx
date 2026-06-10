@@ -1,17 +1,86 @@
-export default function HomePage() {
-  return (
-    <section className="clean-home-page">
-      <div className="clean-home-card">
-        <div className="clean-brand-mark">R</div>
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import OperationSessionPanel from '../components/operations/OperationSessionPanel';
+import { OPERATION_DEFINITIONS } from '../components/operations/operationConfig';
+import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
+import { useOperationSession } from '../context/OperationSessionContext';
 
+function modeForOperation(operationType) {
+  if (operationType === 'baja' || operationType === 'estado_reproductivo') {
+    return 'unitario';
+  }
+  return 'lote';
+}
+
+export default function HomePage() {
+  const navigate = useNavigate();
+  const { startOperation } = useOperationSession();
+  const [readerOpen, setReaderOpen] = useState(false);
+  const [readerNotice, setReaderNotice] = useState('');
+
+  function openOperation(operationType) {
+    setReaderOpen(false);
+    startOperation({
+      operationType,
+      mode: modeForOperation(operationType),
+      source: 'home',
+      status: 'reading'
+    });
+  }
+
+  function handleAnimalRead(animal) {
+    if (!animal?.id) return;
+    setReaderNotice(`${animal.crotal} encontrado.`);
+    navigate(`/animals/${animal.id}?preview=1`);
+  }
+
+  return (
+    <section className="clean-home-page field-home-page">
+      <div className="field-home-header">
         <div>
           <p className="eyebrow">RumiAndo</p>
-          <h2>Panel principal</h2>
-          <p>
-            Interfaz en rediseño. Aquí construiremos la nueva pantalla principal.
-          </p>
+          <h2>Trabajo de campo</h2>
+          <p>Lee un crotal, abre el chat o registra una operacion.</p>
+        </div>
+
+        <div className="field-home-top-actions">
+          <button type="button" className="field-reader-button" onClick={() => setReaderOpen((value) => !value)}>
+            Lector
+          </button>
+          <button type="button" className="secondary" onClick={() => navigate('/ai-chat')}>
+            Chat IA
+          </button>
         </div>
       </div>
+
+      {readerOpen && (
+        <AnimalReaderPanel
+          compact
+          title="Lector de crotal"
+          subtitle="Pasa el lector. Si el crotal existe, se abre la ficha previa."
+          initialMode="unitario"
+          hideActionSelect
+          onAnimalRead={handleAnimalRead}
+          onUnknownRead={(code) => setReaderNotice(`${code} no esta registrado.`)}
+        />
+      )}
+
+      {readerNotice && <p className="alert">{readerNotice}</p>}
+
+      <div className="field-operation-grid" aria-label="Operaciones principales">
+        {OPERATION_DEFINITIONS.map((operation) => (
+          <button
+            key={operation.key}
+            type="button"
+            className="field-operation-button"
+            onClick={() => openOperation(operation.key)}
+          >
+            <span>{operation.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <OperationSessionPanel />
     </section>
   );
 }

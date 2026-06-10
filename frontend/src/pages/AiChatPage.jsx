@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { post } from '../api/apiClient';
-import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
+import OperationSessionPanel from '../components/operations/OperationSessionPanel';
+import { operationFromActionType } from '../components/operations/operationConfig';
+import { useOperationSession } from '../context/OperationSessionContext';
 
 const QUICK_PROMPTS = [
   'Cuantos animales tengo por especie',
@@ -17,17 +19,6 @@ const READER_ACTION_TYPES = [
   'CREATE_DEWORMING',
   'CREATE_REPRODUCTIVE_EVENT'
 ];
-
-const ACTION_TITLES = {
-  ANIMAL_DISCHARGE: 'Leer animal para baja',
-  CHANGE_PEN: 'Leer animales para movimiento',
-  CREATE_HEALTH_CASE: 'Leer animales para caso sanitario',
-  CREATE_TREATMENT: 'Leer animales para tratamiento',
-  CREATE_VACCINATION: 'Leer animales para vacunacion',
-  CREATE_DEWORMING: 'Leer animales para desparasitacion',
-  CREATE_REPRODUCTIVE_EVENT: 'Leer animal para reproduccion'
-};
-
 
 function ChatMessage({ message }) {
   const isAssistant = message.role === 'assistant';
@@ -65,15 +56,6 @@ function readerRequestFromToolCalls(toolCalls = []) {
   };
 }
 
-function summarizeReaderDraft(draft) {
-  if (!draft) return 'Lectura finalizada.';
-  const actionLabel = draft.actionKind ? ` para ${draft.actionKind.replaceAll('_', ' ')}` : '';
-  if (draft.mode === 'corral') {
-    return `Lectura finalizada${actionLabel}: ${draft.pens.length} corral(es) seleccionados. Queda como borrador pendiente.`;
-  }
-  return `Lectura finalizada${actionLabel}: ${draft.animals.length} animal(es) y ${draft.unknownCodes.length} lectura(s) no encontrada(s). Queda como borrador pendiente.`;
-}
-
 function initialModeForReader(request) {
   if (!request) return 'lote';
   if (request.preferredMode) return request.preferredMode;
@@ -89,8 +71,23 @@ function initialModeForReader(request) {
   return 'lote';
 }
 
+function operationDataFromReaderRequest(request) {
+  const draft = request?.draft || {};
+  return {
+    fecha: draft.fecha || '',
+    motivo: draft.motivo || draft.reason || '',
+    observaciones: draft.observaciones || draft.notes || '',
+    corralDestinoId: draft.corralDestinoId || draft.corral_destino_id || '',
+    estadoReproductivoId: draft.estadoReproductivoId || draft.estado_reproductivo_id || '',
+    medicamentoProducto: draft.medicamentoProducto || draft.medicamento_producto || '',
+    vacuna: draft.vacuna || '',
+    producto: draft.producto || ''
+  };
+}
+
 
 export default function AiChatPage() {
+  const { startOperation } = useOperationSession();
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
@@ -102,7 +99,6 @@ export default function AiChatPage() {
   const [conversationId, setConversationId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [readerRequest, setReaderRequest] = useState(null);
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -147,7 +143,13 @@ export default function AiChatPage() {
 
       const nextReaderRequest = readerRequestFromToolCalls(data.tool_calls || []);
       if (nextReaderRequest) {
-        setReaderRequest(nextReaderRequest);
+        startOperation({
+          operationType: operationFromActionType(nextReaderRequest.actionType),
+          mode: initialModeForReader(nextReaderRequest),
+          source: 'ai_chat',
+          status: 'reading',
+          operationData: operationDataFromReaderRequest(nextReaderRequest)
+        });
       }
 
       setConversationId(data.conversation_id);
@@ -177,13 +179,13 @@ export default function AiChatPage() {
     }
   }
 
-  function handleReaderFinish(draft) {
+  function appendAssistantMessage(content) {
     setMessages((current) => [
       ...current,
       {
-        id: `reader-${Date.now()}`,
+        id: `operation-${Date.now()}`,
         role: 'assistant',
-        content: summarizeReaderDraft(draft)
+        content
       }
     ]);
   }
@@ -254,16 +256,11 @@ export default function AiChatPage() {
         </section>
 
         <aside className="chat-side-panel">
-          {readerRequest && (
-            <AnimalReaderPanel
-              compact
-              title={ACTION_TITLES[readerRequest.actionType] || 'Leer animales'}
-              subtitle="Pasa el lector. Los crotales repetidos se ignoran."
-              initialMode={initialModeForReader(readerRequest)}
-              actionRequest={readerRequest}
-              onFinish={handleReaderFinish}
-            />
-          )}
+          <OperationSessionPanel
+            onPrepared={appendAssistantMessage}
+            onExecuted={appendAssistantMessage}
+            onCancelled={appendAssistantMessage}
+          />
 
           <h3>Consultas rapidas</h3>
           <div className="quick-prompts">

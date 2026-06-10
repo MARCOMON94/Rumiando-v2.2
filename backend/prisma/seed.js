@@ -78,12 +78,13 @@ async function createCatalogs(cuentaId) {
     ['No aplica', 1],
     ['No reproductor', 2],
     ['Vacía', 3],
-    ['Producción', 4],
+    ['Productora', 4],
     ['Cubierta / Inseminada', 5],
     ['Gestante', 6],
     ['Parida', 7],
     ['Abortada', 8],
-    ['Problema reproductivo', 9]
+    ['Problema reproductivo', 9],
+    ['Macho', 10]
   ];
 
   const estados = {};
@@ -93,6 +94,8 @@ async function createCatalogs(cuentaId) {
       data: { nombre, orden, cuentaGanaderaId: cuentaId }
     });
   }
+
+  estados['Producción'] = estados.Productora;
 
   const enfermedadesSeed = [
     {
@@ -177,14 +180,15 @@ async function createFarmUnit({ cuentaId, codigoRega, nombre, municipio, provinc
 
 async function createPens(unidadRegaId, estados) {
   const pensSeed = [
-    { nombre: 'Producción', tipoFuncional: 'PRODUCCION', capacidad: 70, estado: 'Producción' },
-    { nombre: 'Cubrición', tipoFuncional: 'CUBRICION', capacidad: 35, estado: 'Cubierta / Inseminada' },
-    { nombre: 'Gestantes', tipoFuncional: 'GESTACION', capacidad: 45, estado: 'Gestante' },
-    { nombre: 'Secado', tipoFuncional: 'SECADO', capacidad: 35, estado: 'Gestante' },
-    { nombre: 'Paridera', tipoFuncional: 'PARIDERA', capacidad: 25, estado: 'Parida' },
-    { nombre: 'Reposición', tipoFuncional: 'REPOSICION', capacidad: 40, estado: 'No reproductor' },
+    { nombre: 'Lactancia', tipoFuncional: 'LACTANCIA', capacidad: 45, estado: 'Parida' },
+    { nombre: 'Reposición/Cebo', tipoFuncional: 'REPOSICION_CEBO', capacidad: 45, estado: 'No reproductor' },
+    { nombre: 'Producción', tipoFuncional: 'PRODUCCION', capacidad: 70, estado: 'Productora' },
     { nombre: 'Lazareto', tipoFuncional: 'LAZARETO', capacidad: 8, estado: null },
-    { nombre: 'Machos', tipoFuncional: 'MACHOS', capacidad: 6, estado: 'No aplica' }
+    { nombre: 'Secado', tipoFuncional: 'SECADO', capacidad: 35, estado: 'Gestante' },
+    { nombre: 'Gestación', tipoFuncional: 'GESTACION', capacidad: 45, estado: 'Gestante' },
+    { nombre: 'Vacío', tipoFuncional: 'VACIO', capacidad: 40, estado: 'Vacía' },
+    { nombre: 'Paridas', tipoFuncional: 'PARIDAS', capacidad: 25, estado: 'Parida' },
+    { nombre: 'Machos', tipoFuncional: 'MACHOS', capacidad: 6, estado: 'Macho' }
   ];
 
   const pens = {};
@@ -195,12 +199,17 @@ async function createPens(unidadRegaId, estados) {
         nombre: pen.nombre,
         tipoFuncional: pen.tipoFuncional,
         capacidad: pen.capacidad,
-        aplicarEstadoAutomaticamente: ['Cubrición', 'Gestantes', 'Secado', 'Paridera'].includes(pen.nombre),
+        aplicarEstadoAutomaticamente: ['Producción', 'Secado', 'Gestación', 'Vacío', 'Paridas', 'Machos'].includes(pen.nombre),
         unidadRegaId,
         estadoReproductivoSugeridoId: pen.estado ? estados[pen.estado].id : null
       }
     });
   }
+
+  pens['Reposición'] = pens['Reposición/Cebo'];
+  pens['Gestantes'] = pens['Gestación'];
+  pens['Paridera'] = pens.Paridas;
+  pens['Cubrición'] = pens['Gestación'];
 
   return pens;
 }
@@ -264,7 +273,7 @@ async function createBaseHerd({ prefix, internalPrefix, unidadRega, especie, raz
       especie,
       raza,
       corral: pens['Machos'],
-      estado: estados['No aplica'],
+      estado: estados.Macho,
       fechaEntradaCorralActual: addDays(baseDate, -500),
       fechaEstadoReproductivoActual: addDays(baseDate, -500),
       observaciones: `Macho reproductor ${speciesName} ${raza.nombre}.`

@@ -20,7 +20,7 @@ La IA puede consultar datos vivos y preparar borradores de acciones, pero no deb
 - GET /exports/animals, /exports/health-cases, /exports/movements, /exports/reminders: exportaciones CSV.
 
 ## Acciones que requieren confirmacion
-- POST /movements: cambio de corral o lote. Minimos: tipoOperacion, unidadRegaId, corralDestinoId, crotales.
+- POST /movements: cambio de corral o lote. Minimos: tipoOperacion, unidadRegaId, corralDestinoId, crotales. Opcionales: aplicarEstadoReproductivo, estadoReproductivoDestinoId, fecha, motivo.
 - POST /animals: alta de animal. Minimos: crotal, sexo, unidadRegaId, especieId.
 - PUT /animals/:id: modificar animal o dar baja. Para baja usar estadoRegistro=BAJA y, si existe, fechaSalida/destinoSalida.
 - POST /pens y PUT /pens/:id: alta o modificacion de corral. Minimos de alta: nombre y unidadRegaId.
@@ -40,3 +40,10 @@ La IA puede consultar datos vivos y preparar borradores de acciones, pero no deb
 - "Registra tratamiento" -> no inventar medicacion; pedir producto, fecha, retirada y asociacion a caso/animal/corral.
 - "Pon aviso para revacunar" -> preparar POST /reminders o POST /vaccinations si ya se esta registrando la vacuna.
 - "Cierra este aviso" -> preparar PUT /reminders/:id/complete y pedir identificador del aviso si no esta claro.
+
+## Flujo UI comun
+- El chat no ejecuta acciones directamente: abre la misma OperationSession que los botones de Home.
+- La IA debe mostrar o pedir modo: Unitario, Lote o Corral completo.
+- El lector solo pega crotales; la app los interpreta, ignora duplicados y separa no encontrados.
+- Al pulsar Finalizar, la IA resume encontrados, no encontrados, duplicados, operacion y destino/producto/estado.
+- Solo al confirmar se llama al endpoint real.

@@ -1,6 +1,8 @@
 ﻿import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { get } from '../api/apiClient';
+import OperationSessionPanel from '../components/operations/OperationSessionPanel';
+import { useOperationSession } from '../context/OperationSessionContext';
 
 function formatDate(value) {
   if (!value) return 'Sin fecha';
@@ -27,8 +29,38 @@ function InfoRow({ label, value }) {
   );
 }
 
+function daysSince(value) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+  return `${Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))} dias`;
+}
+
+function formatAge(value) {
+  if (!value) return 'Sin fecha de nacimiento';
+  const birth = new Date(value);
+  if (Number.isNaN(birth.getTime())) return 'Sin fecha de nacimiento';
+
+  const now = new Date();
+  let years = now.getFullYear() - birth.getFullYear();
+  let months = now.getMonth() - birth.getMonth();
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  if (years <= 0) {
+    return `${months} meses`;
+  }
+
+  return `${years} anos${months ? ` y ${months} meses` : ''}`;
+}
+
 export default function AnimalDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { session, startOperation, addAnimals } = useOperationSession();
 
   const [animal, setAnimal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +101,45 @@ export default function AnimalDetailPage() {
     ...(animal.hijosComoMadre || []),
     ...(animal.hijosComoPadre || [])
   ];
+  const openCases = (animal.casosSanitarios || []).filter((item) => item.estado !== 'CERRADO');
+  const activeAlerts = [
+    ...openCases,
+    ...(animal.recordatorios || []).filter((item) => item.estado !== 'COMPLETADO')
+  ];
+  const healthStatus = openCases.length > 0
+    ? `${openCases.length} caso(s) sanitario(s) abierto(s)`
+    : 'Sin casos abiertos';
+
+  function addCurrentAnimalToSelection() {
+    if (session) {
+      addAnimals([animal]);
+      return;
+    }
+
+    startOperation({
+      operationType: 'corral',
+      mode: 'lote',
+      selectedAnimals: [animal],
+      source: 'animal_detail',
+      status: 'ready',
+      operationData: {
+        unidadRegaId: animal.unidadRegaId
+      }
+    });
+  }
+
+  function startOperationForAnimal() {
+    startOperation({
+      operationType: 'corral',
+      mode: 'unitario',
+      selectedAnimals: [animal],
+      source: 'animal_detail',
+      status: 'ready',
+      operationData: {
+        unidadRegaId: animal.unidadRegaId
+      }
+    });
+  }
 
   return (
     <section className="page">
@@ -87,6 +158,67 @@ export default function AnimalDetailPage() {
           Volver al censo
         </Link>
       </header>
+
+      <section className="animal-preview-card" aria-label="Vista previa del animal">
+        <div className="animal-preview-actions">
+          <button type="button" className="secondary" onClick={() => navigate(-1)}>
+            Volver
+          </button>
+          <button type="button" onClick={addCurrentAnimalToSelection} aria-label="Anadir a seleccion">
+            +
+          </button>
+        </div>
+
+        <div className="animal-preview-main">
+          <div>
+            <p className="eyebrow">Vista previa</p>
+            <h3>{animal.crotal}</h3>
+            <p>{animal.especie?.nombre || 'Sin especie'} · {animal.sexo}</p>
+          </div>
+
+          <dl className="animal-preview-list">
+            <div>
+              <dt>Edad</dt>
+              <dd>{formatAge(animal.fechaNacimiento)}</dd>
+            </div>
+            <div>
+              <dt>Ubicacion</dt>
+              <dd>{animal.corralActual?.nombre || 'Sin corral'}</dd>
+            </div>
+            <div>
+              <dt>Estado reproductivo</dt>
+              <dd>{animal.estadoReproductivo?.nombre || 'Sin estado'}</dd>
+            </div>
+            <div>
+              <dt>En corral</dt>
+              <dd>{daysSince(animal.fechaEntradaCorralActual)}</dd>
+            </div>
+            <div>
+              <dt>En estado</dt>
+              <dd>{daysSince(animal.fechaEstadoReproductivoActual)}</dd>
+            </div>
+            <div>
+              <dt>Alertas</dt>
+              <dd>{activeAlerts.length ? `${activeAlerts.length} alerta(s)` : 'Sin alertas'}</dd>
+            </div>
+            <div>
+              <dt>Salud</dt>
+              <dd>{healthStatus}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <button
+          type="button"
+          className="animal-preview-next"
+          onClick={startOperationForAnimal}
+          aria-label="Iniciar operacion"
+        >
+          &gt;
+        </button>
+      </section>
+
+      <OperationSessionPanel />
 
       <div className="metrics-grid">
         <article className="metric-card">

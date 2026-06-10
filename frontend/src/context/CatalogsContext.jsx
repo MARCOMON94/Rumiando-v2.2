@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { get } from '../api/apiClient';
 import { useAuth } from './AuthContext';
 
@@ -30,7 +30,7 @@ export function CatalogsProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function loadCatalogs() {
+  const loadCatalogs = useCallback(async function loadCatalogs() {
     if (!token) {
       setCatalogs(emptyCatalogs);
       setLoading(false);
@@ -57,7 +57,7 @@ export function CatalogsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     if (isAuthenticated && token) {
@@ -67,7 +67,7 @@ export function CatalogsProvider({ children }) {
       setLoading(false);
       setError('');
     }
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, loadCatalogs]);
 
   const value = {
     catalogs,

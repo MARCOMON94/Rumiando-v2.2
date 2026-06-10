@@ -55,6 +55,9 @@ async function checkDestinationPen(corralDestinoId, cuentaGanaderaId) {
       unidadRega: {
         cuentaGanaderaId
       }
+    },
+    include: {
+      estadoReproductivoSugerido: true
     }
   });
 
@@ -63,6 +66,25 @@ async function checkDestinationPen(corralDestinoId, cuentaGanaderaId) {
   }
 
   return pen;
+}
+
+async function checkReproductiveStatus(estadoReproductivoId, cuentaGanaderaId) {
+  if (!estadoReproductivoId) {
+    return null;
+  }
+
+  const status = await prisma.catalogoEstadoReproductivo.findFirst({
+    where: {
+      id: Number(estadoReproductivoId),
+      cuentaGanaderaId
+    }
+  });
+
+  if (!status) {
+    throw new AppError('Estado reproductivo destino no encontrado para esta cuenta ganadera', 404);
+  }
+
+  return status;
 }
 
 async function listMovements(cuentaGanaderaId, filters = {}) {
@@ -131,7 +153,9 @@ async function createMovement(data, user) {
     fecha,
     unidadRegaId,
     corralDestinoId,
-    crotales
+    crotales,
+    aplicarEstadoReproductivo,
+    estadoReproductivoDestinoId
   } = data;
 
   if (!tipoOperacion || !unidadRegaId || !corralDestinoId || !Array.isArray(crotales)) {
@@ -144,9 +168,32 @@ async function createMovement(data, user) {
 
   await checkFarmUnit(unidadRegaId, user.cuentaGanaderaId);
   const destinationPen = await checkDestinationPen(corralDestinoId, user.cuentaGanaderaId);
+  const reproductiveStatus = await checkReproductiveStatus(
+    aplicarEstadoReproductivo
+      ? estadoReproductivoDestinoId || destinationPen.estadoReproductivoSugeridoId
+      : null,
+    user.cuentaGanaderaId
+  );
 
   const movementDate = fecha ? new Date(fecha) : new Date();
-  const normalizedEarTags = crotales.map((crotal) => normalizeEarTag(crotal));
+  const rawNormalizedEarTags = crotales.map((crotal) => normalizeEarTag(crotal)).filter(Boolean);
+  const normalizedEarTags = [];
+  const duplicatedEarTags = [];
+  const seenEarTags = new Set();
+
+  for (const earTag of rawNormalizedEarTags) {
+    if (seenEarTags.has(earTag)) {
+      duplicatedEarTags.push(earTag);
+      continue;
+    }
+
+    seenEarTags.add(earTag);
+    normalizedEarTags.push(earTag);
+  }
+
+  if (rawNormalizedEarTags.length === 0) {
+    throw new AppError('Debe indicarse al menos un crotal valido', 400);
+  }
 
   return prisma.$transaction(async (tx) => {
     const movement = await tx.movimientoTransaccion.create({
@@ -158,10 +205,14 @@ async function createMovement(data, user) {
         corralDestinoId: Number(corralDestinoId),
         userId: user.id,
         resumen: {
-          totalLeidos: normalizedEarTags.length,
+          totalLeidos: rawNormalizedEarTags.length,
           procesados: 0,
           noEncontrados: 0,
-          yaEnDestino: 0
+          yaEnDestino: 0,
+          duplicadosIgnorados: duplicatedEarTags.length,
+          estadoReproductivoAplicado: 0,
+          estadoReproductivoDestinoId: reproductiveStatus?.id || null,
+          avisos: []
         }
       }
     });
@@ -169,6 +220,20 @@ async function createMovement(data, user) {
     let processedCount = 0;
     let notFoundCount = 0;
     let alreadyInDestinationCount = 0;
+    let reproductiveStatusAppliedCount = 0;
+    const warnings = [];
+
+    for (const duplicatedEarTag of duplicatedEarTags) {
+      await tx.movimientoAnimalDetalle.create({
+        data: {
+          transaccionId: movement.id,
+          crotalLeido: duplicatedEarTag,
+          estadoProceso: 'DUPLICADO_IGNORADO',
+          corralDestinoId: Number(corralDestinoId),
+          observaciones: 'Lectura duplicada ignorada'
+        }
+      });
+    }
 
     for (const earTag of normalizedEarTags) {
       const animal = await tx.animal.findUnique({
@@ -214,14 +279,26 @@ async function createMovement(data, user) {
         continue;
       }
 
+      const updateData = {
+        corralActualId: Number(corralDestinoId),
+        fechaEntradaCorralActual: movementDate
+      };
+
+      if (reproductiveStatus) {
+        updateData.estadoReproductivoId = reproductiveStatus.id;
+        updateData.fechaEstadoReproductivoActual = movementDate;
+        reproductiveStatusAppliedCount++;
+
+        if (animal.sexo === 'MACHO' && reproductiveStatus.nombre !== 'Macho') {
+          warnings.push(`${animal.crotal}: macho con estado reproductivo ${reproductiveStatus.nombre}`);
+        }
+      }
+
       await tx.animal.update({
         where: {
           id: animal.id
         },
-        data: {
-          corralActualId: Number(corralDestinoId),
-          fechaEntradaCorralActual: movementDate
-        }
+        data: updateData
       });
 
       processedCount++;
@@ -234,7 +311,9 @@ async function createMovement(data, user) {
           animalId: animal.id,
           corralOrigenId: animal.corralActualId,
           corralDestinoId: Number(corralDestinoId),
-          observaciones: `Movido a ${destinationPen.nombre}`
+          observaciones: reproductiveStatus
+            ? `Movido a ${destinationPen.nombre}. Estado reproductivo: ${reproductiveStatus.nombre}`
+            : `Movido a ${destinationPen.nombre}`
         }
       });
     }
@@ -245,10 +324,15 @@ async function createMovement(data, user) {
       },
       data: {
         resumen: {
-          totalLeidos: normalizedEarTags.length,
+          totalLeidos: rawNormalizedEarTags.length,
           procesados: processedCount,
           noEncontrados: notFoundCount,
-          yaEnDestino: alreadyInDestinationCount
+          yaEnDestino: alreadyInDestinationCount,
+          duplicadosIgnorados: duplicatedEarTags.length,
+          estadoReproductivoAplicado: reproductiveStatusAppliedCount,
+          estadoReproductivoDestinoId: reproductiveStatus?.id || null,
+          estadoReproductivoDestinoNombre: reproductiveStatus?.nombre || null,
+          avisos: warnings
         }
       }
     });

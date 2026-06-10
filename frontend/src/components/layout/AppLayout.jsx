@@ -77,25 +77,25 @@ export default function AppLayout() {
       </button>
 
       <nav className="mobile-bottom-nav" aria-label="Navegación principal móvil">
-        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
-          1
-        </button>
+        <NavLink to="/home" className="mobile-nav-button" onClick={closeSettings}>
+          Inicio
+        </NavLink>
 
-        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
-          2
-        </button>
+        <NavLink to="/animals" className="mobile-nav-button" onClick={closeSettings}>
+          Censo
+        </NavLink>
 
-        <button type="button" className="mobile-search-button" aria-label="Buscar" onClick={closeSettings}>
+        <NavLink to="/home" className="mobile-search-button" aria-label="Lector" onClick={closeSettings}>
           <span className="css-search-icon" aria-hidden="true" />
-        </button>
+        </NavLink>
 
-        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
-          3
-        </button>
+        <NavLink to="/ai-chat" className="mobile-nav-button" onClick={closeSettings}>
+          IA
+        </NavLink>
 
-        <button type="button" className="mobile-nav-button" onClick={closeSettings}>
-          4
-        </button>
+        <NavLink to="/reminders" className="mobile-nav-button" onClick={closeSettings}>
+          Avisos
+        </NavLink>
       </nav>
     </div>
   );

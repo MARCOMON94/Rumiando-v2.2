@@ -10,6 +10,37 @@ Este documento ayuda a la IA a distinguir ubicacion fisica, lote de manejo y est
 - Caso sanitario: evento o seguimiento clinico, no equivalente a corral.
 - Movimiento: cambio de ubicacion, no diagnostico.
 
+## Catalogo base actual de RumiAndo
+Estos nombres tienen prioridad sobre sugerencias antiguas cuando la IA hable de la app:
+
+### Corrales base
+- Lactancia
+- Reposicion/Cebo
+- Produccion
+- Lazareto
+- Secado
+- Gestacion
+- Vacio
+- Paridas
+- Machos
+
+### Estados reproductivos base
+- No aplica
+- No reproductor
+- Vacia
+- Productora
+- Cubierta / Inseminada
+- Gestante
+- Parida
+- Abortada
+- Problema reproductivo
+- Macho
+
+### Regla de cambio de corral
+Un corral puede tener `estadoReproductivoSugerido` y `aplicarEstadoAutomaticamente`.
+Si el usuario confirma un cambio de corral, la app debe preguntar si aplica el estado sugerido.
+Si el corral tiene automatico activado, la casilla aparece marcada por defecto. Si no, aparece como sugerencia.
+
 ## Corrales fisicos sugeridos
 - General
 - Nave 1, Nave 2, Nave 3
@@ -152,4 +183,6 @@ Este documento ayuda a la IA a distinguir ubicacion fisica, lote de manejo y est
 - No convertir una ubicacion en estado reproductivo sin confirmacion. Mover a paridera no confirma parto.
 - Si una accion afecta a estado, corral, tratamiento, baja o retirada, debe pedir confirmacion.
 - Si el usuario pregunta por nombres, proponer alternativas y marcar que el catalogo es revisable.
-- Para lector RFID, usar el texto pegado como identificadores y preparar borrador de accion, no ejecutar rutas pendientes.
+- Para lector RFID, usar el texto pegado como identificadores dentro de una OperationSession comun.
+- Modos de operacion: Unitario, Lote y Corral completo.
+- Finalizar lectura solo prepara resumen; Confirmar registra el endpoint real.

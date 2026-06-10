@@ -293,9 +293,21 @@ async function updateAnimal(id, data, cuentaGanaderaId) {
       : null;
   }
 
+  if (data.fechaEntradaCorralActual !== undefined) {
+    updateData.fechaEntradaCorralActual = data.fechaEntradaCorralActual
+      ? new Date(data.fechaEntradaCorralActual)
+      : null;
+  }
+
   if (data.estadoReproductivoId !== undefined) {
     updateData.estadoReproductivoId = data.estadoReproductivoId
       ? Number(data.estadoReproductivoId)
+      : null;
+  }
+
+  if (data.fechaEstadoReproductivoActual !== undefined) {
+    updateData.fechaEstadoReproductivoActual = data.fechaEstadoReproductivoActual
+      ? new Date(data.fechaEstadoReproductivoActual)
       : null;
   }
 

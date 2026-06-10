@@ -90,6 +90,10 @@ export default function AnimalReaderPanel({
   initialMode = 'lote',
   actionRequest = null,
   compact = false,
+  hideActionSelect = false,
+  onAnimalRead,
+  onUnknownRead,
+  onDuplicateRead,
   onFinish
 }) {
   const readerInputRef = useRef(null);
@@ -104,6 +108,7 @@ export default function AnimalReaderPanel({
   const [actionKind, setActionKind] = useState(actionFromRequest(actionRequest));
   const [selectedAnimals, setSelectedAnimals] = useState([]);
   const [unknownCodes, setUnknownCodes] = useState([]);
+  const [duplicateCodes, setDuplicateCodes] = useState([]);
   const [selectedPenIds, setSelectedPenIds] = useState([]);
   const [readerActive, setReaderActive] = useState(false);
   const [readerFlash, setReaderFlash] = useState(false);
@@ -192,6 +197,15 @@ export default function AnimalReaderPanel({
     }, 1000);
   }
 
+  function addDuplicate(code) {
+    setDuplicateCodes((current) => {
+      if (current.some((item) => normalizeCode(item.code) === code)) {
+        return current;
+      }
+      return [...current, { code, readAt: Date.now() }];
+    });
+  }
+
   function addCode(rawCode) {
     const code = normalizeCode(rawCode);
     if (!code) return;
@@ -212,12 +226,15 @@ export default function AnimalReaderPanel({
           return [...current, { code, readAt: Date.now() }];
         });
       }
+      onUnknownRead?.(code);
       flashReader(`${code} no esta registrado.`);
       return;
     }
 
     const animalCode = normalizeCode(animal.crotal || animal.numeroInterno);
     if (selectedCodes.has(animalCode)) {
+      addDuplicate(animalCode);
+      onDuplicateRead?.(animal);
       flashReader(`${animal.crotal} ya estaba en la lista.`);
       return;
     }
@@ -225,6 +242,8 @@ export default function AnimalReaderPanel({
     if (mode === 'unitario') {
       setSelectedAnimals([animal]);
       setUnknownCodes([]);
+      setDuplicateCodes([]);
+      onAnimalRead?.(animal);
       flashReader(`${animal.crotal} listo.`);
       return;
     }
@@ -235,6 +254,7 @@ export default function AnimalReaderPanel({
       }
       return [...current, animal];
     });
+    onAnimalRead?.(animal);
     flashReader(`${animal.crotal} anadido.`);
   }
 
@@ -276,6 +296,7 @@ export default function AnimalReaderPanel({
   function resetSession(nextMode = mode) {
     setSelectedAnimals([]);
     setUnknownCodes([]);
+    setDuplicateCodes([]);
     setSelectedPenIds([]);
     setLastDraft(null);
     setMode(nextMode);
@@ -295,6 +316,7 @@ export default function AnimalReaderPanel({
       actionKind,
       animals: draftAnimals,
       unknownCodes,
+      duplicateCodes,
       pens: selectedPens,
       createdAt: new Date().toISOString()
     };
@@ -310,22 +332,26 @@ export default function AnimalReaderPanel({
 
   return (
     <section className={`reader-panel ${compact ? 'compact' : ''}`}>
+      {readerFlash && <span className="reader-screen-flash" aria-hidden="true" />}
+
       <div className="reader-header">
         <div>
           <h3>{title}</h3>
           <p>{subtitle}</p>
         </div>
 
-        <label className="reader-action-select">
-          Tipo
-          <select value={actionKind} onChange={(event) => setActionKind(event.target.value)}>
-            {ACTIONS.map((action) => (
-              <option key={action.key} value={action.key}>
-                {action.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!hideActionSelect && (
+          <label className="reader-action-select">
+            Tipo
+            <select value={actionKind} onChange={(event) => setActionKind(event.target.value)}>
+              {ACTIONS.map((action) => (
+                <option key={action.key} value={action.key}>
+                  {action.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className="reader-tabs" role="tablist" aria-label="Modo de lectura">
@@ -349,15 +375,22 @@ export default function AnimalReaderPanel({
           className="reader-visual-button"
           onClick={focusReader}
           disabled={loading}
-        >
-          <span
-            className={`reader-device ${readerFlash ? 'success' : ''} ${readerActive ? 'active' : ''}`}
-            role="img"
-            aria-label="Lector RFID"
           >
-            <span className="reader-device-screen" />
-            <span className="reader-device-light" />
-          </span>
+            <span
+              className={`reader-device ${readerFlash ? 'success' : ''} ${readerActive ? 'active' : ''}`}
+              role="img"
+              aria-label="Lector RFID"
+            >
+              <span className="reader-device-top" />
+              <span className="reader-device-screen" />
+              <span className="reader-device-signal reader-device-signal-left" />
+              <span className="reader-device-signal reader-device-signal-right" />
+              <span className="reader-device-center" />
+              <span className="reader-device-light" />
+              <span className="reader-device-dot dot-one" />
+              <span className="reader-device-dot dot-two" />
+              <span className="reader-device-dot dot-three" />
+            </span>
           <span>{loading ? 'Cargando animales...' : statusText}</span>
         </button>
 
@@ -447,7 +480,7 @@ export default function AnimalReaderPanel({
           <p>
             {lastDraft.mode === 'corral'
               ? `${lastDraft.pens.length} corral(es) para ${ACTIONS.find((item) => item.key === lastDraft.actionKind)?.label}.`
-              : `${lastDraft.animals.length} animal(es) y ${lastDraft.unknownCodes.length} lectura(s) no encontrada(s).`}
+              : `${lastDraft.animals.length} animal(es), ${lastDraft.unknownCodes.length} no encontrada(s) y ${lastDraft.duplicateCodes.length} duplicada(s) ignorada(s).`}
           </p>
         </div>
       )}
