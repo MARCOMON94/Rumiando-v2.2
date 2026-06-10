@@ -1,25 +1,15 @@
-﻿
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-function getToken() {
-  return localStorage.getItem('rumiando_token');
-}
+﻿const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 async function request(endpoint, options = {}) {
-  const token = getToken();
-
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {})
   };
 
-  if (token && !options.skipAuth) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers
+    headers,
+    credentials: 'include'
   });
 
   const contentType = response.headers.get('content-type');

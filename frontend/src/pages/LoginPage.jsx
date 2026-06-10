@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,27 +28,12 @@ function RumiandoBrand() {
   );
 }
 
-function GoogleIcon() {
-  return (
-    <img
-      className="google-icon-img"
-      src="/assets/icono_google.png"
-      alt=""
-      aria-hidden="true"
-    />
-  );
-}
-
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, error } = useAuth();
-
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const { loginWithGoogle, error } = useAuth();
 
   const [loading, setLoading] = useState(false);
+  const [googleError, setGoogleError] = useState(null);
 
   useEffect(() => {
     const initialHeight = window.innerHeight;
@@ -68,95 +54,83 @@ export default function LoginPage() {
     };
   }, []);
 
-  function handleChange(event) {
-    const { name, value } = event.target;
-
-    setFormData((current) => ({
-      ...current,
-      [name]: value
-    }));
-  }
-
-  function handleFocus() {
-    setTimeout(() => {
-      window.scrollTo(0, 0);
-    }, 50);
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
+  async function handleGoogleSuccess(credentialResponse) {
     setLoading(true);
+    setGoogleError(null);
 
     try {
-      await login(formData.email, formData.password);
+      if (!credentialResponse.credential) {
+        throw new Error('Google no devolvió una credencial válida.');
+      }
+
+      await loginWithGoogle(credentialResponse.credential);
       navigate('/home', { replace: true });
-    } catch {
+    } catch (err) {
+      setGoogleError(err.message || 'No se pudo iniciar sesión con Google.');
       setLoading(false);
     }
+  }
+
+  function handleGoogleError() {
+    setGoogleError('No se pudo completar el inicio de sesión con Google.');
+    setLoading(false);
   }
 
   return (
     <main className="login-page">
       <section className="login-card" aria-label="Inicio de sesión RumiAndo">
         <div className="login-intro">
-  <RumiandoBrand />
+          <RumiandoBrand />
 
-  <div className="login-copy">
-    <h1>Tu ayuda en el campo</h1>
-  </div>
+          <div className="login-copy">
+            <h1>Tu ayuda en el campo</h1>
+          </div>
 
-  <div className="login-desktop-image">
-    <img
-      src="/assets/login-farm-desktop.png"
-      alt="Ganadero usando RumiAndo en una explotación"
-    />
-  </div>
-</div>
-
-        <form className="login-form-card" onSubmit={handleSubmit}>
-  <div>
-    <h2>Acceso</h2>
-  </div>
-
-          <label className="login-field">
-            <span>Email</span>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              onFocus={handleFocus}
-              placeholder="admin@rumiando.com"
-              autoComplete="email"
-              required
+          <div className="login-desktop-image">
+            <img
+              src="/assets/login-farm-desktop.png"
+              alt="Ganadero usando RumiAndo en una explotación"
             />
-          </label>
+          </div>
+        </div>
 
-          <label className="login-field">
-            <span>Contraseña</span>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              onFocus={handleFocus}
-              placeholder="Introduce tu contraseña"
-              autoComplete="current-password"
-              required
+        <div className="login-form-card">
+          <div className="login-access-header">
+            <h2>Acceso</h2>
+            <p>
+              Entra con la cuenta de Google autorizada para tu explotación.
+            </p>
+          </div>
+
+          <div className="google-login-area">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              text="continue_with"
+              shape="pill"
+              size="large"
+              logo_alignment="left"
+              width="280"
+              useOneTap={false}
             />
-          </label>
+          </div>
 
-          {error && <p className="form-error">{error}</p>}
+          {loading && (
+            <p className="login-status-text">
+              Entrando con Google...
+            </p>
+          )}
 
-          <button type="submit" className="login-submit-button" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
+          {(error || googleError) && (
+            <p className="form-error">
+              {error || googleError}
+            </p>
+          )}
 
-          <button type="button" className="google-login-button" disabled>
-            <GoogleIcon />
-            <span>Continuar con Google</span>
-          </button>
-        </form>
+          <p className="login-help-text">
+            Si no puedes entrar, tu email debe estar dado de alta previamente.
+          </p>
+        </div>
 
         <div className="login-description-card">
           <p>

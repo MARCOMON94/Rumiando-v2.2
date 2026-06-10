@@ -1,88 +1,79 @@
-
 import { createContext, useContext, useEffect, useState } from 'react';
 import { get, post } from '../api/apiClient';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('rumiando_user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
-
-  const [token, setToken] = useState(() => {
-    return localStorage.getItem('rumiando_token');
-  });
-
-  const [loading, setLoading] = useState(Boolean(localStorage.getItem('rumiando_token')));
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  async function loadCurrentUser() {
+    try {
+      const data = await get('/auth/me');
+      const currentUser = data.user || data.usuario || data;
+
+      setUser(currentUser);
+      return currentUser;
+    } catch {
+      setUser(null);
+      return null;
+    }
+  }
 
   useEffect(() => {
     async function loadMe() {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      setLoading(true);
 
       try {
-        const data = await get('/auth/me');
-        const currentUser = data.user || data.usuario || data;
-
-        setUser(currentUser);
-        localStorage.setItem('rumiando_user', JSON.stringify(currentUser));
-      } catch {
-        localStorage.removeItem('rumiando_token');
-        localStorage.removeItem('rumiando_user');
-        setToken(null);
-        setUser(null);
+        await loadCurrentUser();
       } finally {
         setLoading(false);
       }
     }
 
     loadMe();
-  }, [token]);
+  }, []);
 
-  async function login(email, password) {
+  async function loginWithGoogle(credential) {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await post('/auth/login', { email, password }, { skipAuth: true });
-
-      const receivedToken = data.token;
+      const data = await post('/auth/google', { credential });
       const receivedUser = data.user || data.usuario;
 
-      localStorage.setItem('rumiando_token', receivedToken);
-      localStorage.setItem('rumiando_user', JSON.stringify(receivedUser));
-
-      setToken(receivedToken);
       setUser(receivedUser);
-
       return receivedUser;
     } catch (err) {
       setError(err.message);
+      setUser(null);
       throw err;
     } finally {
       setLoading(false);
     }
   }
 
-  function logout() {
-    localStorage.removeItem('rumiando_token');
-    localStorage.removeItem('rumiando_user');
-    setToken(null);
-    setUser(null);
+  async function logout() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await post('/auth/logout', {});
+    } finally {
+      setUser(null);
+      setLoading(false);
+    }
   }
 
   const value = {
     user,
-    token,
     loading,
     error,
-    isAuthenticated: Boolean(token && user),
-    login,
-    logout
+    isAuthenticated: Boolean(user),
+    loginWithGoogle,
+    logout,
+    refreshUser: loadCurrentUser
   };
 
   return (

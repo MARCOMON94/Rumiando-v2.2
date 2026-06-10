@@ -261,6 +261,18 @@
   font-weight: 800;
 }
 
+.google-login-native-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.google-login-native-wrapper > div {
+  display: flex;
+  justify-content: center;
+}
+
+
 /* Pantalla intermedia */
 @media (max-width: 1050px) and (min-width: 901px) {
   .login-card {
