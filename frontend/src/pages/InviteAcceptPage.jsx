@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate, useParams } from 'react-router-dom';
 import { get, post } from '../api/apiClient';
@@ -23,7 +23,7 @@ export default function InviteAcceptPage() {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState('');
 
-  async function loadInvitation() {
+  const loadInvitation = useCallback(async function loadInvitation() {
     setLoading(true);
     setError('');
 
@@ -36,11 +36,11 @@ export default function InviteAcceptPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     loadInvitation();
-  }, [token]);
+  }, [loadInvitation]);
 
   async function handleGoogleSuccess(credentialResponse) {
     setAccepting(true);

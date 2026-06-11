@@ -1,23 +1,12 @@
 const request = require('supertest');
 const app = require('../app');
-
-async function loginAsAdmin() {
-  const res = await request(app)
-    .post('/api/auth/login')
-    .send({ email: 'admin@rumiando.com', password: '123456' });
-
-  if (!res.body.token) {
-    throw new Error('No se recibió token en login. Ejecuta primero npm run seed.');
-  }
-
-  return res.body.token;
-}
+const { authCookieForAdmin } = require('./helpers/auth');
 
 describe('Backend smoke tests', () => {
-  let token;
+  let cookie;
 
   beforeAll(async () => {
-    token = await loginAsAdmin();
+    cookie = await authCookieForAdmin();
   });
 
   const protectedGets = [
@@ -35,18 +24,18 @@ describe('Backend smoke tests', () => {
     '/api/reminders'
   ];
 
-  test.each(protectedGets)('GET %s responde 200 con token', async (url) => {
+  test.each(protectedGets)('GET %s responde 200 con cookie de sesion', async (url) => {
     const res = await request(app)
       .get(url)
-      .set('Authorization', `Bearer ${token}`);
+      .set('Cookie', cookie);
 
     expect(res.statusCode).toBe(200);
   });
 
-  test('GET /api/dashboard devuelve métricas principales', async () => {
+  test('GET /api/dashboard devuelve metricas principales', async () => {
     const res = await request(app)
       .get('/api/dashboard')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Cookie', cookie);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.totals).toBeDefined();
@@ -55,7 +44,7 @@ describe('Backend smoke tests', () => {
   test('GET /api/exports/animals devuelve CSV', async () => {
     const res = await request(app)
       .get('/api/exports/animals')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Cookie', cookie);
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');

@@ -12,7 +12,7 @@ function getSessionCookieOptions() {
   return {
     httpOnly: true,
     secure: isProduction(),
-    sameSite: isProduction() ? 'lax' : 'lax',
+    sameSite: isProduction() ? 'none' : 'lax',
     path: '/',
     maxAge: ONE_DAY_MS
   };

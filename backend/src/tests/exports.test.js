@@ -1,25 +1,18 @@
 const request = require('supertest');
 const app = require('../app');
-
-async function loginAsAdmin() {
-  const login = await request(app)
-    .post('/api/auth/login')
-    .send({ email: 'admin@rumiando.com', password: '123456' });
-
-  return login.body.token;
-}
+const { authCookieForAdmin } = require('./helpers/auth');
 
 describe('Exports API', () => {
-  let token;
+  let cookie;
 
   beforeAll(async () => {
-    token = await loginAsAdmin();
+    cookie = await authCookieForAdmin();
   });
 
-  test('POST /api/exports/send-request registra una solicitud de exportación', async () => {
+  test('POST /api/exports/send-request registra una solicitud de exportacion', async () => {
     const res = await request(app)
       .post('/api/exports/send-request')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', cookie)
       .send({
         tipoExportacion: 'CENSO',
         fechaDesde: '2026-01-01',
@@ -37,7 +30,7 @@ describe('Exports API', () => {
   test('POST /api/exports/send-request rechaza datos incompletos', async () => {
     const res = await request(app)
       .post('/api/exports/send-request')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', cookie)
       .send({
         tipoExportacion: 'CENSO'
       });

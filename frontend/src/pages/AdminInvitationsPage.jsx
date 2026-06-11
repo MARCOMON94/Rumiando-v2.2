@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { get, post } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,21 +22,29 @@ function getStatusText(status) {
   return labels[status] || status || 'Sin estado';
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 function buildInvitationSubject({ farmName }) {
   return `Invitación para acceder a ${farmName || 'RumiAndo'}`;
 }
 
-function buildInvitationBody({ invitationUrl, email, role, farmName, invitedByName }) {
+function buildInvitationBody({ url, email, role, farmName, invitedByName }) {
   const displayFarmName = farmName || 'RumiAndo';
   const displayInvitedBy = invitedByName || 'Un administrador';
 
   return [
-    'RUMIANDO',
-    'Gestión ganadera',
+    'RumiAndo - Gestión ganadera',
     '',
     'Invitación de acceso',
     '',
-    `Hola,`,
+    'Hola,',
     '',
     `${displayInvitedBy} te ha invitado a acceder a ${displayFarmName} en RumiAndo.`,
     '',
@@ -49,7 +57,7 @@ function buildInvitationBody({ invitationUrl, email, role, farmName, invitedByNa
     '2. Entra con Google.',
     '3. Usa exactamente el mismo email indicado arriba.',
     '',
-    invitationUrl,
+    url,
     '',
     'Esta invitación es personal y caduca automáticamente.',
     '',
@@ -58,6 +66,74 @@ function buildInvitationBody({ invitationUrl, email, role, farmName, invitedByNa
     'Un saludo,',
     'Equipo RumiAndo'
   ].join('\n');
+}
+
+function buildInvitationHtml({ url, email, role, farmName, invitedByName }) {
+  const safeFarmName = escapeHtml(farmName || 'RumiAndo');
+  const safeInvitedBy = escapeHtml(invitedByName || 'Un administrador');
+  const safeEmail = escapeHtml(email);
+  const safeRole = escapeHtml(role || 'OPERARIO');
+  const safeUrl = escapeHtml(url);
+
+  return `
+    <div style="margin:0;padding:0;background:#f4f4ee;font-family:Arial,Helvetica,sans-serif;color:#1f2f25;">
+      <div style="max-width:640px;margin:0 auto;padding:28px 16px;">
+        <div style="background:#ffffff;border:1px solid #d8ded7;border-radius:24px;overflow:hidden;box-shadow:0 16px 38px rgba(35,49,39,0.10);">
+          <div style="background:#3f6b4b;padding:26px 24px;text-align:center;color:#ffffff;">
+            <div style="font-size:28px;font-weight:900;letter-spacing:0.18em;line-height:1;text-transform:uppercase;">
+              RUMIANDO
+            </div>
+            <div style="margin-top:8px;font-size:15px;font-weight:700;letter-spacing:0.02em;">
+              Gestión ganadera
+            </div>
+          </div>
+
+          <div style="padding:30px 28px 26px;">
+            <p style="margin:0 0 8px;color:#3f6b4b;font-size:13px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;">
+              Invitación de acceso
+            </p>
+
+            <h1 style="margin:0 0 18px;color:#1f2f25;font-size:28px;line-height:1.15;font-weight:900;">
+              Acceso a ${safeFarmName}
+            </h1>
+
+            <p style="margin:0 0 18px;color:#33443a;font-size:16px;line-height:1.55;">
+              ${safeInvitedBy} te ha invitado a acceder a <strong>${safeFarmName}</strong> en RumiAndo.
+            </p>
+
+            <div style="margin:22px 0;padding:18px 20px;background:#f4f7f1;border:1px solid #dfe8dc;border-radius:18px;">
+              <p style="margin:0 0 8px;color:#33443a;font-size:15px;line-height:1.45;">
+                <strong>Email invitado:</strong> ${safeEmail}
+              </p>
+              <p style="margin:0;color:#33443a;font-size:15px;line-height:1.45;">
+                <strong>Rol asignado:</strong> ${safeRole}
+              </p>
+            </div>
+
+            <p style="margin:0 0 24px;color:#33443a;font-size:16px;line-height:1.55;">
+              Para aceptar la invitación, pulsa el botón y entra con la misma cuenta de Google indicada arriba.
+            </p>
+
+            <div style="text-align:center;margin:30px 0 28px;">
+              <a href="${safeUrl}" style="display:inline-block;background:#3f6b4b;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;padding:15px 28px;border-radius:999px;box-shadow:0 12px 24px rgba(63,107,75,0.22);">
+                Acceder a RumiAndo
+              </a>
+            </div>
+
+            <p style="margin:0;color:#6f7887;font-size:13px;line-height:1.5;text-align:center;">
+              Esta invitación es personal y caduca automáticamente. Si no esperabas este correo, puedes ignorarlo.
+            </p>
+          </div>
+
+          <div style="padding:18px 24px;background:#f7f7f1;border-top:1px solid #e2e7df;text-align:center;">
+            <p style="margin:0;color:#6f7887;font-size:12px;line-height:1.45;">
+              RumiAndo · Gestión ganadera digital
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function buildMailtoUrl(invitation) {
@@ -69,9 +145,27 @@ function buildMailtoUrl(invitation) {
 
 function buildGmailComposeUrl(invitation) {
   const subject = encodeURIComponent(buildInvitationSubject(invitation));
-  const body = encodeURIComponent(buildInvitationBody(invitation));
 
-  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(invitation.email)}&su=${subject}&body=${body}`;
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(invitation.email)}&su=${subject}`;
+}
+
+async function copyInvitationEmailToClipboard(invitation) {
+  const html = buildInvitationHtml(invitation);
+  const text = buildInvitationBody(invitation);
+
+  if (navigator.clipboard?.write && window.ClipboardItem) {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' })
+      })
+    ]);
+
+    return 'html';
+  }
+
+  await navigator.clipboard.writeText(text);
+  return 'text';
 }
 
 export default function AdminInvitationsPage() {
@@ -82,13 +176,14 @@ export default function AdminInvitationsPage() {
   const [invitations, setInvitations] = useState([]);
   const [lastInvitation, setLastInvitation] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
   const isAdmin = user?.rol === 'ADMIN';
 
-  async function loadInvitations() {
+  const loadInvitations = useCallback(async function loadInvitations() {
     if (!isAdmin) return;
 
     setLoading(true);
@@ -102,11 +197,11 @@ export default function AdminInvitationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [isAdmin]);
 
   useEffect(() => {
     loadInvitations();
-  }, [isAdmin]);
+  }, [loadInvitations]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -120,6 +215,7 @@ export default function AdminInvitationsPage() {
 
     setCreating(true);
     setCopied(false);
+    setEmailCopied(false);
     setError('');
 
     try {
@@ -158,32 +254,34 @@ export default function AdminInvitationsPage() {
     }
   }
 
-  function handleOpenGmail() {
+  async function handlePrepareGmail() {
     if (!lastInvitation?.url) return;
 
-    window.open(
-      buildGmailComposeUrl({
-        invitationUrl: lastInvitation.url,
-        email: lastInvitation.email,
-        role: lastInvitation.role,
-        farmName: lastInvitation.farmName,
-        invitedByName: lastInvitation.invitedByName
-      }),
-      '_blank',
-      'noopener,noreferrer'
-    );
+    setError('');
+
+    try {
+      const clipboardMode = await copyInvitationEmailToClipboard(lastInvitation);
+      setEmailCopied(true);
+
+      window.open(
+        buildGmailComposeUrl(lastInvitation),
+        '_blank',
+        'noopener,noreferrer'
+      );
+
+      if (clipboardMode === 'text') {
+        setError('Tu navegador solo permitió copiar texto plano. Pégalo en Gmail y envíalo.');
+      }
+    } catch {
+      setEmailCopied(false);
+      setError('No se pudo copiar el correo visual. Usa la opción de correo simple o copia el enlace.');
+    }
   }
 
   function handleOpenMailApp() {
     if (!lastInvitation?.url) return;
 
-    window.location.href = buildMailtoUrl({
-      invitationUrl: lastInvitation.url,
-      email: lastInvitation.email,
-      role: lastInvitation.role,
-      farmName: lastInvitation.farmName,
-      invitedByName: lastInvitation.invitedByName
-    });
+    window.location.href = buildMailtoUrl(lastInvitation);
   }
 
   if (!isAdmin) {
@@ -229,8 +327,7 @@ export default function AdminInvitationsPage() {
           <div>
             <h3>Nueva invitación</h3>
             <p>
-              Genera una invitación segura y abre Gmail con el mensaje ya preparado.
-              El administrador solo tendrá que revisar y enviar.
+              Genera una invitación segura y prepara un correo visual para enviarlo desde Gmail.
             </p>
           </div>
         </div>
@@ -272,8 +369,7 @@ export default function AdminInvitationsPage() {
               <div>
                 <h3>Invitación generada</h3>
                 <p>
-                  El enlace ya está creado. Puedes abrir Gmail con el correo preparado
-                  o copiar el enlace manualmente.
+                  Pulsa “Preparar Gmail”, pega el contenido en el cuerpo del correo y envíalo.
                 </p>
               </div>
             </div>
@@ -286,13 +382,19 @@ export default function AdminInvitationsPage() {
               <strong>Rol:</strong> {lastInvitation.role}
             </p>
 
+            {emailCopied && (
+              <p className="alert">
+                Correo copiado. Ahora pega el contenido en Gmail y envíalo.
+              </p>
+            )}
+
             <div className="form-actions">
-              <button type="button" onClick={handleOpenGmail}>
-                Abrir Gmail
+              <button type="button" onClick={handlePrepareGmail}>
+                Preparar Gmail
               </button>
 
               <button type="button" onClick={handleOpenMailApp}>
-                Abrir correo
+                Correo simple
               </button>
 
               <button type="button" onClick={handleCopyInvitationUrl}>
