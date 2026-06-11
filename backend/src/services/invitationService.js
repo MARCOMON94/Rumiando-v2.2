@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const prisma = require('../config/prisma');
 const AppError = require('../utils/AppError');
 const { verifyGoogleCredential } = require('../utils/googleAuth');
+const { sendInvitationEmail } = require('./emailService');
 
 const INVITATION_EXPIRATION_DAYS = 7;
 
@@ -74,8 +75,9 @@ async function createInvitation(data, adminUser) {
   }
 
   const token = createInvitationToken();
-  const tokenHash = hashInvitationToken(token);
-  const expiresAt = addDays(new Date(), INVITATION_EXPIRATION_DAYS);
+    const tokenHash = hashInvitationToken(token);
+    const expiresAt = addDays(new Date(), INVITATION_EXPIRATION_DAYS);
+    const invitationUrl = buildInvitationUrl(token);
 
   const invitation = await prisma.invitation.create({
     data: {
@@ -100,10 +102,19 @@ async function createInvitation(data, adminUser) {
     }
   });
 
-  return {
-    invitation,
-    invitationUrl: buildInvitationUrl(token)
-  };
+  const emailResult = await sendInvitationEmail({
+  to: email,
+  invitationUrl,
+  role,
+  farmName: invitation.cuentaGanadera?.nombre,
+  invitedByName: adminUser.nombre || adminUser.email
+});
+
+return {
+  invitation,
+  invitationUrl,
+  email: emailResult
+};
 }
 
 async function validateInvitation(token) {

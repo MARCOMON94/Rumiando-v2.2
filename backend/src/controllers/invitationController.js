@@ -30,10 +30,13 @@ async function createInvitation(req, res, next) {
     const result = await invitationService.createInvitation(req.body, req.user);
 
     res.status(201).json({
-      message: 'Invitación creada correctamente',
-      invitation: removeSensitiveInvitationFields(result.invitation),
-      invitationUrl: result.invitationUrl
-    });
+  message: result.email?.sent
+    ? 'Invitación creada y enviada por email'
+    : 'Invitación creada correctamente. Email no enviado.',
+  invitation: removeSensitiveInvitationFields(result.invitation),
+  invitationUrl: result.invitationUrl,
+  email: result.email
+});
   } catch (err) {
     next(err);
   }
