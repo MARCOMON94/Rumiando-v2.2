@@ -15,6 +15,7 @@ import './styles/chat.css';
 import './styles/reader.css';
 import './styles/operations.css';
 import './styles/animal-watchlist.css';
+import './styles/modal.css';
 import './styles/login.css';
 import './styles/mobile-shell.css';
 

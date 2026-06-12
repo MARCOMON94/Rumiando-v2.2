@@ -57,7 +57,6 @@ export default function RemindersPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Avisos</p>
           <h2>Avisos automáticos</h2>
           <p>
             Avisos calculados por el backend según el estado real de animales,
@@ -117,7 +116,7 @@ export default function RemindersPage() {
         {!loadingAutomatic && automaticAlerts.length > 0 && (
           <div className="cards-list">
             {automaticAlerts.map((alert, index) => (
-              <article className="panel" key={`${alert.type}-${alert.animal?.id || index}`}>
+              <article className="panel reminder-alert-card" key={`${alert.type}-${alert.animal?.id || index}`}>
                 <div className="animal-card-header">
                   <span className={`priority ${getLevelClass(alert.level)}`}>
                     {getLevelText(alert.level)}
@@ -154,7 +153,7 @@ export default function RemindersPage() {
                         sourceType="automatic_alert"
                         sourceRef={`${alert.type}-${alert.animal.id}`}
                         promptReason={false}
-                        label="Animal Watchlist"
+                        label="Búsqueda"
                         className="secondary"
                       />
                       <Link

@@ -30,7 +30,6 @@ export default function AutomationPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Automatización</p>
           <h2>Avisos automáticos</h2>
           <p>Resumen diario calculado desde datos reproductivos y sanitarios.</p>
         </div>

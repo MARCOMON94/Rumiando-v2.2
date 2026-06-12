@@ -272,11 +272,14 @@ export default function OperationSessionPanel({
       } else if (session.operationType === 'baja') {
         const animals = targetAnimalsOnly();
         const updates = [];
+        const destinoSalida = dataValue('destinoSalida', 'Muerte') === 'Otro'
+          ? dataValue('destinoSalidaOtro', 'Otro')
+          : dataValue('destinoSalida', 'Muerte');
         for (const animal of animals) {
           updates.push(await put(`/animals/${animal.id}`, {
             estadoRegistro: 'BAJA',
             fechaSalida: fecha,
-            destinoSalida: dataValue('destinoSalida', 'Muerte'),
+            destinoSalida,
             observaciones: operationData.observaciones || 'Baja registrada desde flujo guiado.'
           }));
         }
@@ -381,10 +384,10 @@ export default function OperationSessionPanel({
   };
 
   return (
-    <section className="operation-panel" aria-label="Operacion guiada">
+    <section className="operation-panel" aria-label="Operación guiada">
       <div className="operation-panel-header">
         <div>
-          <p className="eyebrow">Operacion guiada</p>
+          <p className="eyebrow">Operación guiada</p>
           <h3>{operation.title}</h3>
           <p>Lee animales, revisa el resumen y confirma antes de registrar.</p>
         </div>
@@ -394,10 +397,10 @@ export default function OperationSessionPanel({
         </button>
       </div>
 
-      {catalogsLoading && <p className="muted">Cargando catalogos...</p>}
-      {catalogsError && <p className="alert error">Error catalogos: {catalogsError}</p>}
+      {catalogsLoading && <p className="muted">Cargando catálogos...</p>}
+      {catalogsError && <p className="alert error">Error catálogos: {catalogsError}</p>}
 
-      <div className="operation-mode-tabs" role="tablist" aria-label="Modo de operacion">
+      <div className="operation-mode-tabs" role="tablist" aria-label="Modo de operación">
         {MODES.map((mode) => (
           <button
             key={mode.key}
@@ -488,7 +491,7 @@ export default function OperationSessionPanel({
         {session.operationType === 'sanitario' && (
           <>
             <label>
-              Sintomas
+              Síntomas
               <input
                 name="signosClinicos"
                 value={dataValue('signosClinicos')}
@@ -507,7 +510,7 @@ export default function OperationSessionPanel({
             <label>
               Enfermedad
               <select name="enfermedadId" value={dataValue('enfermedadId')} onChange={handleDataChange}>
-                <option value="">Sin cerrar diagnostico</option>
+                <option value="">Sin cerrar diagnóstico</option>
                 {(catalogs.diseases || []).map((disease) => (
                   <option key={disease.id} value={disease.id}>
                     {itemName(disease)}
@@ -587,12 +590,29 @@ export default function OperationSessionPanel({
           <>
             <label>
               Motivo de baja
-              <input
+              <select
                 name="destinoSalida"
                 value={dataValue('destinoSalida', 'Muerte')}
                 onChange={handleDataChange}
-              />
+              >
+                <option value="Muerte">Muerte</option>
+                <option value="Venta / traslado">Venta / traslado</option>
+                <option value="Sacrificio">Sacrificio</option>
+                <option value="Desaparecido">Desaparecido</option>
+                <option value="Otro">Otro</option>
+              </select>
             </label>
+            {dataValue('destinoSalida', 'Muerte') === 'Otro' && (
+              <label>
+                Otra causa
+                <input
+                  name="destinoSalidaOtro"
+                  value={dataValue('destinoSalidaOtro')}
+                  onChange={handleDataChange}
+                  placeholder="Indica la causa"
+                />
+              </label>
+            )}
             <label>
               Causa / observaciones
               <input

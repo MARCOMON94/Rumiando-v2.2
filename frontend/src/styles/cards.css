@@ -11,10 +11,6 @@
   border-radius: var(--radius-lg);
   background: var(--surface-card);
   box-shadow: var(--shadow-card);
-  transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
-    border-color var(--transition-fast);
 }
 
 
@@ -24,6 +20,7 @@
 .animal-card {
   border: 1px solid rgba(216, 222, 215, 0.95);
   border-radius: var(--radius-lg);
+  padding: 1.25rem;
   background: var(--surface-card);
   box-shadow: var(--shadow-card);
 }
@@ -260,5 +257,27 @@
 
   .animal-card-header .tag {
     max-width: 100%;
+  }
+
+  .cards-list .panel {
+    padding: 1.25rem;
+  }
+
+  .cards-list .form-actions {
+    justify-content: center;
+  }
+
+  .reminder-alert-card {
+    padding: 1.35rem;
+  }
+
+  .reminder-alert-card .form-actions {
+    justify-content: center;
+  }
+
+  .reminder-alert-card .form-actions button,
+  .reminder-alert-card .form-actions .button,
+  .reminder-alert-card .watchlist-add-wrapper button {
+    width: min(100%, 280px);
   }
 }

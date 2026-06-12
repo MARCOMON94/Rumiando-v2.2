@@ -45,7 +45,6 @@ export default function HealthPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Sanidad</p>
           <h2>Casos sanitarios</h2>
           <p>{openCases.length} casos abiertos de {healthCases.length} registrados</p>
         </div>

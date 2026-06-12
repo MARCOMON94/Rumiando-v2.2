@@ -41,7 +41,6 @@ export default function PensPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Manejo</p>
           <h2>Corrales</h2>
           <p>{pens.length} corrales registrados</p>
         </div>

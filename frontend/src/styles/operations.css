@@ -9,6 +9,85 @@
   flex-wrap: wrap;
 }
 
+.field-home-search-row {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.field-crotal-search-button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 64px;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  color: var(--color-primary-dark);
+  box-shadow: var(--shadow-card);
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: left;
+}
+
+.field-crotal-search-button > span:first-child,
+.field-operation-with-icon > span:first-child,
+.field-operation-live > span:first-child {
+  justify-self: start;
+  align-self: center;
+}
+
+.field-crotal-search-button:hover,
+.field-crotal-search-button.active {
+  border-color: rgba(63, 107, 75, 0.3);
+  background: var(--color-white);
+  box-shadow: var(--shadow-hover);
+}
+
+.field-crotal-search-icon-wrap {
+  position: relative;
+  justify-self: center;
+  width: 42px;
+  height: 42px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--color-white);
+  box-shadow: 0 8px 18px rgba(63, 107, 75, 0.22);
+}
+
+.field-crotal-search-icon-wrap img {
+  position: relative;
+  z-index: 1;
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+}
+
+.field-crotal-search-spinner {
+  position: absolute;
+  inset: -5px;
+  display: none;
+  border: 2px solid rgba(63, 107, 75, 0.18);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.field-crotal-search-button.reading .field-crotal-search-spinner {
+  display: block;
+  animation: fieldSearchSpin 0.85s linear infinite;
+}
+
+@keyframes fieldSearchSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .field-reader-button {
   min-width: 132px;
   background: var(--color-primary);
@@ -26,8 +105,11 @@
 }
 
 .field-operation-button {
+  display: grid;
   min-height: 64px;
+  align-items: center;
   justify-content: center;
+  justify-items: center;
   padding: 0.85rem 1rem;
   border: 1px solid rgba(216, 222, 215, 0.95);
   border-radius: var(--radius-lg);
@@ -39,11 +121,19 @@
   font-weight: 850;
 }
 
+.field-operation-with-icon {
+  grid-template-columns: minmax(0, 1fr) 54px;
+  align-items: center;
+  justify-items: stretch;
+  gap: 0.75rem;
+  text-align: left;
+}
+
 .field-operation-button:hover {
   border-color: rgba(63, 107, 75, 0.28);
   background: var(--color-white);
-  transform: none;
-  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
 }
 
 .field-operation-button span {
@@ -52,37 +142,107 @@
   line-height: 1.15;
 }
 
+.field-operation-icon {
+  justify-self: center;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  transform: none;
+}
+
 .field-operation-wide {
   grid-column: 1 / -1;
 }
 
 .field-operation-live {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) 54px;
   align-items: center;
-  padding-inline: 1.25rem 0.65rem;
-  background: var(--color-secondary);
-  border-color: rgba(63, 107, 75, 0.18);
+  justify-items: stretch;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface-card);
+  border-color: rgba(216, 222, 215, 0.95);
+  text-align: left;
 }
 
 .field-watchlist-pill {
-  min-width: 70px;
-  height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  border: 1px solid rgba(63, 107, 75, 0.24);
-  border-radius: var(--radius-pill);
-  background: var(--color-white);
+  position: relative;
+  justify-self: center;
+  align-self: center;
+  width: 54px;
+  min-width: 54px;
+  height: 42px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--color-primary-dark);
   font-weight: 900;
-  box-shadow: 0 8px 18px rgba(35, 49, 39, 0.06);
+  box-shadow: none;
 }
 
 .field-watchlist-pill strong {
   font-size: 1.35rem;
   line-height: 1;
+}
+
+.field-watchlist-pill img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  object-position: center;
+  transform: translateX(3px);
+}
+
+.field-watchlist-badge {
+  position: absolute;
+  right: 1px;
+  top: 0;
+  min-width: 19px;
+  height: 19px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 0.3rem;
+  border: 2px solid var(--color-white);
+  border-radius: var(--radius-pill);
+  background: #f97316;
+  color: var(--color-white);
+  font-size: 0.7rem;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.field-operation-settings {
+  margin-top: 0.35rem;
+  background: var(--surface-soft);
+}
+
+.home-settings-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.birth-offspring-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.birth-offspring-card {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.birth-offspring-card legend {
+  padding: 0 0.4rem;
+  color: var(--color-primary-dark);
+  font-weight: 850;
 }
 
 .operation-panel,
@@ -284,6 +444,211 @@
   font-size: 1.5rem;
 }
 
+.animal-profile-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.animal-profile-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.animal-profile-code {
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(63, 107, 75, 0.2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+}
+
+.animal-profile-code span,
+.animal-summary-row-main span {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  line-height: 1.15;
+  font-weight: 850;
+}
+
+.animal-profile-code strong {
+  margin-top: 0.1rem;
+  color: var(--color-primary-dark);
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  line-height: 1;
+  font-weight: 930;
+}
+
+.animal-profile-watch-button {
+  width: 72px;
+  min-width: 72px;
+  height: 58px;
+  min-height: 58px;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-pill);
+}
+
+.animal-profile-watch-button .watchlist-button-mark img {
+  width: 34px;
+  height: 28px;
+  transform: translateX(2px);
+}
+
+.animal-profile-watch-button .watchlist-button-mark small {
+  display: block;
+}
+
+.animal-profile-main-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.animal-profile-main-actions button,
+.animal-profile-age-pill {
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  gap: 0.15rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-pill);
+  text-align: center;
+}
+
+.animal-profile-age-pill {
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  background: var(--surface-soft);
+  color: var(--color-primary-dark);
+}
+
+.animal-profile-age-pill span {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.animal-profile-age-pill strong {
+  color: var(--color-primary-dark);
+  font-size: 0.92rem;
+  line-height: 1.15;
+}
+
+.animal-summary-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.animal-summary-row {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.animal-summary-row-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.animal-summary-row-main.has-action {
+  grid-template-columns: minmax(0, 1fr) 48px;
+}
+
+.animal-summary-row-main strong {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-primary-dark);
+  font-size: 1.02rem;
+  line-height: 1.2;
+  font-weight: 900;
+}
+
+.animal-summary-row-main small {
+  display: inline-flex;
+  margin-top: 0.25rem;
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  line-height: 1.15;
+  font-weight: 850;
+}
+
+.animal-summary-more-button {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--color-secondary);
+  color: var(--color-primary);
+  box-shadow: none;
+}
+
+.animal-summary-more-button img {
+  width: 31px;
+  height: 31px;
+  object-fit: contain;
+}
+
+.animal-summary-detail {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+}
+
+.animal-summary-detail p {
+  margin: 0.2rem 0;
+}
+
+.animal-summary-detail button {
+  justify-self: start;
+}
+
+.css-search-icon {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+}
+
+.css-search-icon::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  width: 10px;
+  height: 10px;
+  border: 3px solid currentColor;
+  border-radius: 50%;
+}
+
+.css-search-icon::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 2px;
+  width: 9px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(45deg);
+  transform-origin: center;
+}
+
 @media (max-width: 900px) {
   .field-home-page {
     min-height: calc(100svh - 92px);
@@ -309,6 +674,10 @@
     min-height: 74px;
   }
 
+  .field-crotal-search-button {
+    min-height: 74px;
+  }
+
   .operation-panel-header,
   .operation-actions {
     display: grid;
@@ -317,7 +686,8 @@
 
   .operation-data-grid,
   .animal-preview-main,
-  .animal-preview-list {
+  .animal-preview-list,
+  .animal-profile-main-actions {
     grid-template-columns: 1fr;
   }
 
@@ -328,6 +698,10 @@
   .animal-preview-next {
     position: static;
     justify-self: end;
+  }
+
+  .animal-profile-card {
+    padding: 0.85rem;
   }
 }
 

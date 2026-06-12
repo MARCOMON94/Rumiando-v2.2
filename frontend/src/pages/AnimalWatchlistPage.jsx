@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { del, get, post, put } from '../api/apiClient';
 import { useCatalogs } from '../context/CatalogsContext';
+import AppModal from '../components/ui/AppModal';
 
 const WATCHLIST_ACTIONS = [
   { key: 'movement', label: 'Movimiento de corral' },
@@ -10,9 +11,9 @@ const WATCHLIST_ACTIONS = [
 ];
 
 const REPRODUCTIVE_EVENTS = [
-  { key: 'CUBRICION', label: 'Cubricion' },
-  { key: 'INSEMINACION', label: 'Inseminacion' },
-  { key: 'DIAGNOSTICO_GESTACION', label: 'Diagnostico de gestacion' },
+  { key: 'CUBRICION', label: 'Cubrición' },
+  { key: 'INSEMINACION', label: 'Inseminación' },
+  { key: 'DIAGNOSTICO_GESTACION', label: 'Diagnóstico de gestación' },
   { key: 'PARTO', label: 'Parto' },
   { key: 'ABORTO', label: 'Aborto' },
   { key: 'SECADO', label: 'Secado' },
@@ -71,9 +72,10 @@ function formatReadInfo(item) {
 }
 
 export default function AnimalWatchlistPage() {
-  const inputRef = useRef(null);
-  const inputTimerRef = useRef(null);
+  const readerBufferRef = useRef('');
+  const readerTimerRef = useRef(null);
   const audioContextRef = useRef(null);
+  const readerPausedRef = useRef(false);
 
   const { catalogs, loading: catalogsLoading, error: catalogsError } = useCatalogs();
 
@@ -82,8 +84,6 @@ export default function AnimalWatchlistPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [statusText, setStatusText] = useState('Lector esperando.');
-  const [readerActive, setReaderActive] = useState(false);
   const [flashKey, setFlashKey] = useState(0);
   const [overlayItem, setOverlayItem] = useState(null);
   const [activeItem, setActiveItem] = useState(null);
@@ -92,6 +92,13 @@ export default function AnimalWatchlistPage() {
   const [actionSaving, setActionSaving] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
   const [actionError, setActionError] = useState('');
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [pendingRemoveItem, setPendingRemoveItem] = useState(null);
+  const readerPaused = Boolean(activeItem || clearConfirmOpen || pendingRemoveItem);
+
+  useEffect(() => {
+    readerPausedRef.current = readerPaused;
+  }, [readerPaused]);
 
   const loadItems = useCallback(async function loadItems() {
     setLoading(true);
@@ -118,27 +125,15 @@ export default function AnimalWatchlistPage() {
     }
   }, []);
 
-  const activateReader = useCallback(function activateReader() {
-    setReaderActive(true);
-    setStatusText('Lector activo. Pasa crotales de Animal Watchlist.');
-    window.setTimeout(() => inputRef.current?.focus(), 0);
-  }, []);
-
   useEffect(() => {
     loadItems();
   }, [loadItems]);
 
   useEffect(() => {
     return () => {
-      window.clearTimeout(inputTimerRef.current);
+      window.clearTimeout(readerTimerRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    if (!loading && !activeItem) {
-      activateReader();
-    }
-  }, [loading, activeItem, activateReader]);
 
   const activeAnimal = activeItem?.animal;
 
@@ -186,11 +181,6 @@ export default function AnimalWatchlistPage() {
     oscillator.stop(now + 0.36);
   }
 
-  function focusReader() {
-    activateReader();
-    ensureAudioContext();
-  }
-
   function resetActionPanel(item) {
     setActiveItem(item);
     setActionKind('');
@@ -209,8 +199,6 @@ export default function AnimalWatchlistPage() {
     resetActionPanel(null);
     setActionMessage('');
     setActionError('');
-    setStatusText('Lector activo. Pasa crotales de Animal Watchlist.');
-    window.setTimeout(() => inputRef.current?.focus(), 0);
   }
 
   function applyUpdatedItems(updatedItems) {
@@ -233,7 +221,6 @@ export default function AnimalWatchlistPage() {
       const result = await post('/animal-watchlist/read', { crotal: code });
 
       if (!result.matched) {
-        setStatusText(`${code} no esta en Animal Watchlist.`);
         return;
       }
 
@@ -245,10 +232,8 @@ export default function AnimalWatchlistPage() {
       resetActionPanel(firstItem);
       setFlashKey((current) => current + 1);
       playAlertSound();
-      setStatusText(`${firstItem.animal?.crotal || code} localizado.`);
     } catch (err) {
       setError(err.message);
-      setStatusText('Error leyendo crotal.');
     }
   }
 
@@ -258,27 +243,71 @@ export default function AnimalWatchlistPage() {
     }
   }
 
-  function handleReaderInput(event) {
-    const target = event.currentTarget;
-    window.clearTimeout(inputTimerRef.current);
-    inputTimerRef.current = window.setTimeout(() => {
-      const codes = extractCodes(target.value);
-      target.value = '';
-      processCodes(codes);
-    }, 140);
-  }
-
-  function handleReaderKeyDown(event) {
-    if (event.key !== 'Enter' && event.key !== 'Tab') {
-      return;
+  useEffect(() => {
+    function stopReaderEvent(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
     }
 
-    event.preventDefault();
-    window.clearTimeout(inputTimerRef.current);
-    const codes = extractCodes(event.currentTarget.value);
-    event.currentTarget.value = '';
-    processCodes(codes);
-  }
+    function flushReaderBuffer() {
+      const raw = readerBufferRef.current;
+      readerBufferRef.current = '';
+      window.clearTimeout(readerTimerRef.current);
+
+      if (raw && !readerPausedRef.current) {
+        processCodes(extractCodes(raw));
+      }
+    }
+
+    function handleCaptureKeyDown(event) {
+      if (readerPausedRef.current) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const isFinishKey = event.key === 'Enter' || event.key === 'Tab';
+      const isCharacter = event.key.length === 1;
+      const isBackspace = event.key === 'Backspace';
+
+      if (!isFinishKey && !isCharacter && !isBackspace) return;
+
+      stopReaderEvent(event);
+
+      if (isFinishKey) {
+        flushReaderBuffer();
+        return;
+      }
+
+      if (isBackspace) {
+        readerBufferRef.current = readerBufferRef.current.slice(0, -1);
+        return;
+      }
+
+      readerBufferRef.current += event.key;
+      window.clearTimeout(readerTimerRef.current);
+      readerTimerRef.current = window.setTimeout(flushReaderBuffer, 140);
+    }
+
+    function handleCapturePaste(event) {
+      if (readerPausedRef.current) return;
+
+      const pasted = event.clipboardData?.getData('text');
+      if (!pasted) return;
+
+      stopReaderEvent(event);
+      readerBufferRef.current = '';
+      window.clearTimeout(readerTimerRef.current);
+      processCodes(extractCodes(pasted));
+    }
+
+    window.addEventListener('keydown', handleCaptureKeyDown, true);
+    window.addEventListener('paste', handleCapturePaste, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleCaptureKeyDown, true);
+      window.removeEventListener('paste', handleCapturePaste, true);
+      window.clearTimeout(readerTimerRef.current);
+    };
+  });
 
   async function removeItem(itemId) {
     setSaving(true);
@@ -297,6 +326,7 @@ export default function AnimalWatchlistPage() {
       if (overlayItem?.id === itemId) {
         setOverlayItem(null);
       }
+      setPendingRemoveItem(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -305,10 +335,16 @@ export default function AnimalWatchlistPage() {
   }
 
   async function clearItems() {
-    if (!window.confirm('Eliminar toda la Animal Watchlist?')) {
-      return;
-    }
+    setClearConfirmOpen(true);
+  }
 
+  async function confirmRemoveItem() {
+    if (!pendingRemoveItem?.id) return;
+
+    await removeItem(pendingRemoveItem.id);
+  }
+
+  async function confirmClearItems() {
     setSaving(true);
     setError('');
 
@@ -319,6 +355,7 @@ export default function AnimalWatchlistPage() {
       window.dispatchEvent(new Event('animal-watchlist:changed'));
       setOverlayItem(null);
       resetActionPanel(null);
+      setClearConfirmOpen(false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -350,7 +387,7 @@ export default function AnimalWatchlistPage() {
     if (!actionKind) return true;
 
     if (!value) {
-      setActionError('Selecciona una opcion antes de finalizar.');
+      setActionError('Selecciona una opción antes de finalizar.');
       return false;
     }
 
@@ -368,7 +405,7 @@ export default function AnimalWatchlistPage() {
 
         await post('/movements', {
           tipoOperacion: 'INDIVIDUAL',
-          motivo: reason === 'Sin motivo indicado' ? 'Animal Watchlist' : `Animal Watchlist: ${reason}`,
+          motivo: reason === 'Sin motivo indicado' ? 'Búsqueda inteligente' : `Búsqueda inteligente: ${reason}`,
           fecha: today,
           unidadRegaId: Number(animal.unidadRegaId),
           corralDestinoId: Number(value),
@@ -389,12 +426,12 @@ export default function AnimalWatchlistPage() {
           tipoEvento: value,
           resultado: 'NO_APLICA',
           fecha: today,
-          observaciones: 'Registrado desde Animal Watchlist.'
+          observaciones: 'Registrado desde Búsqueda inteligente.'
         });
       } else if (actionKind === 'health') {
         await post('/health-cases', {
           fechaInicio: today,
-          signosClinicos: 'Caso abierto desde Animal Watchlist.',
+          signosClinicos: 'Caso abierto desde Búsqueda inteligente.',
           gravedad: 'Media',
           unidadRegaId: Number(animal.unidadRegaId),
           animalId: animal.id,
@@ -475,8 +512,8 @@ export default function AnimalWatchlistPage() {
       <label>
         Caso sanitario
         <select value={subActionValue} onChange={handleSubActionChange} disabled={actionSaving}>
-          <option value="">Selecciona opcion</option>
-          <option value="__NO_DISEASE__">Abrir caso sin diagnostico</option>
+          <option value="">Selecciona opción</option>
+          <option value="__NO_DISEASE__">Abrir caso sin diagnóstico</option>
           {(catalogs.diseases || []).map((disease) => (
             <option key={disease.id} value={disease.id}>
               {itemName(disease)}
@@ -491,9 +528,8 @@ export default function AnimalWatchlistPage() {
     <section className="page animal-watchlist-page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Animal Watchlist</p>
-          <h2>Animal Watchlist</h2>
-          <p>Lista privada de animales a localizar con lector. Los vistos se tachan hasta que los quites.</p>
+          <h2>Búsqueda inteligente</h2>
+          <p>Pasa el lector y el móvil te avisará cuando encuentres el animal.</p>
         </div>
 
         <button type="button" className="secondary" onClick={clearItems} disabled={saving || items.length === 0}>
@@ -503,18 +539,70 @@ export default function AnimalWatchlistPage() {
 
       {flashKey > 0 && <span key={flashKey} className="watchlist-screen-flash" aria-hidden="true" />}
 
-      {overlayItem && (
-        <aside className="watchlist-hit-card" aria-live="polite">
-          <span className="tag">Localizado</span>
-          <h3>{overlayItem.animal?.crotal}</h3>
-          <p>{itemLocation(overlayItem)}</p>
-          <strong>{itemReason(overlayItem)}</strong>
+      <AppModal
+        open={clearConfirmOpen}
+        title="Vaciar Búsqueda inteligente"
+        description="Se quitarán todos los animales de la lista persistente. Los registros de los animales no se borran."
+        onClose={() => {
+          if (!saving) setClearConfirmOpen(false);
+        }}
+      >
+        <div className="app-modal-footer">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setClearConfirmOpen(false)}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button type="button" onClick={confirmClearItems} disabled={saving}>
+            {saving ? 'Vaciando...' : 'Vaciar lista'}
+          </button>
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={Boolean(pendingRemoveItem)}
+        title="Quitar animal"
+        description={`Quitar ${pendingRemoveItem?.animal?.crotal || 'este animal'} de Búsqueda inteligente.`}
+        onClose={() => {
+          if (!saving) setPendingRemoveItem(null);
+        }}
+      >
+        <div className="app-modal-footer">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setPendingRemoveItem(null)}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button type="button" onClick={confirmRemoveItem} disabled={saving}>
+            {saving ? 'Quitando...' : 'Quitar'}
+          </button>
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={Boolean(overlayItem)}
+        title={overlayItem?.animal?.crotal || 'Animal localizado'}
+        description={overlayItem ? `${itemLocation(overlayItem)} - ${itemReason(overlayItem)}` : ''}
+        onClose={() => {
+          if (!actionSaving) {
+            setOverlayItem(null);
+            resetActionPanel(null);
+          }
+        }}
+      >
+        <span className="tag">Localizado</span>
 
           <div className="watchlist-hit-actions">
             <label>
-              Accion posterior
+              Acción posterior
               <select value={actionKind} onChange={handleActionKindChange} disabled={actionSaving}>
-                <option value="">Sin accion</option>
+                <option value="">Sin acción</option>
                 {WATCHLIST_ACTIONS.map((action) => (
                   <option key={action.key} value={action.key}>
                     {action.label}
@@ -530,91 +618,43 @@ export default function AnimalWatchlistPage() {
           {actionMessage && <p className="alert watchlist-inline-alert">{actionMessage}</p>}
           {actionError && <p className="alert error watchlist-inline-alert">Error: {actionError}</p>}
 
+        <div className="app-modal-footer">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              if (!actionSaving) {
+                setOverlayItem(null);
+                resetActionPanel(null);
+              }
+            }}
+            disabled={actionSaving}
+          >
+            Cerrar
+          </button>
           <button type="button" onClick={finishHitCard} disabled={actionSaving}>
             {actionSaving ? 'Registrando...' : 'Finalizar'}
           </button>
-        </aside>
-      )}
+        </div>
+      </AppModal>
 
-      <div className="metrics-grid">
-        <article className="metric-card">
+      <div className="watchlist-summary-grid">
+        <article className="watchlist-summary-card">
           <span>Total</span>
           <strong>{summary.total}</strong>
         </article>
-        <article className="metric-card">
+        <article className="watchlist-summary-card">
           <span>Pendientes</span>
           <strong>{summary.pendingTotal}</strong>
         </article>
-        <article className="metric-card">
+        <article className="watchlist-summary-card">
           <span>Vistos</span>
           <strong>{summary.seenTotal}</strong>
         </article>
-        <article className="metric-card">
-          <span>Lecturas</span>
-          <strong>{items.reduce((total, item) => total + (item.seenCount || 0), 0)}</strong>
-        </article>
       </div>
 
-      <section className="reader-panel watchlist-reader-panel">
-        <div className="reader-header">
-          <div>
-            <h3>Lector</h3>
-            <p>Pasa o pega crotales. Si estan en Animal Watchlist, avisa y los marca como vistos.</p>
-          </div>
-        </div>
-
-        <div className="reader-workspace">
-          <button type="button" className="reader-visual-button" onClick={focusReader} disabled={loading}>
-            <span
-              className={`reader-device watchlist-reader-device ${readerActive ? 'active' : ''}`}
-              role="img"
-              aria-label="Lector RFID"
-            >
-              <span className="reader-device-top" />
-              <span className="reader-device-screen" />
-              <span className="reader-device-signal reader-device-signal-left" />
-              <span className="reader-device-signal reader-device-signal-right" />
-              <span className="reader-device-center" />
-              <span className="reader-device-light" />
-              <span className="reader-device-dot dot-one" />
-              <span className="reader-device-dot dot-two" />
-              <span className="reader-device-dot dot-three" />
-            </span>
-            <span>{loading ? 'Cargando lista...' : statusText}</span>
-          </button>
-
-          <input
-            ref={inputRef}
-            className="reader-hidden-input"
-            tabIndex="-1"
-            aria-hidden="true"
-            onBlur={() => {
-              if (!activeItem) {
-                window.setTimeout(() => inputRef.current?.focus(), 0);
-              }
-            }}
-            onChange={handleReaderInput}
-            onKeyDown={handleReaderKeyDown}
-            onPaste={(event) => {
-              const pasted = event.clipboardData.getData('text');
-              if (pasted) {
-                event.preventDefault();
-                window.clearTimeout(inputTimerRef.current);
-                event.currentTarget.value = '';
-                processCodes(extractCodes(pasted));
-              }
-            }}
-          />
-
-          <div className="reader-summary">
-            <strong>{summary.pendingTotal}</strong>
-            <span>pendientes</span>
-          </div>
-        </div>
-      </section>
-
-      {catalogsLoading && <p className="muted">Cargando catalogos...</p>}
-      {catalogsError && <p className="alert error">Error catalogos: {catalogsError}</p>}
+      {catalogsLoading && <p className="muted">Cargando catálogos...</p>}
+      {catalogsError && <p className="alert error">Error catálogos: {catalogsError}</p>}
       {error && <p className="alert error">Error: {error}</p>}
 
       {activeItem && actionKind === '__legacy__' && (
@@ -627,9 +667,9 @@ export default function AnimalWatchlistPage() {
 
           <div className="watchlist-action-grid">
             <label>
-              Accion
+              Acción
               <select value={actionKind} onChange={handleActionKindChange} disabled={actionSaving}>
-                <option value="">Selecciona accion</option>
+                <option value="">Selecciona acción</option>
                 {WATCHLIST_ACTIONS.map((action) => (
                   <option key={action.key} value={action.key}>
                     {action.label}
@@ -651,27 +691,27 @@ export default function AnimalWatchlistPage() {
         <div className="section-header">
           <div>
             <h3>Lista</h3>
-            <p>Animal, ubicacion actual y motivo por el que esta marcado.</p>
+            <p>Animal, ubicación actual y motivo por el que está marcado.</p>
           </div>
           <button type="button" className="secondary" onClick={loadItems} disabled={loading}>
             Actualizar
           </button>
         </div>
 
-        {loading && <p>Cargando Animal Watchlist...</p>}
+        {loading && <p>Cargando Búsqueda inteligente...</p>}
 
         {!loading && items.length === 0 && (
           <div className="empty-state">
             <h3>No hay animales marcados</h3>
-            <p>Anade animales desde avisos, ficha animal o listado del censo.</p>
+            <p>Añade animales desde avisos, ficha animal o listado del censo.</p>
           </div>
         )}
 
         {!loading && items.length > 0 && (
-          <div className="watchlist-table" role="table" aria-label="Animal Watchlist">
+          <div className="watchlist-table" role="table" aria-label="Búsqueda inteligente">
             <div className="watchlist-table-row watchlist-table-head" role="row">
               <span role="columnheader">Animal</span>
-              <span role="columnheader">Ubicacion actual</span>
+              <span role="columnheader">Ubicación actual</span>
               <span role="columnheader">Motivo</span>
               <span role="columnheader">Estado</span>
               <span role="columnheader">Acciones</span>
@@ -704,9 +744,14 @@ export default function AnimalWatchlistPage() {
                       resetActionPanel(item);
                     }}
                   >
-                    Accion
+                    Acción
                   </button>
-                  <button type="button" className="secondary" onClick={() => removeItem(item.id)} disabled={saving}>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setPendingRemoveItem(item)}
+                    disabled={saving}
+                  >
                     Quitar
                   </button>
                 </div>

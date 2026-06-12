@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { get, post } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
+import AppModal from '../components/ui/AppModal';
 
 function formatDate(value) {
   if (!value) return 'Sin fecha';
@@ -41,6 +42,7 @@ export default function AdminInvitationsPage() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
+  const [pendingCancel, setPendingCancel] = useState(null);
   const [error, setError] = useState('');
 
   const isAdmin = user?.rol === 'ADMIN';
@@ -71,7 +73,7 @@ export default function AdminInvitationsPage() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
-      setError('Introduce un email válido.');
+      setError('Introduce un email valido.');
       return;
     }
 
@@ -85,27 +87,26 @@ export default function AdminInvitationsPage() {
         rol: role
       });
 
-      setSuccessMessage(
-        data.message || 'Invitación creada correctamente.'
-      );
+      setSuccessMessage(data.message || 'Invitacion creada correctamente.');
 
       setEmail('');
       setRole('OPERARIO');
       await loadInvitations();
     } catch (err) {
-      setError(err.message || 'Error creando invitación');
+      setError(err.message || 'Error creando invitacion');
     } finally {
       setCreating(false);
     }
   }
 
-  async function handleCancelInvitation(invitation) {
-    const confirmed = window.confirm(
-      `¿Cancelar la invitación enviada a ${invitation.email}?`
-    );
+  function handleCancelInvitation(invitation) {
+    setPendingCancel(invitation);
+  }
 
-    if (!confirmed) return;
+  async function confirmCancelInvitation() {
+    if (!pendingCancel) return;
 
+    const invitation = pendingCancel;
     setCancellingId(invitation.id);
     setSuccessMessage('');
     setError('');
@@ -113,13 +114,11 @@ export default function AdminInvitationsPage() {
     try {
       const data = await post(`/invitations/${invitation.id}/cancel`, {});
 
-      setSuccessMessage(
-        data.message || 'Invitación cancelada correctamente.'
-      );
-
+      setSuccessMessage(data.message || 'Invitacion cancelada correctamente.');
       await loadInvitations();
+      setPendingCancel(null);
     } catch (err) {
-      setError(err.message || 'Error cancelando invitación');
+      setError(err.message || 'Error cancelando invitacion');
     } finally {
       setCancellingId(null);
     }
@@ -130,7 +129,6 @@ export default function AdminInvitationsPage() {
       <section className="page">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Administración</p>
             <h2>Invitaciones</h2>
             <p>Solo un usuario administrador puede gestionar invitaciones.</p>
           </div>
@@ -148,11 +146,10 @@ export default function AdminInvitationsPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Administración</p>
           <h2>Invitaciones</h2>
           <p>
             Crea enlaces de acceso para que nuevos usuarios entren con Google.
-            El sistema envía automáticamente un correo visual al email invitado.
+            El sistema envia automaticamente un correo visual al email invitado.
           </p>
         </div>
 
@@ -176,10 +173,10 @@ export default function AdminInvitationsPage() {
       <section className="panel">
         <div className="section-header">
           <div>
-            <h3>Nueva invitación</h3>
+            <h3>Nueva invitacion</h3>
             <p>
-              Introduce el email del usuario y su rol. La invitación se enviará
-              automáticamente por correo y solo podrá aceptarse con ese mismo email.
+              Introduce el email del usuario y su rol. La invitacion se enviara
+              automaticamente por correo y solo podra aceptarse con ese mismo email.
             </p>
           </div>
         </div>
@@ -210,7 +207,7 @@ export default function AdminInvitationsPage() {
 
           <div className="form-actions">
             <button type="submit" disabled={creating}>
-              {creating ? 'Enviando...' : 'Crear invitación'}
+              {creating ? 'Enviando...' : 'Crear invitacion'}
             </button>
           </div>
         </form>
@@ -220,9 +217,7 @@ export default function AdminInvitationsPage() {
         <div className="section-header">
           <div>
             <h3>Invitaciones creadas</h3>
-            <p>
-              Historial de invitaciones de esta cuenta ganadera.
-            </p>
+            <p>Historial de invitaciones de esta cuenta ganadera.</p>
           </div>
         </div>
 
@@ -231,7 +226,7 @@ export default function AdminInvitationsPage() {
         {!loading && invitations.length === 0 && (
           <div className="empty-state">
             <h3>No hay invitaciones</h3>
-            <p>Aún no se ha creado ninguna invitación.</p>
+            <p>Aun no se ha creado ninguna invitacion.</p>
           </div>
         )}
 
@@ -291,7 +286,7 @@ export default function AdminInvitationsPage() {
                     >
                       {cancellingId === invitation.id
                         ? 'Cancelando...'
-                        : 'Cancelar invitación'}
+                        : 'Cancelar invitacion'}
                     </button>
                   </div>
                 )}
@@ -300,6 +295,33 @@ export default function AdminInvitationsPage() {
           </div>
         )}
       </section>
+
+      <AppModal
+        open={Boolean(pendingCancel)}
+        title="Cancelar invitacion"
+        description={`Se cancelara la invitacion enviada a ${pendingCancel?.email || ''}.`}
+        onClose={() => {
+          if (!cancellingId) setPendingCancel(null);
+        }}
+      >
+        <div className="app-modal-footer">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setPendingCancel(null)}
+            disabled={Boolean(cancellingId)}
+          >
+            Volver
+          </button>
+          <button
+            type="button"
+            onClick={confirmCancelInvitation}
+            disabled={Boolean(cancellingId)}
+          >
+            {cancellingId ? 'Cancelando...' : 'Cancelar invitacion'}
+          </button>
+        </div>
+      </AppModal>
     </section>
   );
 }

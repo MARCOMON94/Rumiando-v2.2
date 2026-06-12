@@ -1,9 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { get } from '../api/apiClient';
-import OperationSessionPanel from '../components/operations/OperationSessionPanel';
 import AnimalWatchlistButton from '../components/animal-watchlist/AnimalWatchlistButton';
-import { useOperationSession } from '../context/OperationSessionContext';
 
 function formatDate(value) {
   if (!value) return 'Sin fecha';
@@ -30,11 +28,37 @@ function InfoRow({ label, value }) {
   );
 }
 
-function daysSince(value) {
-  if (!value) return 'Sin fecha';
+function formatElapsedSince(value) {
+  if (!value) return '';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Sin fecha';
-  return `${Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))} dias`;
+  if (Number.isNaN(date.getTime())) return '';
+
+  const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+
+  if (days < 0) return `en ${Math.abs(days)} días`;
+  if (days === 0) return '0 días';
+  if (days === 1) return '1 día';
+  if (days < 49) return `${days} días`;
+
+  const months = Math.floor(days / 30);
+  const weeks = Math.floor((days % 30) / 7);
+
+  if (days < 365) {
+    const parts = [];
+    if (months > 0) parts.push(`${months} ${months === 1 ? 'mes' : 'meses'}`);
+    if (weeks > 0) parts.push(`${weeks} ${weeks === 1 ? 'semana' : 'semanas'}`);
+    return parts.join(' y ') || `${Math.floor(days / 7)} semanas`;
+  }
+
+  const years = Math.floor(days / 365);
+  const remainingMonths = Math.floor((days % 365) / 30);
+  const parts = [`${years} ${years === 1 ? 'año' : 'años'}`];
+
+  if (remainingMonths > 0) {
+    parts.push(`${remainingMonths} ${remainingMonths === 1 ? 'mes' : 'meses'}`);
+  }
+
+  return parts.join(' y ');
 }
 
 function formatAge(value) {
@@ -55,15 +79,56 @@ function formatAge(value) {
     return `${months} meses`;
   }
 
-  return `${years} anos${months ? ` y ${months} meses` : ''}`;
+  return `${years} años${months ? ` y ${months} meses` : ''}`;
+}
+
+function AnimalSummaryRow({
+  id,
+  label,
+  value,
+  time,
+  expanded,
+  onToggle,
+  children
+}) {
+  return (
+    <article className={`animal-summary-row ${expanded ? 'expanded' : ''}`}>
+      <div className={`animal-summary-row-main ${children ? 'has-action' : ''}`}>
+        <div>
+          <span>{label}</span>
+          <strong>{value || 'Sin registrar'}</strong>
+          {time && <small>{time}</small>}
+        </div>
+
+        {children && (
+          <button
+            type="button"
+            className="animal-summary-more-button"
+            onClick={() => onToggle(id)}
+            aria-expanded={expanded}
+            aria-label={`Mostrar más de ${label}`}
+          >
+            <img src="/assets/icon-listado-green.png" alt="" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {expanded && children && (
+        <div className="animal-summary-detail">
+          {children}
+        </div>
+      )}
+    </article>
+  );
 }
 
 export default function AnimalDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { session, startOperation, addAnimals } = useOperationSession();
+  const location = useLocation();
 
   const [animal, setAnimal] = useState(null);
+  const [expandedRows, setExpandedRows] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -103,41 +168,63 @@ export default function AnimalDetailPage() {
     ...(animal.hijosComoPadre || [])
   ];
   const openCases = (animal.casosSanitarios || []).filter((item) => item.estado !== 'CERRADO');
-  const activeAlerts = [
-    ...openCases,
-    ...(animal.recordatorios || []).filter((item) => item.estado !== 'COMPLETADO')
-  ];
+  const activeReminders = (animal.recordatorios || []).filter((item) => item.estado !== 'COMPLETADO');
+  const activeAlerts = [...openCases, ...activeReminders];
+  const firstOpenCase = openCases[0];
+  const firstReminder = activeReminders[0];
+  const vaccinations = animal.vacunaciones || [];
+  const dewormings = animal.desparasitaciones || [];
+  const treatments = animal.tratamientos || [];
+  const reproductiveIncidents = (animal.eventosReproductivos || []).filter((event) => (
+    ['ABORTO', 'BAJA_REPRODUCTIVA', 'REVISION_REPRODUCTIVA'].includes(event.tipoEvento)
+  ));
   const healthStatus = openCases.length > 0
-    ? `${openCases.length} caso(s) sanitario(s) abierto(s)`
-    : 'Sin casos abiertos';
+    ? firstOpenCase?.enfermedad?.nombre || firstOpenCase?.diagnosticoConfirmado || firstOpenCase?.diagnosticoPresuntivo || `${openCases.length} caso(s) abierto(s)`
+    : vaccinations.length > 0
+      ? `Vacunado: ${vaccinations[0]?.vacuna || 'última vacuna registrada'}`
+      : 'Sin casos abiertos';
+  const healthTime = formatElapsedSince(firstOpenCase?.fechaInicio || vaccinations[0]?.fecha);
+  const alertStatus = activeAlerts.length > 0
+    ? firstReminder?.tipo || firstReminder?.nota || firstOpenCase?.enfermedad?.nombre || `${activeAlerts.length} activa(s)`
+    : 'Sin alertas activas';
+  const alertTime = formatElapsedSince(firstReminder?.fechaObjetivo || firstOpenCase?.fechaInicio);
+  const partosCount = (animal.eventosReproductivos || []).filter((event) => event.tipoEvento === 'PARTO').length;
+  const genealogySummary = [
+    animal.madre?.crotal ? `Madre ${animal.madre.crotal}` : 'Madre no registrada',
+    animal.padre?.crotal ? `Padre ${animal.padre.crotal}` : 'Padre no registrado',
+    `${children.length} cría(s)`
+  ].join(' · ');
+  const returnTo = location.state?.returnTo;
+  const currentPath = `${location.pathname}${location.search || ''}${location.hash || ''}`;
 
-  function addCurrentAnimalToSelection() {
-    if (session) {
-      addAnimals([animal]);
+  function toggleExpandedRow(rowId) {
+    setExpandedRows((current) => ({
+      ...current,
+      [rowId]: !current[rowId]
+    }));
+  }
+
+  function closeDetail() {
+    if (returnTo) {
+      navigate(returnTo);
       return;
     }
 
-    startOperation({
-      operationType: 'corral',
-      mode: 'lote',
-      selectedAnimals: [animal],
-      source: 'animal_detail',
-      status: 'ready',
-      operationData: {
-        unidadRegaId: animal.unidadRegaId
+    navigate(-1);
+  }
+
+  function openBirthFlow() {
+    navigate(`/birth/new/${animal.id}`, {
+      state: {
+        returnTo: currentPath
       }
     });
   }
 
-  function startOperationForAnimal() {
-    startOperation({
-      operationType: 'corral',
-      mode: 'unitario',
-      selectedAnimals: [animal],
-      source: 'animal_detail',
-      status: 'ready',
-      operationData: {
-        unidadRegaId: animal.unidadRegaId
+  function openDischargeFlow() {
+    navigate(`/animals/${animal.id}/discharge`, {
+      state: {
+        returnTo: currentPath
       }
     });
   }
@@ -146,7 +233,6 @@ export default function AnimalDetailPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Ficha animal</p>
           <h2>{animal.crotal}</h2>
           <p>
             {animal.especie?.nombre || 'Sin especie'} ·{' '}
@@ -155,347 +241,177 @@ export default function AnimalDetailPage() {
           </p>
         </div>
 
-        <Link className="button secondary" to="/animals">
-          Volver al censo
-        </Link>
+        <button type="button" className="secondary" onClick={closeDetail}>
+          Cerrar ficha
+        </button>
       </header>
 
-      <section className="animal-preview-card" aria-label="Vista previa del animal">
-        <div className="animal-preview-actions">
-          <button type="button" className="secondary" onClick={() => navigate(-1)}>
-            Volver
-          </button>
+      <section className="animal-profile-card" aria-label="Resumen del animal">
+        <div className="animal-profile-top">
+          <div className="animal-profile-code">
+            <span>Crotal</span>
+            <strong>{animal.crotal}</strong>
+          </div>
+
           <AnimalWatchlistButton
             animalId={animal.id}
             sourceType="animal_detail"
             sourceRef={`animal-${animal.id}`}
             promptReason
-            label="Animal Watchlist"
-            className="secondary"
+            label="Búsqueda"
+            className="secondary animal-profile-watch-button"
+            iconOnly
+            showMiniLabel
           />
-          <button type="button" onClick={addCurrentAnimalToSelection} aria-label="Anadir a seleccion">
-            +
+        </div>
+
+        <div className="animal-profile-main-actions">
+          <div className="animal-profile-age-pill">
+            <span>Edad</span>
+            <strong>{formatAge(animal.fechaNacimiento)}</strong>
+          </div>
+          <button type="button" onClick={openBirthFlow}>
+            Parto
+          </button>
+          <button type="button" onClick={openDischargeFlow}>
+            Baja
           </button>
         </div>
 
-        <div className="animal-preview-main">
-          <div>
-            <p className="eyebrow">Vista previa</p>
-            <h3>{animal.crotal}</h3>
-            <p>{animal.especie?.nombre || 'Sin especie'} · {animal.sexo}</p>
-          </div>
+        <div className="animal-summary-list">
+          <AnimalSummaryRow
+            id="reproductive"
+            label="Estado reproductivo"
+            value={animal.estadoReproductivo?.nombre || 'Sin estado'}
+            time={formatElapsedSince(animal.fechaEstadoReproductivoActual)}
+            expanded={false}
+            onToggle={toggleExpandedRow}
+          />
 
-          <dl className="animal-preview-list">
-            <div>
-              <dt>Edad</dt>
-              <dd>{formatAge(animal.fechaNacimiento)}</dd>
-            </div>
-            <div>
-              <dt>Ubicacion</dt>
-              <dd>{animal.corralActual?.nombre || 'Sin corral'}</dd>
-            </div>
-            <div>
-              <dt>Estado reproductivo</dt>
-              <dd>{animal.estadoReproductivo?.nombre || 'Sin estado'}</dd>
-            </div>
-            <div>
-              <dt>En corral</dt>
-              <dd>{daysSince(animal.fechaEntradaCorralActual)}</dd>
-            </div>
-            <div>
-              <dt>En estado</dt>
-              <dd>{daysSince(animal.fechaEstadoReproductivoActual)}</dd>
-            </div>
-            <div>
-              <dt>Alertas</dt>
-              <dd>{activeAlerts.length ? `${activeAlerts.length} alerta(s)` : 'Sin alertas'}</dd>
-            </div>
-            <div>
-              <dt>Salud</dt>
-              <dd>{healthStatus}</dd>
-            </div>
-          </dl>
-        </div>
+          <AnimalSummaryRow
+            id="stats"
+            label="Estadísticas"
+            value={`${partosCount} parto(s)`}
+            expanded={false}
+            onToggle={toggleExpandedRow}
+          />
 
-        <button
-          type="button"
-          className="animal-preview-next"
-          onClick={startOperationForAnimal}
-          aria-label="Iniciar operacion"
-        >
-          &gt;
-        </button>
-      </section>
-
-      <OperationSessionPanel />
-
-      <div className="metrics-grid">
-        <article className="metric-card">
-          <span>Estado registro</span>
-          <strong>{animal.estadoRegistro}</strong>
-        </article>
-
-        <article className="metric-card">
-          <span>Corral actual</span>
-          <strong>{animal.corralActual?.nombre || '-'}</strong>
-        </article>
-
-        <article className="metric-card">
-          <span>Estado reproductivo</span>
-          <strong>{animal.estadoReproductivo?.nombre || '-'}</strong>
-        </article>
-
-        <article className="metric-card">
-          <span>Casos sanitarios</span>
-          <strong>{animal.casosSanitarios?.length || 0}</strong>
-        </article>
-      </div>
-
-      <div className="detail-grid">
-        <article className="panel">
-          <h3>Identificación</h3>
-          <InfoRow label="Crotal" value={animal.crotal} />
-          <InfoRow label="Número interno" value={animal.numeroInterno} />
-          <InfoRow label="Sexo" value={animal.sexo} />
-          <InfoRow label="Fecha nacimiento" value={formatDate(animal.fechaNacimiento)} />
-          <InfoRow label="Fecha entrada" value={formatDate(animal.fechaEntrada)} />
-          <InfoRow label="Origen" value={animal.origen} />
-          <InfoRow label="Observaciones" value={animal.observaciones} />
-        </article>
-
-        <article className="panel">
-          <h3>Manejo actual</h3>
-          <InfoRow label="Unidad REGA" value={animal.unidadRega?.nombre} />
-          <InfoRow label="Código REGA" value={animal.unidadRega?.codigoRega} />
-          <InfoRow label="Municipio" value={animal.unidadRega?.municipio} />
-          <InfoRow label="Provincia" value={animal.unidadRega?.provincia} />
-          <InfoRow label="Corral" value={animal.corralActual?.nombre} />
-          <InfoRow label="Entrada al corral" value={formatDate(animal.fechaEntradaCorralActual)} />
-        </article>
-
-        <article className="panel">
-          <h3>Reproducción</h3>
-          <InfoRow label="Estado reproductivo" value={animal.estadoReproductivo?.nombre} />
-          <InfoRow label="Fecha estado actual" value={formatDate(animal.fechaEstadoReproductivoActual)} />
-          <p>
-  <strong>Madre:</strong>{' '}
-  {animal.madre?.id ? (
-    <Link className="text-link inline-link" to={`/animals/${animal.madre.id}`}>
-      {animal.madre.crotal}
-    </Link>
-  ) : (
-    'No registrada'
-  )}
-</p>
-
-<p>
-  <strong>Padre:</strong>{' '}
-  {animal.padre?.id ? (
-    <Link className="text-link inline-link" to={`/animals/${animal.padre.id}`}>
-      {animal.padre.crotal}
-    </Link>
-  ) : (
-    'No registrado'
-  )}
-</p>
-
-<InfoRow label="Descendencia registrada" value={String(children.length)} />
-        </article>
-      </div>
-
-      <section className="panel">
-        <div className="section-header">
-          <div>
-            <h3>Eventos reproductivos</h3>
-            <p>Historial reproductivo asociado al animal.</p>
-          </div>
-        </div>
-
-        {animal.eventosReproductivos?.length > 0 ? (
-          <div className="cards-list">
-            {animal.eventosReproductivos.map((event) => (
-              <article className="animal-card" key={event.id}>
-                <div className="animal-card-header">
-                  <span className="tag">{event.tipoEvento}</span>
-                  <span>{formatDate(event.fecha)}</span>
-                </div>
-
-                <h3>{event.resultado || 'Evento reproductivo'}</h3>
-
-                <InfoRow label="Semanas gestación" value={event.semanasGestacion} />
-                <InfoRow label="Parto estimado" value={formatDate(event.fechaPartoEstimada)} />
-                <InfoRow label="Crías vivas" value={event.numeroCriasVivas} />
-                <InfoRow label="Crías muertas" value={event.numeroCriasMuertas} />
-                <InfoRow label="Observaciones" value={event.observaciones} />
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyBlock text="No hay eventos reproductivos registrados." />
-        )}
-      </section>
-
-      <section className="panel">
-        <div className="section-header">
-          <div>
-            <h3>Movimientos</h3>
-            <p>Movimientos de corral o lote en los que aparece este animal.</p>
-          </div>
-        </div>
-
-        {animal.detallesMovimiento?.length > 0 ? (
-          <div className="cards-list">
-            {animal.detallesMovimiento.map((detail) => (
-              <article className="animal-card" key={detail.id}>
-                <div className="animal-card-header">
-                  <span className="tag">{detail.estadoProceso}</span>
-                  <span>{formatDate(detail.createdAt)}</span>
-                </div>
-
-                <h3>{detail.transaccion?.tipoOperacion || 'Movimiento'}</h3>
-
-                <InfoRow label="Crotal leído" value={detail.crotalLeido} />
-                <InfoRow label="Origen" value={detail.corralOrigen?.nombre} />
-                <InfoRow label="Destino" value={detail.corralDestino?.nombre} />
-                <InfoRow label="Motivo" value={detail.transaccion?.motivo} />
-                <InfoRow label="Observaciones" value={detail.observaciones} />
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyBlock text="No hay movimientos registrados para este animal." />
-        )}
-      </section>
-
-      <section className="panel">
-        <div className="section-header">
-          <div>
-            <h3>Sanidad</h3>
-            <p>Casos sanitarios, tratamientos, vacunaciones y desparasitaciones.</p>
-          </div>
-        </div>
-
-        <div className="detail-grid">
-          <article className="panel">
-            <h3>Casos sanitarios</h3>
-
-            {animal.casosSanitarios?.length > 0 ? (
-              animal.casosSanitarios.map((caseItem) => (
-                <div className="compact-item" key={caseItem.id}>
-                  <span className="tag">{caseItem.estado}</span>
-                  <InfoRow label="Enfermedad" value={caseItem.enfermedad?.nombre} />
-                  <InfoRow label="Fecha inicio" value={formatDate(caseItem.fechaInicio)} />
-                  <InfoRow label="Gravedad" value={caseItem.gravedad} />
-                  <InfoRow label="Diagnóstico" value={caseItem.diagnosticoConfirmado || caseItem.diagnosticoPresuntivo} />
-                </div>
-              ))
-            ) : (
-              <EmptyBlock text="Sin casos sanitarios." />
-            )}
-          </article>
-
-          <article className="panel">
-            <h3>Tratamientos</h3>
-
-            {animal.tratamientos?.length > 0 ? (
-              animal.tratamientos.map((treatment) => (
-                <div className="compact-item" key={treatment.id}>
-                  <InfoRow label="Producto" value={treatment.medicamentoProducto} />
-                  <InfoRow label="Principio activo" value={treatment.principioActivo} />
-                  <InfoRow label="Inicio" value={formatDate(treatment.fechaInicio)} />
-                  <InfoRow label="Fin" value={formatDate(treatment.fechaFin)} />
-                  <InfoRow label="Dosis" value={treatment.dosisTexto} />
-                </div>
-              ))
-            ) : (
-              <EmptyBlock text="Sin tratamientos registrados." />
-            )}
-          </article>
-
-          <article className="panel">
-            <h3>Vacunaciones</h3>
-
-            {animal.vacunaciones?.length > 0 ? (
-              animal.vacunaciones.map((vaccine) => (
-                <div className="compact-item" key={vaccine.id}>
-                  <InfoRow label="Vacuna" value={vaccine.vacuna} />
-                  <InfoRow label="Fecha" value={formatDate(vaccine.fecha)} />
-                  <InfoRow label="Lote" value={vaccine.loteVacuna} />
-                  <InfoRow label="Revacunación prevista" value={vaccine.revacunacionPrevista ? 'Sí' : 'No'} />
-                </div>
-              ))
-            ) : (
-              <EmptyBlock text="Sin vacunaciones registradas." />
-            )}
-          </article>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="section-header">
-          <div>
-            <h3>Otros registros</h3>
-            <p>Desparasitaciones, recordatorios y descendencia.</p>
-          </div>
-        </div>
-
-        <div className="detail-grid">
-          <article className="panel">
-            <h3>Desparasitaciones</h3>
-
-            {animal.desparasitaciones?.length > 0 ? (
-              animal.desparasitaciones.map((item) => (
-                <div className="compact-item" key={item.id}>
-                  <InfoRow label="Producto" value={item.producto} />
-                  <InfoRow label="Tipo" value={item.tipo} />
-                  <InfoRow label="Fecha" value={formatDate(item.fecha)} />
-                  <InfoRow label="Motivo" value={item.motivo} />
-                </div>
-              ))
-            ) : (
-              <EmptyBlock text="Sin desparasitaciones registradas." />
-            )}
-          </article>
-
-          <article className="panel">
-            <h3>Recordatorios</h3>
-
-            {animal.recordatorios?.length > 0 ? (
-              animal.recordatorios.map((reminder) => (
-                <div className="compact-item" key={reminder.id}>
-                  <span className="tag">{reminder.estado}</span>
-                  <InfoRow label="Tipo" value={reminder.tipo} />
-                  <InfoRow label="Fecha objetivo" value={formatDate(reminder.fechaObjetivo)} />
-                  <InfoRow label="Pospuesto hasta" value={formatDate(reminder.pospuestoHasta)} />
-                  <InfoRow label="Nota" value={reminder.nota} />
-                </div>
-              ))
-            ) : (
-              <EmptyBlock text="Sin recordatorios registrados." />
-            )}
-          </article>
-
-          <article className="panel">
-            <h3>Descendencia</h3>
-
+          <AnimalSummaryRow
+            id="genealogy"
+            label="Genealogía"
+            value={genealogySummary}
+            expanded={Boolean(expandedRows.genealogy)}
+            onToggle={toggleExpandedRow}
+          >
+            <p>
+              <strong>Madre:</strong>{' '}
+              {animal.madre?.id ? (
+                <Link className="text-link inline-link" to={`/animals/${animal.madre.id}`}>
+                  {animal.madre.crotal}
+                </Link>
+              ) : (
+                'No registrada'
+              )}
+            </p>
+            <p>
+              <strong>Padre:</strong>{' '}
+              {animal.padre?.id ? (
+                <Link className="text-link inline-link" to={`/animals/${animal.padre.id}`}>
+                  {animal.padre.crotal}
+                </Link>
+              ) : (
+                'No registrado'
+              )}
+            </p>
             {children.length > 0 ? (
               children.map((child) => (
-                <div className="compact-item" key={child.id}>
-                  <p>
-  <strong>Crotal:</strong>{' '}
-  <Link className="text-link inline-link" to={`/animals/${child.id}`}>
-    {child.crotal}
-  </Link>
-</p>
-                  <InfoRow label="Número interno" value={child.numeroInterno} />
-                  <InfoRow label="Sexo" value={child.sexo} />
-                  <InfoRow label="Nacimiento" value={formatDate(child.fechaNacimiento)} />
-                </div>
+                <p key={child.id}>
+                  <strong>Cría:</strong>{' '}
+                  <Link className="text-link inline-link" to={`/animals/${child.id}`}>
+                    {child.crotal}
+                  </Link>
+                </p>
               ))
             ) : (
               <EmptyBlock text="Sin descendencia registrada." />
             )}
-          </article>
+          </AnimalSummaryRow>
+
+          <AnimalSummaryRow
+            id="alerts"
+            label="Alertas activas"
+            value={alertStatus}
+            time={alertTime}
+            expanded={Boolean(expandedRows.alerts)}
+            onToggle={toggleExpandedRow}
+          >
+            {activeReminders.length > 0 && activeReminders.map((reminder) => (
+              <div className="compact-item" key={`reminder-${reminder.id}`}>
+                <InfoRow label="Aviso" value={reminder.tipo || reminder.nota} />
+                <InfoRow label="Fecha objetivo" value={formatDate(reminder.fechaObjetivo)} />
+              </div>
+            ))}
+            {openCases.length > 0 && openCases.map((caseItem) => (
+              <div className="compact-item" key={`case-alert-${caseItem.id}`}>
+                <InfoRow label="Caso abierto" value={caseItem.enfermedad?.nombre || caseItem.diagnosticoConfirmado || caseItem.diagnosticoPresuntivo} />
+                <InfoRow label="Inicio" value={formatDate(caseItem.fechaInicio)} />
+              </div>
+            ))}
+            {activeAlerts.length === 0 && <EmptyBlock text="Sin alertas activas." />}
+          </AnimalSummaryRow>
+
+          <AnimalSummaryRow
+            id="health"
+            label="Salud"
+            value={healthStatus}
+            time={healthTime}
+            expanded={Boolean(expandedRows.health)}
+            onToggle={toggleExpandedRow}
+          >
+            {openCases.map((caseItem) => (
+              <div className="compact-item" key={`case-${caseItem.id}`}>
+                <InfoRow label="Enfermedad" value={caseItem.enfermedad?.nombre || caseItem.diagnosticoConfirmado || caseItem.diagnosticoPresuntivo} />
+                <InfoRow label="Inicio" value={formatDate(caseItem.fechaInicio)} />
+                <InfoRow label="Gravedad" value={caseItem.gravedad} />
+              </div>
+            ))}
+            {vaccinations.map((vaccine) => (
+              <div className="compact-item" key={`vaccine-${vaccine.id}`}>
+                <InfoRow label="Vacuna" value={vaccine.vacuna} />
+                <InfoRow label="Fecha" value={formatDate(vaccine.fecha)} />
+              </div>
+            ))}
+            {dewormings.map((item) => (
+              <div className="compact-item" key={`deworming-${item.id}`}>
+                <InfoRow label="Desparasitación" value={item.producto || item.tipo} />
+                <InfoRow label="Fecha" value={formatDate(item.fecha)} />
+              </div>
+            ))}
+            {treatments.map((treatment) => (
+              <div className="compact-item" key={`treatment-${treatment.id}`}>
+                <InfoRow label="Tratamiento" value={treatment.medicamentoProducto || treatment.principioActivo} />
+                <InfoRow label="Inicio" value={formatDate(treatment.fechaInicio)} />
+              </div>
+            ))}
+            {reproductiveIncidents.map((event) => (
+              <div className="compact-item" key={`event-${event.id}`}>
+                <InfoRow label="Evento" value={event.tipoEvento} />
+                <InfoRow label="Fecha" value={formatDate(event.fecha)} />
+              </div>
+            ))}
+            {!openCases.length && !vaccinations.length && !dewormings.length && !treatments.length && !reproductiveIncidents.length && (
+              <EmptyBlock text="Sin registros sanitarios destacados." />
+            )}
+          </AnimalSummaryRow>
+
+          <AnimalSummaryRow
+            id="location"
+            label="Corral"
+            value={animal.corralActual?.nombre || 'Sin corral'}
+            time={formatElapsedSince(animal.fechaEntradaCorralActual)}
+            expanded={false}
+            onToggle={toggleExpandedRow}
+          />
         </div>
       </section>
     </section>

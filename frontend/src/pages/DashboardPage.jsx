@@ -129,7 +129,6 @@ export default function DashboardPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Resumen general</p>
           <h2>Dashboard</h2>
           <p>Estado operativo de la explotación a partir de datos reales del backend.</p>
         </div>

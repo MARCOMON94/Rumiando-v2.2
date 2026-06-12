@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { post } from '../../api/apiClient';
+import AppModal from '../ui/AppModal';
 
 export default function AnimalWatchlistButton({
   animalId,
@@ -8,31 +9,20 @@ export default function AnimalWatchlistButton({
   sourceType = 'manual',
   sourceRef,
   promptReason = false,
-  label = 'Animal Watchlist',
+  label = 'Búsqueda',
   className = 'secondary',
+  iconOnly = false,
+  showMiniLabel = false,
   onAdded
 }) {
   const [saving, setSaving] = useState(false);
   const [added, setAdded] = useState(false);
   const [error, setError] = useState('');
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [draftReason, setDraftReason] = useState(motivoTexto || '');
 
-  async function handleClick() {
+  async function saveToWatchlist(nextReason) {
     if (!animalId || saving) return;
-
-    let nextReason = motivoTexto;
-
-    if (promptReason) {
-      const promptedReason = window.prompt(
-        'Motivo opcional para Animal Watchlist. Puedes dejarlo vacio.',
-        motivoTexto || ''
-      );
-
-      if (promptedReason === null) {
-        return;
-      }
-
-      nextReason = promptedReason;
-    }
 
     setSaving(true);
     setError('');
@@ -53,23 +43,81 @@ export default function AnimalWatchlistButton({
       setError(err.message);
     } finally {
       setSaving(false);
+      setReasonOpen(false);
     }
   }
 
+  function handleClick() {
+    if (!animalId || saving) return;
+
+    if (promptReason) {
+      setDraftReason(motivoTexto || '');
+      setReasonOpen(true);
+      return;
+    }
+
+    saveToWatchlist(motivoTexto);
+  }
+
   return (
-    <span className="watchlist-add-wrapper">
+    <>
+      <span className="watchlist-add-wrapper">
       <button
         type="button"
         className={className}
         onClick={handleClick}
         disabled={!animalId || saving}
-        title={error || (added ? 'Anadido a Animal Watchlist' : 'Anadir a Animal Watchlist')}
-        aria-label="Anadir a Animal Watchlist"
+        title={error || (added ? 'Añadido a Búsqueda inteligente' : 'Añadir a Búsqueda inteligente')}
+        aria-label="Añadir a Búsqueda inteligente"
       >
-        <span className="css-search-icon watchlist-button-icon" aria-hidden="true" />
-        <span>{saving ? 'Anadiendo...' : added ? 'Anadido' : label}</span>
+        <span className="watchlist-button-mark" aria-hidden="true">
+          <img
+            src="/assets/rumiando-sheep-facing-left.png"
+            alt=""
+          />
+          {(iconOnly && showMiniLabel) && <small>Búsqueda</small>}
+        </span>
+        {!iconOnly && <span>{saving ? 'Añadiendo...' : added ? 'Añadido' : label}</span>}
       </button>
       {error && <span className="watchlist-add-error">{error}</span>}
-    </span>
+      </span>
+
+      <AppModal
+        open={reasonOpen}
+        title="Añadir a Búsqueda inteligente"
+        description="Motivo opcional para localizar este animal más tarde."
+        onClose={() => {
+          if (!saving) setReasonOpen(false);
+        }}
+      >
+        <label>
+          Motivo
+          <textarea
+            value={draftReason}
+            onChange={(event) => setDraftReason(event.target.value)}
+            rows="3"
+            placeholder="Puedes dejarlo vacío"
+          />
+        </label>
+
+        <div className="app-modal-footer">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setReasonOpen(false)}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => saveToWatchlist(draftReason)}
+            disabled={saving}
+          >
+            {saving ? 'Añadiendo...' : 'Añadir'}
+          </button>
+        </div>
+      </AppModal>
+    </>
   );
 }

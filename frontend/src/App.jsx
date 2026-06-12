@@ -18,6 +18,8 @@ import AiChatPage from './pages/AiChatPage';
 import HomePage from './pages/HomePage';
 import AdminInvitationsPage from './pages/AdminInvitationsPage';
 import AnimalWatchlistPage from './pages/AnimalWatchlistPage';
+import BirthNewPage from './pages/BirthNewPage';
+import AnimalDischargePage from './pages/AnimalDischargePage';
 
 export default function App() {
   return (
@@ -37,6 +39,8 @@ export default function App() {
         <Route path="/animals" element={<AnimalsPage />} />
         <Route path="/animals/new" element={<CreateAnimalPage />} />
         <Route path="/animals/:id" element={<AnimalDetailPage />} />
+        <Route path="/animals/:id/discharge" element={<AnimalDischargePage />} />
+        <Route path="/birth/new/:motherId" element={<BirthNewPage />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/pens" element={<PensPage />} />
         <Route path="/health" element={<HealthPage />} />

@@ -1,7 +1,16 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { get } from '../../api/apiClient';
 import { useAuth } from '../../context/AuthContext';
+
+const SILENT_READER_EVENT = 'rumiando:silent-reader:activate';
+const SILENT_READER_DEACTIVATE_EVENT = 'rumiando:silent-reader:deactivate';
+const VALID_SILENT_ACTIONS = new Set(['lookup', 'parto', 'baja']);
+const INITIAL_SILENT_READER = {
+  active: false,
+  action: 'lookup',
+  status: 'idle'
+};
 
 function getItems(data, keys) {
   if (Array.isArray(data)) return data;
@@ -37,20 +46,38 @@ function animalMatchesCode(animal, code) {
     .some((value) => normalizeCode(value) === normalized);
 }
 
+function routeForSilentAction(action, animalId) {
+  if (action === 'parto') return `/birth/new/${animalId}`;
+  if (action === 'baja') return `/animals/${animalId}/discharge`;
+  return `/animals/${animalId}?preview=1`;
+}
+
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const silentReaderInputRef = useRef(null);
-  const silentReaderInputTimerRef = useRef(null);
+  const silentReaderRef = useRef(INITIAL_SILENT_READER);
+  const silentReaderBufferRef = useRef('');
+  const silentReaderTimerRef = useRef(null);
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [watchlistTotal, setWatchlistTotal] = useState(0);
+  const [automaticAlertsTotal, setAutomaticAlertsTotal] = useState(0);
   const [silentReaderAnimals, setSilentReaderAnimals] = useState([]);
-  const [silentReaderLoading, setSilentReaderLoading] = useState(false);
+  const [silentReader, setSilentReader] = useState(INITIAL_SILENT_READER);
 
   const isAdmin = user?.rol === 'ADMIN';
+
+  useEffect(() => {
+    silentReaderRef.current = silentReader;
+    window.dispatchEvent(new CustomEvent('rumiando:silent-reader:state', {
+      detail: silentReader
+    }));
+  }, [silentReader]);
+
+  useEffect(() => {
+    setSilentReaderAnimals([]);
+  }, [user?.id]);
 
   const loadWatchlistCount = useCallback(async function loadWatchlistCount() {
     if (!user) {
@@ -66,12 +93,30 @@ export default function AppLayout() {
     }
   }, [user]);
 
+  const loadAutomaticAlertsCount = useCallback(async function loadAutomaticAlertsCount() {
+    if (!user) {
+      setAutomaticAlertsTotal(0);
+      return;
+    }
+
+    try {
+      const data = await get('/automation/daily-operational-summary/app');
+      const automaticAlerts = data?.automaticAlerts || {};
+      const items = Array.isArray(automaticAlerts.items) ? automaticAlerts.items : [];
+      setAutomaticAlertsTotal(Number(automaticAlerts.total ?? items.length ?? 0));
+    } catch {
+      setAutomaticAlertsTotal(0);
+    }
+  }, [user]);
+
   const ensureSilentReaderAnimals = useCallback(async function ensureSilentReaderAnimals() {
     if (silentReaderAnimals.length > 0) {
       return silentReaderAnimals;
     }
 
-    setSilentReaderLoading(true);
+    setSilentReader((current) => (
+      current.active ? { ...current, status: 'loading' } : current
+    ));
 
     try {
       const data = await get('/animals');
@@ -81,20 +126,85 @@ export default function AppLayout() {
     } catch {
       return [];
     } finally {
-      setSilentReaderLoading(false);
+      setSilentReader((current) => (
+        current.active ? { ...current, status: 'active' } : current
+      ));
     }
   }, [silentReaderAnimals]);
 
-  const activateSilentReader = useCallback(function activateSilentReader() {
-    if (silentReaderLoading) return;
+  const deactivateSilentReader = useCallback(function deactivateSilentReader() {
+    window.clearTimeout(silentReaderTimerRef.current);
+    silentReaderBufferRef.current = '';
+    silentReaderRef.current = INITIAL_SILENT_READER;
+    setSilentReader(INITIAL_SILENT_READER);
+  }, []);
+
+  const activateSilentReader = useCallback(function activateSilentReader(action = 'lookup') {
+    const nextAction = VALID_SILENT_ACTIONS.has(action) ? action : 'lookup';
+    const nextReader = {
+      active: true,
+      action: nextAction,
+      status: 'loading'
+    };
+
+    window.clearTimeout(silentReaderTimerRef.current);
+    silentReaderBufferRef.current = '';
+    silentReaderRef.current = nextReader;
+    setSilentReader(nextReader);
 
     ensureSilentReaderAnimals();
-    setTimeout(() => silentReaderInputRef.current?.focus(), 0);
-  }, [ensureSilentReaderAnimals, silentReaderLoading]);
+  }, [ensureSilentReaderAnimals]);
+
+  const processSilentReaderCodes = useCallback(async function processSilentReaderCodes(rawCodes) {
+    const codes = Array.isArray(rawCodes) ? rawCodes.map(normalizeCode).filter(Boolean) : extractCodes(rawCodes);
+
+    if (!codes.length || !silentReaderRef.current.active) {
+      return false;
+    }
+
+    setSilentReader((current) => (
+      current.active ? { ...current, status: 'loading' } : current
+    ));
+
+    const animals = await ensureSilentReaderAnimals();
+    const animal = codes
+      .map((code) => animals.find((item) => animalMatchesCode(item, code)))
+      .find(Boolean);
+
+    if (!animal?.id) {
+      setSilentReader((current) => (
+        current.active ? { ...current, status: 'active' } : current
+      ));
+      return false;
+    }
+
+    const action = silentReaderRef.current.action || 'lookup';
+    const returnTo = `${location.pathname}${location.search || ''}${location.hash || ''}`;
+    const state = {
+      openedBySilentReader: true,
+      returnTo,
+      silentAction: action
+    };
+
+    deactivateSilentReader();
+    navigate(routeForSilentAction(action, animal.id), { state });
+    return true;
+  }, [
+    deactivateSilentReader,
+    ensureSilentReaderAnimals,
+    location.hash,
+    location.pathname,
+    location.search,
+    navigate
+  ]);
 
   useEffect(() => {
     loadWatchlistCount();
   }, [loadWatchlistCount, location.pathname]);
+
+  useEffect(() => {
+    loadAutomaticAlertsCount();
+  }, [loadAutomaticAlertsCount, location.pathname]);
 
   useEffect(() => {
     window.addEventListener('animal-watchlist:changed', loadWatchlistCount);
@@ -105,84 +215,95 @@ export default function AppLayout() {
   }, [loadWatchlistCount]);
 
   useEffect(() => {
-    window.addEventListener('rumiando:silent-reader:activate', activateSilentReader);
+    function handleActivateSilentReader(event) {
+      activateSilentReader(event.detail?.action || 'lookup');
+    }
+
+    function handleDeactivateSilentReader() {
+      deactivateSilentReader();
+    }
+
+    window.addEventListener(SILENT_READER_EVENT, handleActivateSilentReader);
+    window.addEventListener(SILENT_READER_DEACTIVATE_EVENT, handleDeactivateSilentReader);
 
     return () => {
-      window.removeEventListener('rumiando:silent-reader:activate', activateSilentReader);
+      window.removeEventListener(SILENT_READER_EVENT, handleActivateSilentReader);
+      window.removeEventListener(SILENT_READER_DEACTIVATE_EVENT, handleDeactivateSilentReader);
     };
-  }, [activateSilentReader]);
+  }, [activateSilentReader, deactivateSilentReader]);
 
   useEffect(() => {
+    function stopReaderEvent(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
+
+    function flushBuffer() {
+      const raw = silentReaderBufferRef.current;
+      silentReaderBufferRef.current = '';
+      window.clearTimeout(silentReaderTimerRef.current);
+
+      if (raw) {
+        processSilentReaderCodes(extractCodes(raw));
+      }
+    }
+
+    function handleCaptureKeyDown(event) {
+      if (!silentReaderRef.current.active) return;
+
+      if (event.key === 'Escape') {
+        stopReaderEvent(event);
+        deactivateSilentReader();
+        return;
+      }
+
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const isFinishKey = event.key === 'Enter' || event.key === 'Tab';
+      const isCharacter = event.key.length === 1;
+      const isBackspace = event.key === 'Backspace';
+
+      if (!isFinishKey && !isCharacter && !isBackspace) return;
+
+      stopReaderEvent(event);
+
+      if (isFinishKey) {
+        flushBuffer();
+        return;
+      }
+
+      if (isBackspace) {
+        silentReaderBufferRef.current = silentReaderBufferRef.current.slice(0, -1);
+        return;
+      }
+
+      silentReaderBufferRef.current += event.key;
+      window.clearTimeout(silentReaderTimerRef.current);
+      silentReaderTimerRef.current = window.setTimeout(flushBuffer, 160);
+    }
+
+    function handleCapturePaste(event) {
+      if (!silentReaderRef.current.active) return;
+
+      const pasted = event.clipboardData?.getData('text');
+      if (!pasted) return;
+
+      stopReaderEvent(event);
+      silentReaderBufferRef.current = '';
+      window.clearTimeout(silentReaderTimerRef.current);
+      processSilentReaderCodes(extractCodes(pasted));
+    }
+
+    window.addEventListener('keydown', handleCaptureKeyDown, true);
+    window.addEventListener('paste', handleCapturePaste, true);
+
     return () => {
-      window.clearTimeout(silentReaderInputTimerRef.current);
+      window.removeEventListener('keydown', handleCaptureKeyDown, true);
+      window.removeEventListener('paste', handleCapturePaste, true);
+      window.clearTimeout(silentReaderTimerRef.current);
     };
-  }, []);
-
-  function toggleSettings() {
-    setSettingsOpen((current) => !current);
-  }
-
-  function closeSettings() {
-    setSettingsOpen(false);
-  }
-
-  function handleLogout() {
-    closeSettings();
-    logout();
-  }
-
-  async function handleSilentReaderCode(rawCode) {
-    const code = normalizeCode(rawCode);
-    if (!code) return;
-
-    const animals = await ensureSilentReaderAnimals();
-    const animal = animals.find((item) => animalMatchesCode(item, code));
-
-    if (!animal?.id) {
-      return;
-    }
-
-    closeSettings();
-    navigate(`/animals/${animal.id}?preview=1`);
-  }
-
-  function handleSilentReaderInput(event) {
-    const target = event.currentTarget;
-
-    window.clearTimeout(silentReaderInputTimerRef.current);
-
-    silentReaderInputTimerRef.current = window.setTimeout(() => {
-      const codes = extractCodes(target.value);
-      target.value = '';
-      codes.forEach(handleSilentReaderCode);
-    }, 140);
-  }
-
-  function handleSilentReaderKeyDown(event) {
-    if (event.key !== 'Enter' && event.key !== 'Tab') {
-      return;
-    }
-
-    event.preventDefault();
-
-    window.clearTimeout(silentReaderInputTimerRef.current);
-
-    const codes = extractCodes(event.currentTarget.value);
-    event.currentTarget.value = '';
-    codes.forEach(handleSilentReaderCode);
-  }
-
-  function handleSilentReaderPaste(event) {
-    const pasted = event.clipboardData.getData('text');
-
-    if (!pasted) return;
-
-    event.preventDefault();
-    window.clearTimeout(silentReaderInputTimerRef.current);
-    event.currentTarget.value = '';
-
-    extractCodes(pasted).forEach(handleSilentReaderCode);
-  }
+  }, [deactivateSilentReader, processSilentReaderCodes]);
 
   return (
     <div className="app-shell clean-app-shell">
@@ -201,7 +322,7 @@ export default function AppLayout() {
           <NavLink to="/reminders">Avisos</NavLink>
 
           <NavLink to="/animal-watchlist" className="watchlist-nav-link">
-            <span>Animal Watchlist</span>
+            <span>Búsqueda inteligente</span>
             <span className="watchlist-nav-count">{watchlistTotal}</span>
           </NavLink>
 
@@ -230,51 +351,11 @@ export default function AppLayout() {
         <Outlet />
       </main>
 
-      <input
-        ref={silentReaderInputRef}
-        className="silent-reader-input"
-        tabIndex="-1"
-        aria-hidden="true"
-        autoComplete="off"
-        onChange={handleSilentReaderInput}
-        onKeyDown={handleSilentReaderKeyDown}
-        onPaste={handleSilentReaderPaste}
-      />
-
-      {settingsOpen && (
-        <div className="mobile-settings-panel">
-          <div>
-            <strong>{user?.nombre || user?.email || 'Usuario'}</strong>
-            <span>{user?.rol || 'Sesión activa'}</span>
-          </div>
-
-          {isAdmin && (
-            <NavLink to="/admin/invitations" onClick={closeSettings}>
-              Invitaciones
-            </NavLink>
-          )}
-
-          <button type="button" onClick={handleLogout}>
-            Cerrar sesión
-          </button>
-        </div>
-      )}
-
-      <button
-        type="button"
-        className={`mobile-settings-button ${settingsOpen ? 'open' : ''}`}
-        onClick={toggleSettings}
-        aria-label="Abrir configuración"
-      >
-        <span className="css-settings-icon" aria-hidden="true" />
-      </button>
-
       <nav className="mobile-bottom-nav" aria-label="Navegación principal móvil">
         <NavLink
           to="/home"
           className="mobile-nav-button mobile-nav-icon-button"
           aria-label="Inicio"
-          onClick={closeSettings}
         >
           <img
             src="/assets/icon-home-green.png"
@@ -288,17 +369,25 @@ export default function AppLayout() {
           to="/animals/new"
           className="mobile-nav-button mobile-nav-plus"
           aria-label="Añadir animal"
-          onClick={closeSettings}
         >
-          <span aria-hidden="true">+</span>
+          <img
+            src="/assets/icon-add-green.png"
+            alt=""
+            aria-hidden="true"
+            className="mobile-nav-img mobile-nav-action-img"
+          />
         </NavLink>
 
         <button
           type="button"
-          className="mobile-search-button"
+          className={`mobile-search-button ${silentReader.active ? 'reading active' : ''}`}
           aria-label="Búsqueda por lector"
-          onClick={activateSilentReader}
+          aria-pressed={silentReader.active}
+          onClick={() => (
+            silentReader.active ? deactivateSilentReader() : activateSilentReader('lookup')
+          )}
         >
+          <span className="mobile-search-spinner" aria-hidden="true" />
           <img
             src="/assets/icon-lupa-white.png"
             alt=""
@@ -311,18 +400,33 @@ export default function AppLayout() {
           to="/reminders"
           className="mobile-nav-button mobile-nav-alert"
           aria-label="Avisos"
-          onClick={closeSettings}
         >
-          <span aria-hidden="true">!</span>
+          <span className="mobile-nav-badge-wrap">
+            <img
+              src="/assets/icon-cencerro-green.png"
+              alt=""
+              aria-hidden="true"
+              className="mobile-nav-img mobile-nav-action-img"
+            />
+            {automaticAlertsTotal > 0 && (
+              <span className="mobile-nav-badge" aria-label={`${automaticAlertsTotal} avisos`}>
+                {automaticAlertsTotal > 99 ? '99+' : automaticAlertsTotal}
+              </span>
+            )}
+          </span>
         </NavLink>
 
         <NavLink
           to="/ai-chat"
           className="mobile-nav-button mobile-nav-ai"
           aria-label="IA"
-          onClick={closeSettings}
         >
-          <span aria-hidden="true">IA</span>
+          <img
+            src="/assets/icon-ia-green.png"
+            alt=""
+            aria-hidden="true"
+            className="mobile-nav-img mobile-nav-action-img"
+          />
         </NavLink>
       </nav>
     </div>

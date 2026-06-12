@@ -96,18 +96,17 @@ export default function CreateMovementPage() {
   }
 
   if (loadingCatalogs) {
-    return <p>Cargando catalogos...</p>;
+    return <p>Cargando catálogos...</p>;
   }
 
   if (catalogsError) {
-    return <p className="alert error">Error cargando catalogos: {catalogsError}</p>;
+    return <p className="alert error">Error cargando catálogos: {catalogsError}</p>;
   }
 
   return (
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Movimiento de animales</p>
           <h2>Registrar movimiento</h2>
           <p>Registra un movimiento individual, en lote o por corral completo.</p>
         </div>

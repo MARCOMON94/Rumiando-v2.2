@@ -110,7 +110,6 @@ export default function CreateAnimalPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Alta de animal</p>
           <h2>Registrar nuevo animal</h2>
           <p>Formulario controlado conectado a la API real de RumiAndo.</p>
         </div>

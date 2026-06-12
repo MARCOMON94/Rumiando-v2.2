@@ -6,21 +6,14 @@ import { useAuth } from '../context/AuthContext';
 function RumiandoBrand() {
   return (
     <div className="rumiando-brand" aria-label="RumiAndo">
-      <img
-        className="rumiando-brand-animal"
-        src="/assets/rumiando-sheep-facing-left.png"
-        alt=""
-        aria-hidden="true"
-      />
-
       <div className="rumiando-brand-text">
-        <p>RUMIANDO</p>
+        <p>RumiAndo</p>
         <span>Gestión ganadera</span>
       </div>
 
       <img
-        className="rumiando-brand-animal"
-        src="/assets/rumiando-sheep-facing-right.png"
+        className="rumiando-brand-hero-animal"
+        src="/assets/rumiando-sheep-tech-app-colors.png"
         alt=""
         aria-hidden="true"
       />
@@ -89,7 +82,7 @@ export default function LoginPage() {
           <div className="login-desktop-image">
             <img
               src="/assets/login-farm-desktop.png"
-              alt="Ganadero usando RumiAndo en una explotación"
+              alt="Ganadero usando RumiAndo en una explotacion"
             />
           </div>
         </div>

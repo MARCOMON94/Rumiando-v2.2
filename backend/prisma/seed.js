@@ -77,14 +77,15 @@ async function createCatalogs(cuentaId) {
   const estadosSeed = [
     ['No aplica', 1],
     ['No reproductor', 2],
-    ['Vacía', 3],
-    ['Productora', 4],
-    ['Cubierta / Inseminada', 5],
-    ['Gestante', 6],
-    ['Parida', 7],
-    ['Abortada', 8],
-    ['Problema reproductivo', 9],
-    ['Macho', 10]
+    ['Lactante', 3],
+    ['Vacía', 4],
+    ['Productora', 5],
+    ['Cubierta / Inseminada', 6],
+    ['Gestante', 7],
+    ['Parida', 8],
+    ['Abortada', 9],
+    ['Problema reproductivo', 10],
+    ['Macho', 11]
   ];
 
   const estados = {};

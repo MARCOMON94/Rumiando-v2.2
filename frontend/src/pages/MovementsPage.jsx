@@ -62,7 +62,6 @@ export default function MovementsPage() {
       <section className="page">
         <header className="page-header">
   <div>
-    <p className="eyebrow">Trazabilidad</p>
     <h2>Movimientos</h2>
     <p>{movements.length} movimientos registrados</p>
   </div>
@@ -81,7 +80,6 @@ export default function MovementsPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Trazabilidad</p>
           <h2>Movimientos</h2>
           <p>{movements.length} movimientos registrados</p>
         </div>

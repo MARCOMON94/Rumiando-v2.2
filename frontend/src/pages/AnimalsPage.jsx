@@ -130,7 +130,6 @@ export default function AnimalsPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Censo animal</p>
           <h2>Animales</h2>
           <p>
             Busca por crotal, número interno, raza, corral o estado. Si el crotal coincide exactamente,
@@ -275,7 +274,7 @@ export default function AnimalsPage() {
                     sourceType="animal_list"
                     sourceRef={`animal-${animal.id}`}
                     promptReason
-                    label="Animal Watchlist"
+                    label="Búsqueda"
                     className="secondary"
                   />
                   <Link className="text-link" to={`/animals/${animal.id}`}>
