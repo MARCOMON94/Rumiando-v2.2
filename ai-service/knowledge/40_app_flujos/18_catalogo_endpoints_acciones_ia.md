@@ -17,6 +17,7 @@ La IA puede consultar datos vivos y preparar borradores de acciones, pero no deb
 - GET /dewormings: desparasitaciones.
 - GET /reproductive-events: celos, cubriciones, gestaciones, partos, abortos y cambios de estado.
 - GET /reminders: avisos pendientes, pospuestos, vencidos o completados.
+- GET /animal-watchlist: lista privada del usuario para localizar animales, con `total`, `seenTotal`, `pendingTotal`, animal, ubicacion actual, motivo y marcas de visto.
 - GET /exports/animals, /exports/health-cases, /exports/movements, /exports/reminders: exportaciones CSV.
 
 ## Acciones que requieren confirmacion
@@ -31,6 +32,9 @@ La IA puede consultar datos vivos y preparar borradores de acciones, pero no deb
 - POST /dewormings y PUT /dewormings/:id: registrar o actualizar desparasitacion. Minimos de alta: fecha, tipo, producto, unidadRegaId y animal/corral.
 - POST /reproductive-events y PUT /reproductive-events/:id: registrar o actualizar evento reproductivo o estado gestacional. Minimos de alta: tipoEvento, fecha y animalId.
 - POST /reminders, PUT /reminders/:id, PUT /reminders/:id/complete y PUT /reminders/:id/snooze: crear, actualizar, completar o posponer avisos.
+- POST /animal-watchlist: anadir animal a la lista de busqueda viva del usuario. Minimos: animalId. Opcionales: motivoTipo, motivoTexto, sourceType y sourceRef.
+- POST /animal-watchlist/read: marcar como leido un crotal/RFID incluido en la lista. Incrementa `seenCount` y actualiza `seenAt`/`lastReadAt`; no elimina el animal.
+- DELETE /animal-watchlist/:id y DELETE /animal-watchlist: quitar un item o vaciar la lista completa, con confirmacion en UI.
 - POST /exports/send-request: solicitud de exportacion CENSO o VETERINARIO. Minimos: tipoExportacion, fechaDesde, fechaHasta y emailDestino.
 
 ## Frases de usuario esperadas
@@ -40,6 +44,9 @@ La IA puede consultar datos vivos y preparar borradores de acciones, pero no deb
 - "Registra tratamiento" -> no inventar medicacion; pedir producto, fecha, retirada y asociacion a caso/animal/corral.
 - "Pon aviso para revacunar" -> preparar POST /reminders o POST /vaccinations si ya se esta registrando la vacuna.
 - "Cierra este aviso" -> preparar PUT /reminders/:id/complete y pedir identificador del aviso si no esta claro.
+- "Pon esta oveja en Animal Watchlist" -> preparar POST /animal-watchlist con motivo opcional.
+- "Busca los animales de la lista" -> abrir `/animal-watchlist`; el lector queda activo por defecto.
+- "Ya encontre este animal" -> explicar que se marca como visto, pero sigue en la lista hasta borrado manual.
 
 ## Flujo UI comun
 - El chat no ejecuta acciones directamente: abre la misma OperationSession que los botones de Home.
@@ -47,3 +54,4 @@ La IA puede consultar datos vivos y preparar borradores de acciones, pero no deb
 - El lector solo pega crotales; la app los interpreta, ignora duplicados y separa no encontrados.
 - Al pulsar Finalizar, la IA resume encontrados, no encontrados, duplicados, operacion y destino/producto/estado.
 - Solo al confirmar se llama al endpoint real.
+- En Animal Watchlist, la tarjeta flotante muestra la accion posterior y su subopcion. Seleccionar destino/subopcion no guarda; solo `Finalizar` ejecuta el endpoint correspondiente.

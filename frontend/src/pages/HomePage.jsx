@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { get } from '../api/apiClient';
 import OperationSessionPanel from '../components/operations/OperationSessionPanel';
 import { OPERATION_DEFINITIONS } from '../components/operations/operationConfig';
 import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
@@ -17,6 +18,28 @@ export default function HomePage() {
   const { startOperation } = useOperationSession();
   const [readerOpen, setReaderOpen] = useState(false);
   const [readerNotice, setReaderNotice] = useState('');
+  const [watchlistTotal, setWatchlistTotal] = useState(0);
+
+  const loadWatchlistCount = useCallback(async function loadWatchlistCount() {
+    try {
+      const data = await get('/animal-watchlist');
+      setWatchlistTotal(Number(data?.total || 0));
+    } catch {
+      setWatchlistTotal(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWatchlistCount();
+  }, [loadWatchlistCount]);
+
+  useEffect(() => {
+    window.addEventListener('animal-watchlist:changed', loadWatchlistCount);
+
+    return () => {
+      window.removeEventListener('animal-watchlist:changed', loadWatchlistCount);
+    };
+  }, [loadWatchlistCount]);
 
   function openOperation(operationType) {
     setReaderOpen(false);
@@ -49,6 +72,14 @@ export default function HomePage() {
           </button>
           <button type="button" className="secondary" onClick={() => navigate('/ai-chat')}>
             Chat IA
+          </button>
+          <button
+            type="button"
+            className="secondary field-watchlist-button"
+            onClick={() => navigate('/animal-watchlist')}
+          >
+            <span>Animal Watchlist</span>
+            <span className="watchlist-nav-count">{watchlistTotal}</span>
           </button>
         </div>
       </div>

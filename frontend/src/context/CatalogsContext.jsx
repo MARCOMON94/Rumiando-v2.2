@@ -24,14 +24,14 @@ const emptyCatalogs = {
 };
 
 export function CatalogsProvider({ children }) {
-  const { token, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const [catalogs, setCatalogs] = useState(emptyCatalogs);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const loadCatalogs = useCallback(async function loadCatalogs() {
-    if (!token) {
+    if (!isAuthenticated) {
       setCatalogs(emptyCatalogs);
       setLoading(false);
       setError('');
@@ -57,17 +57,17 @@ export function CatalogsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated && token) {
+    if (isAuthenticated) {
       loadCatalogs();
     } else {
       setCatalogs(emptyCatalogs);
       setLoading(false);
       setError('');
     }
-  }, [isAuthenticated, token, loadCatalogs]);
+  }, [isAuthenticated, loadCatalogs]);
 
   const value = {
     catalogs,

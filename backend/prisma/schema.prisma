@@ -110,6 +110,7 @@ model User {
   cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
 
   movimientos MovimientoTransaccion[]
+  animalWatchlistItems AnimalWatchlistItem[]
 
   invitacionesEnviadas Invitation[] @relation("InvitationInvitedBy")
   invitacionAceptada   Invitation?  @relation("InvitationAcceptedBy")
@@ -163,6 +164,7 @@ model CuentaGanadera {
   estadosRepro  CatalogoEstadoReproductivo[]
   recordatorios Recordatorio[]
   exportaciones ExportacionRegistro[]
+  animalWatchlistItems AnimalWatchlistItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -349,11 +351,41 @@ model Animal {
   desparasitaciones    Desparasitacion[]
   eventosReproductivos EventoReproductivo[]
   recordatorios        Recordatorio[]
+  animalWatchlistItems AnimalWatchlistItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([unidadRegaId, crotal])
+}
+
+model AnimalWatchlistItem {
+  id Int @id @default(autoincrement())
+
+  motivoTipo  String?
+  motivoTexto String?
+  sourceType  String?
+  sourceRef   String?
+
+  seenAt     DateTime?
+  seenCount  Int       @default(0)
+  lastReadAt DateTime?
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+
+  animalId Int
+  animal   Animal @relation(fields: [animalId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, animalId])
+  @@index([cuentaGanaderaId])
+  @@index([animalId])
 }
 
 model MovimientoTransaccion {

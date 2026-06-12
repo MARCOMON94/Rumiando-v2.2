@@ -17,6 +17,7 @@ import RemindersPage from './pages/RemindersPage';
 import AiChatPage from './pages/AiChatPage';
 import HomePage from './pages/HomePage';
 import AdminInvitationsPage from './pages/AdminInvitationsPage';
+import AnimalWatchlistPage from './pages/AnimalWatchlistPage';
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/movements/new" element={<CreateMovementPage />} />
         <Route path="/movements" element={<MovementsPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/animal-watchlist" element={<AnimalWatchlistPage />} />
         <Route path="/ai-chat" element={<AiChatPage />} />
         <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
         <Route path="/ai-vet" element={<Navigate to="/ai-chat" replace />} />

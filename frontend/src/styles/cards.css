@@ -17,18 +17,15 @@
     border-color var(--transition-fast);
 }
 
-.metric-card:hover,
-.panel:hover,
-.animal-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-hover);
-  border-color: rgba(63, 107, 75, 0.24);
-}
+
 
 .metric-card,
 .panel,
 .animal-card {
-  padding: 1.25rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
 }
 
 .metric-card span {

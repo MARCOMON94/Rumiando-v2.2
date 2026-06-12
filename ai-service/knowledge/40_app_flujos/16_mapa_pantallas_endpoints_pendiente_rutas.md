@@ -3,11 +3,13 @@
 ## Resumen
 *documento pendiente de rutas finales*
 
-Documento tecnico marcador para conectar intenciones de IA con pantallas y endpoints de RumiAndo. No fija rutas definitivas porque el backend no esta cerrado. Debe recordar que hace falta documentar busqueda, ficha individual, movimientos, avisos, dashboard, tratamientos, altas, bajas y recordatorios. Hasta entonces, la IA debe decir preparar formulario, abrir pantalla o solicitar confirmacion, no prometer endpoints concretos.
+Documento tecnico marcador para conectar intenciones de IA con pantallas y endpoints de RumiAndo. No fija rutas definitivas porque el backend no esta cerrado. Debe recordar que hace falta documentar busqueda, ficha individual, movimientos, avisos, Animal Watchlist, dashboard, tratamientos, altas, bajas y recordatorios. Hasta entonces, la IA debe decir preparar formulario, abrir pantalla o solicitar confirmacion, no prometer endpoints concretos. Excepcion confirmada: Animal Watchlist ya tiene pantalla `/animal-watchlist` y API `/api/animal-watchlist`.
 
 ## Reglas operativas
 - Buscar animal: debe conectarse con pantalla de busqueda por crotal, RFID, especie, estado o corral. Ruta, parametros y errores quedan pendientes.
 - Ficha animal: pantalla central con datos basicos, historial reproductivo, sanitario, tratamientos, movimientos, avisos y estado actual. Ruta final pendiente.
+- Animal Watchlist: pantalla `/animal-watchlist` para localizar animales marcados. Muestra tres columnas base: animal, ubicacion actual y motivo. El lector queda activo por defecto.
+- API Animal Watchlist: `GET /animal-watchlist`, `POST /animal-watchlist`, `POST /animal-watchlist/read`, `DELETE /animal-watchlist/:id` y `DELETE /animal-watchlist`. Es privada por usuario y cuenta ganadera.
 - Movimientos: requiere prevalidacion, ejecucion, lista de crotales, destino, fecha, cambios de estado propuestos, respuesta parcial y auditoria. Pendiente de rutas finales.
 - Avisos y recordatorios: distinguir consulta de avisos automaticos, crear recordatorio manual, posponer y marcar como completado. Rutas pendientes.
 - Dashboard: debe exponer agregados por especie, corral, estado, avisos criticos, tratamientos activos, retiradas, partos proximos y bajas recientes. Ruta pendiente.
@@ -18,6 +20,8 @@ Documento tecnico marcador para conectar intenciones de IA con pantallas y endpo
 
 ## Casos frecuentes
 - Buscar animal por crotal: cuando exista ruta final, consultar y abrir ficha.
+- Buscar animales marcados: abrir `/animal-watchlist`; al leer crotal incluido, marcar visto y mostrar tarjeta flotante.
+- Anadir animal a lista desde aviso: usar motivo del aviso como motivo de Animal Watchlist, sin resolver el aviso automatico.
 - Movimiento lote: pendiente de ruta final; preparar datos, validar y confirmar.
 - Crear aviso: pendiente de ruta final; recoger animal/lote, fecha, texto y prioridad.
 - Registrar tratamiento: pendiente de ruta final; preparar borrador y confirmar.
@@ -28,6 +32,7 @@ Este documento no debe generar codigo ni endpoints definitivos. Cualquier ruta d
 ## Fuentes internas
 - Requisitos RumiAndo: mapa de pantallas y endpoints.
 - Decision de producto: responder, abrir pantalla, precargar formulario o ejecutar tras confirmacion.
+- Decision de producto: Animal Watchlist persiste hasta borrado manual y solo registra accion posterior al pulsar `Finalizar`.
 - Estado tecnico: documento pendiente de rutas finales.
 
 ## Nota de uso para el RAG

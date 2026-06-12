@@ -21,7 +21,8 @@ describe('Backend smoke tests', () => {
     '/api/vaccinations',
     '/api/dewormings',
     '/api/reproductive-events',
-    '/api/reminders'
+    '/api/reminders',
+    '/api/animal-watchlist'
   ];
 
   test.each(protectedGets)('GET %s responde 200 con cookie de sesion', async (url) => {

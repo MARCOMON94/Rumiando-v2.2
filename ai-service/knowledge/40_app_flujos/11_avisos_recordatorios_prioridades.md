@@ -13,11 +13,13 @@ Este documento explica como responder cuando el ganadero pregunta por avisos: "Â
 - Los avisos de retirada son criticos. Deben mostrar producto, animales afectados, fecha de inicio y fecha final calculada. No autorizar leche/carne antes de fin validado.
 - Los avisos reproductivos dependen de fechas exactas. Si la cubricion es dudosa, la IA debe advertir que el calculo puede fallar.
 - Los avisos sanitarios no diagnostican. Indican necesidad de revisar signos, evolucion y numero de afectados.
+- Desde un aviso se puede anadir el animal a Animal Watchlist con el motivo del aviso. Esto solo ayuda a localizarlo fisicamente; no completa ni elimina el aviso automatico.
 
 ## Casos frecuentes
 - Por que revisar esta oveja: responder con el evento concreto que genero aviso.
 - Quita este aviso: si es manual, puede completarse o posponerse; si es automatico, explicar que desaparece al resolver el dato.
 - Posponlo tres dias: preparar posposicion si no es critico. En criticos, advertir riesgo.
+- Buscame las que tienen aviso: anadir los animales necesarios a Animal Watchlist o abrir la lista, manteniendo el motivo visible.
 - Que es urgente hoy: ordenar por retirada, parto, enfermedad, tratamientos, abortos y mortalidad.
 
 ## Limites y cautelas
@@ -26,6 +28,7 @@ La IA no debe ocultar avisos criticos por comodidad. Las reglas deben configurar
 ## Fuentes internas
 - Requisitos RumiAndo: avisos reproductivos, sanitarios, retirada, vacunacion y desparasitacion.
 - Decision de producto: separar aviso automatico de recordatorio manual.
+- Decision de producto: Animal Watchlist puede nacer desde avisos, pero no cambia la regla que genera el aviso.
 - Modelo futuro: permitir posponer y registrar historial de avisos.
 
 ## Nota de uso para el RAG

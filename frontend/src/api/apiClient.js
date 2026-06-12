@@ -1,4 +1,22 @@
-﻿const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+﻿const configuredApiUrl = import.meta.env.VITE_API_URL;
+
+function isConfiguredLocalhost(url) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\/api\/?$/i.test(String(url || ''));
+}
+
+function isBrowserLocalhost() {
+  return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+}
+
+function resolveApiUrl() {
+  if (configuredApiUrl && (!isConfiguredLocalhost(configuredApiUrl) || isBrowserLocalhost())) {
+    return configuredApiUrl.replace(/\/$/, '');
+  }
+
+  return '/api';
+}
+
+const API_URL = resolveApiUrl();
 
 async function request(endpoint, options = {}) {
   const headers = {
@@ -45,6 +63,13 @@ export function put(endpoint, body, options = {}) {
     ...options,
     method: 'PUT',
     body: JSON.stringify(body)
+  });
+}
+
+export function del(endpoint, options = {}) {
+  return request(endpoint, {
+    ...options,
+    method: 'DELETE'
   });
 }
 

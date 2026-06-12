@@ -48,6 +48,16 @@ El objetivo principal es ofrecer una herramienta sencilla y trazable para que un
   * Descendencia.
 * Navegación interna entre animales relacionados, por ejemplo madre, padre o descendencia.
 
+### Animal Watchlist
+
+* Lista privada y persistente por usuario para marcar animales que se quieren localizar con lector.
+* Acceso desde avisos automaticos, ficha de animal, censo y Home.
+* Pantalla `/animal-watchlist` con lector activo por defecto, animal, ubicacion actual y motivo.
+* Al leer un crotal incluido en la lista, la app emite aviso sonoro, doble parpadeo naranja y tarjeta flotante con animal y motivo.
+* El animal queda marcado como visto con `seenAt`, `seenCount` y `lastReadAt`, pero no se elimina hasta que el usuario lo borre.
+* La tarjeta permite registrar una accion posterior y guarda el cambio solo al pulsar `Finalizar`.
+* La API devuelve `total`, `seenTotal` y `pendingTotal` para alimentar contadores en frontend.
+
 ### Corrales
 
 * Consulta de corrales registrados.
@@ -207,6 +217,7 @@ routes -> middlewares -> controllers -> services -> Prisma -> PostgreSQL
 * `/api/dewormings`
 * `/api/reproductive-events`
 * `/api/reminders`
+* `/api/animal-watchlist`
 * `/api/exports`
 * `/api/dashboard`
 * `/api/ai`
@@ -236,6 +247,7 @@ pages -> components -> context -> api -> routes -> styles
 * `/animals/:id`
 * `/dashboard`
 * `/reminders`
+* `/animal-watchlist`
 * `/pens`
 * `/health`
 * `/movements`
@@ -255,6 +267,7 @@ DATABASE_URL="postgresql://usuario:password@host:puerto/base_de_datos"
 JWT_SECRET="clave_secreta"
 JWT_EXPIRES_IN="7d"
 FRONTEND_URL="https://rumiando.netlify.app"
+FRONTEND_URLS="https://rumiando.netlify.app,http://localhost:5173"
 N8N_API_KEY="clave_para_integraciones"
 AI_SERVICE_URL="http://localhost:8000"
 LEARNING_QUEUE_TOKEN="mismo_token_que_ai_service_si_se_usan_endpoints_learning"
@@ -325,6 +338,12 @@ npx prisma migrate dev
 npm run prisma:seed
 ```
 
+Para aplicar migraciones pendientes sin crear una nueva migracion, por ejemplo en una base ya existente:
+
+```bash
+npm run prisma:migrate:deploy
+```
+
 ### 5. Arrancar backend
 
 ```bash
@@ -379,8 +398,8 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Los documentos RAG se colocan en `ai-service/knowledge/`. La guia de generacion
-esta en `docs/rag-documentos-necesarios.md`.
+Los documentos RAG se colocan en `ai-service/knowledge/`. El servicio IA carga los
+archivos `.md` y `.txt` de esa carpeta.
 
 ## Scripts disponibles
 
@@ -391,6 +410,7 @@ npm run dev              # Ejecutar backend en desarrollo con nodemon
 npm start                # Ejecutar backend en producción
 npm run prisma:generate  # Generar cliente Prisma
 npm run prisma:migrate   # Ejecutar migraciones en desarrollo
+npm run prisma:migrate:deploy # Aplicar migraciones pendientes en una base existente
 npm run prisma:studio    # Abrir Prisma Studio
 npm run prisma:seed      # Insertar datos de demostración
 npm test                 # Ejecutar tests
@@ -415,6 +435,7 @@ Entidades principales:
 * `CuentaGanadera`
 * `UnidadRega`
 * `Animal`
+* `AnimalWatchlistItem`
 * `Corral`
 * `CatalogoEspecie`
 * `CatalogoRaza`
@@ -506,6 +527,7 @@ Estos endpoints permiten crear automatizaciones externas, por ejemplo correos pe
 | Validaciones                       | Validaciones en servicios antes de crear o actualizar recursos                                                |
 | Manejo centralizado de errores     | Middleware de errores y clase `AppError`                                                                      |
 | Variables de entorno               | `.env` en backend y `VITE_API_URL` en frontend                                                                |
+| Migraciones en despliegue           | `npm start` ejecuta `prisma migrate deploy` antes de arrancar el servidor                                     |
 | Integración externa                | Endpoints `/api/automation` preparados para n8n                                                               |
 | React + Vite                       | Frontend con Vite                                                                                             |
 | React Router                       | Rutas públicas, protegidas y dinámicas                                                                        |
@@ -530,7 +552,10 @@ Estos endpoints permiten crear automatizaciones externas, por ejemplo correos pe
 9. Verificar que el movimiento aparece en el listado.
 10. Consultar avisos automáticos.
 11. Abrir la ficha del animal desde un aviso.
-12. Comprobar dashboard y métricas.
+12. Añadir animales a Animal Watchlist desde aviso, ficha o censo.
+13. Abrir `/animal-watchlist`, leer un crotal marcado y comprobar aviso sonoro, parpadeo naranja, tarjeta flotante y tachado persistente.
+14. Finalizar una accion posterior desde la tarjeta y verificar que se registra solo al pulsar `Finalizar`.
+15. Comprobar dashboard y métricas.
 
 ## Despliegue
 
@@ -566,6 +591,8 @@ Build command: npm install && npx prisma generate
 Start command: npm start
 ```
 
+El script `npm start` del backend ejecuta `prisma migrate deploy && node src/server.js`. En Railway esto aplica las migraciones pendientes sobre la PostgreSQL configurada en `DATABASE_URL` antes de levantar la API.
+
 Variables principales:
 
 ```env
@@ -573,9 +600,12 @@ DATABASE_URL=...
 JWT_SECRET=...
 JWT_EXPIRES_IN=7d
 FRONTEND_URL=https://rumiando.netlify.app
+FRONTEND_URLS=https://rumiando.netlify.app,http://localhost:5173,http://127.0.0.1:5173
 N8N_API_KEY=...
 NODE_ENV=production
 ```
+
+Para verificar manualmente la base de Railway, ejecutar el deploy y revisar logs de Railway buscando `prisma migrate deploy`, o lanzar `npm run prisma:migrate:deploy` con el `DATABASE_URL` de Railway cargado en el entorno.
 
 ## Mejoras futuras
 

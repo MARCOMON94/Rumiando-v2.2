@@ -2,6 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { get } from '../api/apiClient';
 import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
+import AnimalWatchlistButton from '../components/animal-watchlist/AnimalWatchlistButton';
 
 function getAnimalsFromResponse(data) {
   if (Array.isArray(data)) return data;
@@ -268,9 +269,19 @@ export default function AnimalsPage() {
                   </div>
                 </dl>
 
-                <Link className="text-link" to={`/animals/${animal.id}`}>
-                  Ver ficha
-                </Link>
+                <div className="form-actions">
+                  <AnimalWatchlistButton
+                    animalId={animal.id}
+                    sourceType="animal_list"
+                    sourceRef={`animal-${animal.id}`}
+                    promptReason
+                    label="Animal Watchlist"
+                    className="secondary"
+                  />
+                  <Link className="text-link" to={`/animals/${animal.id}`}>
+                    Ver ficha
+                  </Link>
+                </div>
               </article>
             ))}
           </div>

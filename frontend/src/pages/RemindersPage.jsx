@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { get } from '../api/apiClient';
+import AnimalWatchlistButton from '../components/animal-watchlist/AnimalWatchlistButton';
 
 function getLevelClass(level) {
   return String(level || 'LOW').toLowerCase();
@@ -145,12 +146,24 @@ export default function RemindersPage() {
 
                 <div className="form-actions">
                   {alert.animal?.id ? (
-                    <Link
-                      className="button"
-                      to={`/animals/${alert.animal.id}`}
-                    >
-                      Ver ficha animal
-                    </Link>
+                    <>
+                      <AnimalWatchlistButton
+                        animalId={alert.animal.id}
+                        motivoTipo={getReadableType(alert.type)}
+                        motivoTexto={alert.reason}
+                        sourceType="automatic_alert"
+                        sourceRef={`${alert.type}-${alert.animal.id}`}
+                        promptReason={false}
+                        label="Animal Watchlist"
+                        className="secondary"
+                      />
+                      <Link
+                        className="button"
+                        to={`/animals/${alert.animal.id}`}
+                      >
+                        Ver ficha animal
+                      </Link>
+                    </>
                   ) : (
                     <button type="button" disabled>
                       Sin ficha asociada

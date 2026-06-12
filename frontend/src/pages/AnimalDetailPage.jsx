@@ -2,6 +2,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { get } from '../api/apiClient';
 import OperationSessionPanel from '../components/operations/OperationSessionPanel';
+import AnimalWatchlistButton from '../components/animal-watchlist/AnimalWatchlistButton';
 import { useOperationSession } from '../context/OperationSessionContext';
 
 function formatDate(value) {
@@ -164,6 +165,14 @@ export default function AnimalDetailPage() {
           <button type="button" className="secondary" onClick={() => navigate(-1)}>
             Volver
           </button>
+          <AnimalWatchlistButton
+            animalId={animal.id}
+            sourceType="animal_detail"
+            sourceRef={`animal-${animal.id}`}
+            promptReason
+            label="Animal Watchlist"
+            className="secondary"
+          />
           <button type="button" onClick={addCurrentAnimalToSelection} aria-label="Anadir a seleccion">
             +
           </button>

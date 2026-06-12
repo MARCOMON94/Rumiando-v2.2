@@ -1,13 +1,41 @@
-﻿import { useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { get } from '../../api/apiClient';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [watchlistTotal, setWatchlistTotal] = useState(0);
 
   const isAdmin = user?.rol === 'ADMIN';
+
+  const loadWatchlistCount = useCallback(async function loadWatchlistCount() {
+    if (!user) {
+      setWatchlistTotal(0);
+      return;
+    }
+
+    try {
+      const data = await get('/animal-watchlist');
+      setWatchlistTotal(Number(data?.total || 0));
+    } catch {
+      setWatchlistTotal(0);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadWatchlistCount();
+  }, [loadWatchlistCount, location.pathname]);
+
+  useEffect(() => {
+    window.addEventListener('animal-watchlist:changed', loadWatchlistCount);
+
+    return () => {
+      window.removeEventListener('animal-watchlist:changed', loadWatchlistCount);
+    };
+  }, [loadWatchlistCount]);
 
   function toggleSettings() {
     setSettingsOpen((current) => !current);
@@ -37,6 +65,10 @@ export default function AppLayout() {
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/animals">Animales</NavLink>
           <NavLink to="/reminders">Avisos</NavLink>
+          <NavLink to="/animal-watchlist" className="watchlist-nav-link">
+            <span>Animal Watchlist</span>
+            <span className="watchlist-nav-count">{watchlistTotal}</span>
+          </NavLink>
           <NavLink to="/pens">Corrales</NavLink>
           <NavLink to="/health">Sanidad</NavLink>
           <NavLink to="/movements">Movimientos</NavLink>

@@ -19,6 +19,7 @@ const reminderRoutes = require('./routes/reminderRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const animalWatchlistRoutes = require('./routes/animalWatchlistRoutes');
 
 const automationRoutes = require('./routes/automationRoutes');
 
@@ -28,15 +29,41 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
-const allowedOrigins = [
+function splitOrigins(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+const allowedOrigins = new Set([
   'http://localhost:5173',
+  'http://127.0.0.1:5173',
   'https://rumiando.netlify.app',
-  process.env.FRONTEND_URL
-].filter(Boolean);
+  ...splitOrigins(process.env.FRONTEND_URL),
+  ...splitOrigins(process.env.FRONTEND_URLS)
+].filter(Boolean));
+
+function isDevelopmentOrigin(origin) {
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
+
+  try {
+    const url = new URL(origin);
+    const isDevPort = ['5173', '5174'].includes(url.port);
+    const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    const isPrivateLan = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(url.hostname);
+
+    return isDevPort && (isLocalHost || isPrivateLan);
+  } catch {
+    return false;
+  }
+}
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.has(origin) || isDevelopmentOrigin(origin)) {
       return callback(null, true);
     }
 
@@ -64,6 +91,7 @@ app.use('/api/reminders', reminderRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/animal-watchlist', animalWatchlistRoutes);
 
 app.use('/api/automation', automationRoutes);
 
@@ -137,6 +165,12 @@ app.get('/', (req, res) => {
 'POST /api/exports/send-request',
 
 'GET /api/dashboard',
+
+'GET /api/animal-watchlist',
+'POST /api/animal-watchlist',
+'POST /api/animal-watchlist/read',
+'DELETE /api/animal-watchlist/:id',
+'DELETE /api/animal-watchlist',
 
 'GET /api/ai/health',
 'POST /api/ai/chat',
