@@ -123,26 +123,51 @@ export default function AppLayout() {
       </button>
 
       <nav className="mobile-bottom-nav" aria-label="Navegación principal móvil">
-        <NavLink to="/home" className="mobile-nav-button" onClick={closeSettings}>
-          Inicio
-        </NavLink>
+  <NavLink
+    to="/home"
+    className="mobile-nav-button"
+    aria-label="Inicio"
+    onClick={closeSettings}
+  >
+    <span className="mobile-nav-symbol" aria-hidden="true">⌂</span>
+  </NavLink>
 
-        <NavLink to="/animals" className="mobile-nav-button" onClick={closeSettings}>
-          Censo
-        </NavLink>
+  <NavLink
+    to="/animals/new"
+    className="mobile-nav-button mobile-nav-plus"
+    aria-label="Añadir animal"
+    onClick={closeSettings}
+  >
+    <span className="mobile-nav-symbol" aria-hidden="true">+</span>
+  </NavLink>
 
-        <NavLink to="/home" className="mobile-search-button" aria-label="Lector" onClick={closeSettings}>
-          <span className="css-search-icon" aria-hidden="true" />
-        </NavLink>
+  <NavLink
+    to="/animal-watchlist"
+    className="mobile-search-button"
+    aria-label="Buscar animales marcados"
+    onClick={closeSettings}
+  >
+    <span className="css-search-icon" aria-hidden="true" />
+  </NavLink>
 
-        <NavLink to="/ai-chat" className="mobile-nav-button" onClick={closeSettings}>
-          IA
-        </NavLink>
+  <NavLink
+    to="/reminders"
+    className="mobile-nav-button mobile-nav-alert"
+    aria-label="Avisos"
+    onClick={closeSettings}
+  >
+    <span className="mobile-nav-symbol" aria-hidden="true">!</span>
+  </NavLink>
 
-        <NavLink to="/reminders" className="mobile-nav-button" onClick={closeSettings}>
-          Avisos
-        </NavLink>
-      </nav>
+  <NavLink
+    to="/ai-chat"
+    className="mobile-nav-button mobile-nav-ai"
+    aria-label="IA"
+    onClick={closeSettings}
+  >
+    <span className="mobile-nav-symbol mobile-nav-ai-text" aria-hidden="true">IA</span>
+  </NavLink>
+</nav>
     </div>
   );
 }

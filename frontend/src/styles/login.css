@@ -621,13 +621,6 @@
     border-color var(--transition-normal);
 }
 
-.login-intro:hover,
-.login-form-card:hover,
-.login-description-card:hover {
-  border-color: rgba(63, 107, 75, 0.22);
-  box-shadow: var(--shadow-hover);
-}
-
 
 .login-form-card {
   align-items: center;

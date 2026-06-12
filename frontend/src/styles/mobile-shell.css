@@ -135,93 +135,100 @@
   }
 
   .mobile-bottom-nav {
-    position: fixed;
-    z-index: 100;
-    left: 0.75rem;
-    right: 0.75rem;
-    bottom: calc(0.75rem + env(safe-area-inset-bottom));
-    height: 72px;
-    display: grid;
-    grid-template-columns: 1fr 1fr 84px 1fr 1fr;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.5rem;
-    border: 1px solid rgba(216, 222, 215, 0.92);
-    border-radius: var(--radius-xl);
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 18px 42px rgba(35, 49, 39, 0.20);
-    backdrop-filter: blur(14px);
-  }
+  position: fixed;
+  z-index: 100;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(48px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  gap: 0;
+  padding: 0.25rem 0.5rem calc(0.25rem + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: 18px 18px 0 0;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 -8px 24px rgba(35, 49, 39, 0.12);
+  backdrop-filter: blur(12px);
+}
 
-  .mobile-nav-button,
-  .mobile-search-button {
-    border: 0;
-    font-weight: 850;
-    color: var(--color-primary-dark);
-    box-shadow: none;
-  }
+.mobile-nav-button,
+.mobile-search-button {
+  min-height: 0;
+  width: 100%;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--color-primary-dark);
+  box-shadow: none;
+  font-weight: 900;
+}
 
-  .mobile-nav-button {
-    display: grid;
-    place-items: center;
-    height: 100%;
-    padding: 0;
-    border-radius: 20px;
-    background: transparent;
-    font-size: 0.9rem;
-    text-align: center;
-  }
+.mobile-nav-symbol {
+  font-size: 1.35rem;
+  line-height: 1;
+}
 
-  .mobile-nav-button:hover,
-  .mobile-nav-button.active {
-    background: var(--color-secondary);
-    transform: none;
-  }
+.mobile-nav-plus .mobile-nav-symbol {
+  font-size: 1.9rem;
+  transform: translateY(-1px);
+}
 
-  .mobile-search-button {
-    width: 58px;
-    height: 58px;
-    display: grid;
-    place-items: center;
-    justify-self: center;
-    border-radius: 50%;
-    background: var(--color-primary);
-    color: var(--color-white);
-    box-shadow: 0 10px 24px rgba(63, 107, 75, 0.32);
-  }
+.mobile-nav-alert .mobile-nav-symbol {
+  font-size: 1.55rem;
+}
 
-  .mobile-search-button:hover,
-  .mobile-search-button.active {
-    background: var(--color-primary-dark);
-    transform: translateY(-1px);
-  }
+.mobile-nav-ai-text {
+  font-size: 1rem;
+  letter-spacing: -0.04em;
+}
 
-  .mobile-search-button:active {
-    transform: translateY(0);
-  }
+.mobile-nav-button:hover,
+.mobile-nav-button.active {
+  background: var(--color-secondary);
+  transform: none;
+}
 
-  .mobile-settings-button {
-    position: fixed;
-    z-index: 120;
-    right: 0.85rem;
-    bottom: calc(92px + env(safe-area-inset-bottom));
-    width: 46px;
-    height: 46px;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border: 1px solid rgba(216, 222, 215, 0.95);
-    border-radius: 50%;
-    background: var(--surface-card);
-    color: var(--color-primary-dark);
-    box-shadow: 0 10px 28px rgba(35, 49, 39, 0.18);
-  }
+.mobile-search-button {
+  width: 44px;
+  height: 44px;
+  justify-self: center;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--color-white);
+  box-shadow: 0 8px 18px rgba(63, 107, 75, 0.28);
+  transform: translateY(-7px);
+}
 
-  .mobile-settings-button.open,
-  .mobile-settings-button:hover {
-    background: var(--color-primary);
-    color: var(--color-white);
-  }
+.mobile-search-button:hover,
+.mobile-search-button.active {
+  background: var(--color-primary-dark);
+  transform: translateY(-7px);
+}
+
+.mobile-search-button:active {
+  transform: translateY(-6px);
+}
+
+.css-search-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.css-search-icon::before {
+  width: 12px;
+  height: 12px;
+  border-width: 3px;
+}
+
+.css-search-icon::after {
+  width: 9px;
+  height: 3px;
+}
 
   .mobile-settings-panel {
     position: fixed;
