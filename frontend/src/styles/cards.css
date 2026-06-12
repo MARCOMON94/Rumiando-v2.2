@@ -4,6 +4,10 @@
   gap: 1rem;
 }
 
+.reminders-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .metric-card,
 .panel,
 .animal-card {
@@ -210,6 +214,53 @@
   background: var(--surface-soft);
 }
 
+.reminders-cards-list {
+  margin-top: 1rem;
+}
+
+.reminder-alert-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.reminder-alert-actions .watchlist-add-wrapper,
+.reminder-alert-actions .button,
+.reminder-alert-actions button {
+  width: 100%;
+}
+
+.reminder-alert-actions .watchlist-add-wrapper button,
+.reminder-alert-actions .button,
+.reminder-alert-actions > button {
+  min-width: 0;
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+}
+
+.admin-invitations-page {
+  min-width: 0;
+}
+
+.admin-invitations-page .panel,
+.admin-invitations-page .cards-list,
+.invitation-card {
+  min-width: 0;
+}
+
+.invitation-email {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.18;
+}
+
+.invitation-card p {
+  overflow-wrap: anywhere;
+}
+
 .animal-card-header .tag {
   max-width: 60%;
   white-space: normal;
@@ -244,11 +295,33 @@
 }
 
 @media (max-width: 650px) {
-  .metrics-grid,
   .animals-grid,
   .cards-list,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reminders-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .reminders-summary-grid .metric-card {
+    min-width: 0;
+    padding: 0.75rem 0.55rem;
+    text-align: center;
+  }
+
+  .reminders-summary-grid .metric-card span {
+    font-size: 0.74rem;
+  }
+
+  .reminders-summary-grid .metric-card strong {
+    font-size: 1.55rem;
   }
 
   .animal-card-header {
@@ -260,7 +333,19 @@
   }
 
   .cards-list .panel {
-    padding: 1.25rem;
+    padding: 1rem;
+  }
+
+  .admin-invitations-page .panel {
+    padding: 1rem;
+  }
+
+  .admin-invitations-page .cards-list {
+    gap: 0.85rem;
+  }
+
+  .invitation-card .form-actions button {
+    width: 100%;
   }
 
   .cards-list .form-actions {
@@ -271,13 +356,14 @@
     padding: 1.35rem;
   }
 
-  .reminder-alert-card .form-actions {
-    justify-content: center;
-  }
-
   .reminder-alert-card .form-actions button,
   .reminder-alert-card .form-actions .button,
   .reminder-alert-card .watchlist-add-wrapper button {
-    width: min(100%, 280px);
+    width: 100%;
+    min-width: 0;
+  }
+
+  .reminder-alert-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

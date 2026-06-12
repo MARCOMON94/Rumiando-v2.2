@@ -1,7 +1,13 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { get } from '../api/apiClient';
 import AnimalWatchlistButton from '../components/animal-watchlist/AnimalWatchlistButton';
+
+const PRIORITY_RANK = {
+  HIGH: 0,
+  MEDIUM: 1,
+  LOW: 2
+};
 
 function getLevelClass(level) {
   return String(level || 'LOW').toLowerCase();
@@ -24,6 +30,10 @@ function getReadableType(type) {
   };
 
   return labels[type] || 'Aviso automático';
+}
+
+function priorityRank(alert) {
+  return PRIORITY_RANK[alert?.level] ?? 99;
 }
 
 export default function RemindersPage() {
@@ -49,131 +59,119 @@ export default function RemindersPage() {
     loadAutomaticAlerts();
   }, []);
 
-  const highAlerts = automaticAlerts.filter((alert) => alert.level === 'HIGH');
-  const mediumAlerts = automaticAlerts.filter((alert) => alert.level === 'MEDIUM');
-  const lowAlerts = automaticAlerts.filter((alert) => alert.level === 'LOW');
+  const sortedAlerts = useMemo(() => (
+    [...automaticAlerts].sort((left, right) => {
+      const priorityDiff = priorityRank(left) - priorityRank(right);
+
+      if (priorityDiff !== 0) return priorityDiff;
+
+      return String(left.title || '').localeCompare(String(right.title || ''), 'es');
+    })
+  ), [automaticAlerts]);
+
+  const urgentAlerts = automaticAlerts.filter((alert) => alert.level === 'HIGH');
+  const otherAlerts = automaticAlerts.filter((alert) => alert.level !== 'HIGH');
 
   return (
-    <section className="page">
+    <section className="page reminders-page">
       <header className="page-header">
         <div>
-          <h2>Avisos automáticos</h2>
+          <h2>Avisos</h2>
           <p>
-            Avisos calculados por el backend según el estado real de animales,
-            corrales, sanidad y reproducción.
+            Aquí tienes los avisos y recomendaciones importantes para priorizar el trabajo
+            diario de la explotación.
           </p>
         </div>
-
-        <button type="button" onClick={loadAutomaticAlerts}>
-          Recalcular avisos
-        </button>
       </header>
 
       {error && <p className="alert error">Error: {error}</p>}
 
-      <div className="metrics-grid">
-  <article className="metric-card">
-    <span>Total avisos</span>
-    <strong>{automaticAlerts.length}</strong>
-  </article>
+      <div className="metrics-grid reminders-summary-grid">
+        <article className="metric-card">
+          <span>Total</span>
+          <strong>{automaticAlerts.length}</strong>
+        </article>
 
-  <article className="metric-card">
-    <span>Avisos urgentes</span>
-    <strong>{highAlerts.length}</strong>
-  </article>
+        <article className="metric-card">
+          <span>Urgentes</span>
+          <strong>{urgentAlerts.length}</strong>
+        </article>
 
-  <article className="metric-card">
-    <span>Avisos importantes</span>
-    <strong>{mediumAlerts.length}</strong>
-  </article>
+        <article className="metric-card">
+          <span>Otros</span>
+          <strong>{otherAlerts.length}</strong>
+        </article>
+      </div>
 
-  <article className="metric-card">
-    <span>Avisos leves</span>
-    <strong>{lowAlerts.length}</strong>
-  </article>
-</div>
+      {loadingAutomatic && <p>Cargando avisos...</p>}
 
-      <section className="panel">
-        <div className="section-header">
-          <div>
-            <h3>Avisos calculados</h3>
-            <p>
-              Si el ganadero realiza la acción recomendada, el aviso dejará de aparecer
-              cuando ya no se cumpla la condición que lo genera.
-            </p>
-          </div>
+      {!loadingAutomatic && sortedAlerts.length === 0 && (
+        <div className="empty-state">
+          <h3>No hay avisos</h3>
+          <p>No hay recomendaciones pendientes para esta cuenta ganadera.</p>
         </div>
+      )}
 
-        {loadingAutomatic && <p>Cargando avisos automáticos...</p>}
+      {!loadingAutomatic && sortedAlerts.length > 0 && (
+        <div className="cards-list reminders-cards-list">
+          {sortedAlerts.map((alert, index) => (
+            <article className="panel reminder-alert-card" key={`${alert.type}-${alert.animal?.id || index}`}>
+              <div className="animal-card-header">
+                <span className={`priority ${getLevelClass(alert.level)}`}>
+                  {getLevelText(alert.level)}
+                </span>
+                <span className="tag">{getReadableType(alert.type)}</span>
+              </div>
 
-        {!loadingAutomatic && automaticAlerts.length === 0 && (
-          <div className="empty-state">
-            <h3>No hay avisos automáticos</h3>
-            <p>No se han calculado avisos para esta cuenta ganadera.</p>
-          </div>
-        )}
+              <h3>{alert.title}</h3>
 
-        {!loadingAutomatic && automaticAlerts.length > 0 && (
-          <div className="cards-list">
-            {automaticAlerts.map((alert, index) => (
-              <article className="panel reminder-alert-card" key={`${alert.type}-${alert.animal?.id || index}`}>
-                <div className="animal-card-header">
-                  <span className={`priority ${getLevelClass(alert.level)}`}>
-                    {getLevelText(alert.level)}
-                  </span>
-                  <span className="tag">{getReadableType(alert.type)}</span>
-                </div>
+              <p>{alert.reason}</p>
 
-                <h3>{alert.title}</h3>
+              <p>
+                <strong>Acción sugerida:</strong>{' '}
+                {alert.suggestedAction}
+              </p>
 
-                <p>{alert.reason}</p>
+              <p>
+                <strong>Crotal:</strong>{' '}
+                {alert.animal?.earTag || 'Sin animal'}
+              </p>
 
-                <p>
-                  <strong>Acción sugerida:</strong>{' '}
-                  {alert.suggestedAction}
-                </p>
+              <p>
+                <strong>Corral:</strong>{' '}
+                {alert.animal?.currentPen || alert.penName || 'Sin corral'}
+              </p>
 
-                <p>
-                  <strong>Crotal:</strong>{' '}
-                  {alert.animal?.earTag || 'Sin animal'}
-                </p>
-
-                <p>
-                  <strong>Corral:</strong>{' '}
-                  {alert.animal?.currentPen || alert.penName || 'Sin corral'}
-                </p>
-
-                <div className="form-actions">
-                  {alert.animal?.id ? (
-                    <>
-                      <AnimalWatchlistButton
-                        animalId={alert.animal.id}
-                        motivoTipo={getReadableType(alert.type)}
-                        motivoTexto={alert.reason}
-                        sourceType="automatic_alert"
-                        sourceRef={`${alert.type}-${alert.animal.id}`}
-                        promptReason={false}
-                        label="Búsqueda"
-                        className="secondary"
-                      />
-                      <Link
-                        className="button"
-                        to={`/animals/${alert.animal.id}`}
-                      >
-                        Ver ficha animal
-                      </Link>
-                    </>
-                  ) : (
-                    <button type="button" disabled>
-                      Sin ficha asociada
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+              <div className="form-actions reminder-alert-actions">
+                {alert.animal?.id ? (
+                  <>
+                    <AnimalWatchlistButton
+                      animalId={alert.animal.id}
+                      motivoTipo={getReadableType(alert.type)}
+                      motivoTexto={alert.reason}
+                      sourceType="automatic_alert"
+                      sourceRef={`${alert.type}-${alert.animal.id}`}
+                      promptReason={false}
+                      label="Búsqueda"
+                      className="secondary"
+                    />
+                    <Link
+                      className="button"
+                      to={`/animals/${alert.animal.id}`}
+                    >
+                      Ficha
+                    </Link>
+                  </>
+                ) : (
+                  <button type="button" disabled>
+                    Sin ficha
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

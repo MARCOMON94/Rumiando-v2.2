@@ -79,6 +79,14 @@
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
+  .app-modal.settings-modal {
+    align-self: start;
+    margin-top: max(1rem, env(safe-area-inset-top));
+    max-height: calc(100dvh - 84px - env(safe-area-inset-top));
+    overflow-y: auto;
+    border-radius: var(--radius-lg);
+  }
+
   .app-modal-footer {
     display: grid;
     grid-template-columns: 1fr;

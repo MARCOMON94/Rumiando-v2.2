@@ -1,7 +1,8 @@
 ﻿import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { get } from '../api/apiClient';
+import { get, post } from '../api/apiClient';
 import AnimalWatchlistButton from '../components/animal-watchlist/AnimalWatchlistButton';
+import AppModal from '../components/ui/AppModal';
 
 function formatDate(value) {
   if (!value) return 'Sin fecha';
@@ -26,6 +27,16 @@ function InfoRow({ label, value }) {
       {value || 'Sin registrar'}
     </p>
   );
+}
+
+function getReminderDisplayText(reminder) {
+  if (!reminder) return '';
+
+  if (String(reminder.tipo || '').startsWith('ALERTA_MANUAL')) {
+    return reminder.nota || 'Alerta manual';
+  }
+
+  return reminder.nota || reminder.tipo;
 }
 
 function formatElapsedSince(value) {
@@ -59,6 +70,38 @@ function formatElapsedSince(value) {
   }
 
   return parts.join(' y ');
+}
+
+function formatDateInput(value = new Date()) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function addRelativeTime(amount, unit) {
+  const date = new Date();
+  const parsedAmount = Number(amount || 0);
+
+  if (!parsedAmount || parsedAmount < 1) return null;
+
+  if (unit === 'months') {
+    date.setMonth(date.getMonth() + parsedAmount);
+    return date;
+  }
+
+  if (unit === 'years') {
+    date.setFullYear(date.getFullYear() + parsedAmount);
+    return date;
+  }
+
+  date.setDate(date.getDate() + parsedAmount);
+  return date;
 }
 
 function formatAge(value) {
@@ -131,6 +174,17 @@ export default function AnimalDetailPage() {
   const [expandedRows, setExpandedRows] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [manualAlertOpen, setManualAlertOpen] = useState(false);
+  const [manualAlertSaving, setManualAlertSaving] = useState(false);
+  const [manualAlertError, setManualAlertError] = useState('');
+  const [manualAlertForm, setManualAlertForm] = useState({
+    mode: 'relative',
+    amount: '7',
+    unit: 'days',
+    date: formatDateInput(),
+    reason: '',
+    priority: 'MEDIA'
+  });
 
   useEffect(() => {
     async function loadAnimal() {
@@ -185,7 +239,7 @@ export default function AnimalDetailPage() {
       : 'Sin casos abiertos';
   const healthTime = formatElapsedSince(firstOpenCase?.fechaInicio || vaccinations[0]?.fecha);
   const alertStatus = activeAlerts.length > 0
-    ? firstReminder?.tipo || firstReminder?.nota || firstOpenCase?.enfermedad?.nombre || `${activeAlerts.length} activa(s)`
+    ? getReminderDisplayText(firstReminder) || firstOpenCase?.enfermedad?.nombre || `${activeAlerts.length} activa(s)`
     : 'Sin alertas activas';
   const alertTime = formatElapsedSince(firstReminder?.fechaObjetivo || firstOpenCase?.fechaInicio);
   const partosCount = (animal.eventosReproductivos || []).filter((event) => event.tipoEvento === 'PARTO').length;
@@ -229,6 +283,60 @@ export default function AnimalDetailPage() {
     });
   }
 
+  function updateManualAlertForm(field, value) {
+    setManualAlertForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+    setManualAlertError('');
+  }
+
+  async function submitManualAlert(event) {
+    event.preventDefault();
+
+    if (!animal?.id || manualAlertSaving) return;
+
+    const targetDate = manualAlertForm.mode === 'date'
+      ? new Date(`${manualAlertForm.date}T12:00:00`)
+      : addRelativeTime(manualAlertForm.amount, manualAlertForm.unit);
+
+    if (!targetDate || Number.isNaN(targetDate.getTime())) {
+      setManualAlertError('Indica cuándo quieres recibir la alerta.');
+      return;
+    }
+
+    setManualAlertSaving(true);
+    setManualAlertError('');
+
+    try {
+      const reminder = await post('/reminders', {
+        tipo: `ALERTA_MANUAL_${manualAlertForm.priority}`,
+        fechaObjetivo: targetDate.toISOString(),
+        origenRegla: 'PERSONALIZADO',
+        nota: manualAlertForm.reason.trim() || 'Alerta manual',
+        animalId: Number(animal.id)
+      });
+
+      setAnimal((current) => ({
+        ...current,
+        recordatorios: [reminder, ...(current.recordatorios || [])]
+      }));
+      setManualAlertOpen(false);
+      setManualAlertForm({
+        mode: 'relative',
+        amount: '7',
+        unit: 'days',
+        date: formatDateInput(),
+        reason: '',
+        priority: 'MEDIA'
+      });
+    } catch (err) {
+      setManualAlertError(err.message || 'No se pudo crear la alerta.');
+    } finally {
+      setManualAlertSaving(false);
+    }
+  }
+
   return (
     <section className="page">
       <header className="page-header">
@@ -253,16 +361,26 @@ export default function AnimalDetailPage() {
             <strong>{animal.crotal}</strong>
           </div>
 
-          <AnimalWatchlistButton
-            animalId={animal.id}
-            sourceType="animal_detail"
-            sourceRef={`animal-${animal.id}`}
-            promptReason
-            label="Búsqueda"
-            className="secondary animal-profile-watch-button"
-            iconOnly
-            showMiniLabel
-          />
+          <div className="animal-profile-side-actions">
+            <AnimalWatchlistButton
+              animalId={animal.id}
+              sourceType="animal_detail"
+              sourceRef={`animal-${animal.id}`}
+              promptReason
+              label="Búsqueda"
+              className="secondary animal-profile-watch-button"
+              iconOnly
+              showMiniLabel
+            />
+            <button
+              type="button"
+              className="secondary animal-profile-alert-button"
+              onClick={() => setManualAlertOpen(true)}
+            >
+              <img src="/assets/icon-cencerro-green.png" alt="" aria-hidden="true" />
+              <small>Alerta</small>
+            </button>
+          </div>
         </div>
 
         <div className="animal-profile-main-actions">
@@ -347,7 +465,7 @@ export default function AnimalDetailPage() {
           >
             {activeReminders.length > 0 && activeReminders.map((reminder) => (
               <div className="compact-item" key={`reminder-${reminder.id}`}>
-                <InfoRow label="Aviso" value={reminder.tipo || reminder.nota} />
+                <InfoRow label="Aviso" value={getReminderDisplayText(reminder)} />
                 <InfoRow label="Fecha objetivo" value={formatDate(reminder.fechaObjetivo)} />
               </div>
             ))}
@@ -414,6 +532,106 @@ export default function AnimalDetailPage() {
           />
         </div>
       </section>
+
+      <AppModal
+        open={manualAlertOpen}
+        title="Añadir alerta"
+        description="Programa un aviso manual para este animal."
+        onClose={() => {
+          if (!manualAlertSaving) setManualAlertOpen(false);
+        }}
+      >
+        <form className="manual-alert-form" onSubmit={submitManualAlert}>
+          <div className="manual-alert-mode-grid" role="group" aria-label="Tipo de fecha">
+            <button
+              type="button"
+              className={manualAlertForm.mode === 'relative' ? 'active' : ''}
+              onClick={() => updateManualAlertForm('mode', 'relative')}
+            >
+              Dentro de
+            </button>
+            <button
+              type="button"
+              className={manualAlertForm.mode === 'date' ? 'active' : ''}
+              onClick={() => updateManualAlertForm('mode', 'date')}
+            >
+              Elegir fecha
+            </button>
+          </div>
+
+          {manualAlertForm.mode === 'relative' ? (
+            <div className="manual-alert-inline">
+              <label>
+                Número
+                <input
+                  type="number"
+                  min="1"
+                  value={manualAlertForm.amount}
+                  onChange={(event) => updateManualAlertForm('amount', event.target.value)}
+                />
+              </label>
+              <label>
+                Tiempo
+                <select
+                  value={manualAlertForm.unit}
+                  onChange={(event) => updateManualAlertForm('unit', event.target.value)}
+                >
+                  <option value="days">días</option>
+                  <option value="months">meses</option>
+                  <option value="years">años</option>
+                </select>
+              </label>
+            </div>
+          ) : (
+            <label>
+              Fecha
+              <input
+                type="date"
+                value={manualAlertForm.date}
+                onChange={(event) => updateManualAlertForm('date', event.target.value)}
+              />
+            </label>
+          )}
+
+          <label>
+            Motivo
+            <textarea
+              rows="3"
+              value={manualAlertForm.reason}
+              onChange={(event) => updateManualAlertForm('reason', event.target.value)}
+              placeholder="Ej. Revisar ubre, repetir ecografía, llamar al veterinario..."
+            />
+          </label>
+
+          <label>
+            Prioridad
+            <select
+              value={manualAlertForm.priority}
+              onChange={(event) => updateManualAlertForm('priority', event.target.value)}
+            >
+              <option value="ALTA">Alta</option>
+              <option value="MEDIA">Media</option>
+              <option value="BAJA">Baja</option>
+            </select>
+          </label>
+
+          {manualAlertError && <p className="alert error">Error: {manualAlertError}</p>}
+
+          <div className="app-modal-footer">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setManualAlertOpen(false)}
+              disabled={manualAlertSaving}
+            >
+              Cancelar
+            </button>
+            <button type="submit" disabled={manualAlertSaving}>
+              {manualAlertSaving ? 'Añadiendo...' : 'Añadir alerta'}
+            </button>
+          </div>
+        </form>
+      </AppModal>
     </section>
   );
 }

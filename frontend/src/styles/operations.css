@@ -42,7 +42,7 @@
 .field-crotal-search-button:hover,
 .field-crotal-search-button.active {
   border-color: rgba(63, 107, 75, 0.3);
-  background: var(--color-white);
+  background: var(--surface-card-strong);
   box-shadow: var(--shadow-hover);
 }
 
@@ -131,7 +131,7 @@
 
 .field-operation-button:hover {
   border-color: rgba(63, 107, 75, 0.28);
-  background: var(--color-white);
+  background: var(--surface-card-strong);
   transform: translateY(-1px);
   box-shadow: var(--shadow-hover);
 }
@@ -222,6 +222,120 @@
 .home-settings-actions {
   display: grid;
   gap: 0.75rem;
+}
+
+.settings-alert-config {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.settings-back-button {
+  justify-self: start;
+  min-height: 38px;
+  padding: 0.55rem 0.85rem;
+}
+
+.settings-theme-section {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.settings-theme-section > span {
+  color: var(--color-primary-dark);
+  font-weight: 850;
+}
+
+.theme-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+}
+
+.theme-toggle button {
+  min-height: 40px;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-primary-dark);
+  box-shadow: none;
+}
+
+.theme-toggle button:hover,
+.theme-toggle button.active {
+  background: var(--color-primary);
+  color: var(--color-white);
+  transform: none;
+  box-shadow: var(--shadow-button);
+}
+
+.alert-preset-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+}
+
+.alert-preset-toggle button {
+  min-height: 38px;
+  padding: 0.5rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-primary-dark);
+  box-shadow: none;
+  font-size: 0.88rem;
+}
+
+.alert-preset-toggle button:hover,
+.alert-preset-toggle button.active {
+  background: var(--color-primary);
+  color: var(--color-white);
+  transform: none;
+  box-shadow: var(--shadow-button);
+}
+
+.alert-config-rows {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.alert-config-row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.alert-config-row > span:first-child {
+  color: var(--color-primary-dark);
+  font-weight: 850;
+}
+
+.alert-config-input-line {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.alert-config-input-line input {
+  min-height: 40px;
+  padding-inline: 0.65rem;
+  text-align: center;
+}
+
+.alert-config-input-line small {
+  color: var(--color-muted);
+  font-weight: 750;
+  line-height: 1.2;
 }
 
 .birth-offspring-list {
@@ -458,7 +572,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
-  align-items: center;
+  align-items: stretch;
 }
 
 .animal-profile-code {
@@ -504,6 +618,79 @@
 
 .animal-profile-watch-button .watchlist-button-mark small {
   display: block;
+}
+
+.animal-profile-side-actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.animal-profile-side-actions .watchlist-add-wrapper {
+  width: 72px;
+}
+
+.animal-profile-alert-button {
+  width: 72px;
+  min-width: 72px;
+  height: 58px;
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  gap: 0.05rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-pill);
+}
+
+.animal-profile-alert-button img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.animal-profile-alert-button small {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.58rem;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.manual-alert-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.manual-alert-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+}
+
+.manual-alert-mode-grid button {
+  min-height: 40px;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-primary-dark);
+  box-shadow: none;
+}
+
+.manual-alert-mode-grid button:hover,
+.manual-alert-mode-grid button.active {
+  background: var(--color-primary);
+  color: var(--color-white);
+  transform: none;
+  box-shadow: var(--shadow-button);
+}
+
+.manual-alert-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 0.75rem;
 }
 
 .animal-profile-main-actions {
@@ -607,7 +794,7 @@
   gap: 0.45rem;
   padding: 0.75rem;
   border-radius: var(--radius-md);
-  background: var(--color-white);
+  background: var(--surface-card-strong);
 }
 
 .animal-summary-detail p {
@@ -688,6 +875,10 @@
   .animal-preview-main,
   .animal-preview-list,
   .animal-profile-main-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-alert-inline {
     grid-template-columns: 1fr;
   }
 

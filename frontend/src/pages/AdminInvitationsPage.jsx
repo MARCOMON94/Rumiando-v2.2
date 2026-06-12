@@ -126,7 +126,7 @@ export default function AdminInvitationsPage() {
 
   if (!isAdmin) {
     return (
-      <section className="page">
+      <section className="page admin-invitations-page">
         <header className="page-header">
           <div>
             <h2>Invitaciones</h2>
@@ -143,7 +143,7 @@ export default function AdminInvitationsPage() {
   }
 
   return (
-    <section className="page">
+    <section className="page admin-invitations-page">
       <header className="page-header">
         <div>
           <h2>Invitaciones</h2>
@@ -233,7 +233,7 @@ export default function AdminInvitationsPage() {
         {!loading && invitations.length > 0 && (
           <div className="cards-list">
             {invitations.map((invitation) => (
-              <article className="panel" key={invitation.id}>
+              <article className="panel invitation-card" key={invitation.id}>
                 <div className="animal-card-header">
                   <span className="tag">
                     {getStatusText(invitation.status)}
@@ -243,7 +243,7 @@ export default function AdminInvitationsPage() {
                   </span>
                 </div>
 
-                <h3>{invitation.email}</h3>
+                <h3 className="invitation-email">{invitation.email}</h3>
 
                 <p>
                   <strong>Creada:</strong>{' '}

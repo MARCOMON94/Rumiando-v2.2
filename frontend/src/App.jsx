@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -22,6 +23,14 @@ import BirthNewPage from './pages/BirthNewPage';
 import AnimalDischargePage from './pages/AnimalDischargePage';
 
 export default function App() {
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem('rumiando-theme');
+    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    const theme = storedTheme || (prefersDark ? 'dark' : 'light');
+
+    document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+  }, []);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

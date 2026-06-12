@@ -7,7 +7,8 @@ export default function AppModal({
   children,
   footer,
   onClose,
-  closeLabel = 'Cerrar'
+  closeLabel = 'Cerrar',
+  modalClassName = ''
 }) {
   useEffect(() => {
     if (!open) return undefined;
@@ -30,7 +31,7 @@ export default function AppModal({
   return (
     <div className="app-modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="app-modal"
+        className={`app-modal ${modalClassName}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-label={title}

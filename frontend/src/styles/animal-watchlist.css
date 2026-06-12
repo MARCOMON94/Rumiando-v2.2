@@ -199,6 +199,19 @@
   min-width: max-content;
 }
 
+.watchlist-add-wrapper button.watchlist-added {
+  cursor: pointer;
+  background: var(--color-secondary);
+  color: var(--color-primary-dark);
+  box-shadow: none;
+}
+
+.watchlist-add-wrapper button.watchlist-added:hover {
+  transform: none;
+  background: var(--color-secondary);
+  box-shadow: none;
+}
+
 .watchlist-button-mark {
   display: inline-grid;
   place-items: center;
