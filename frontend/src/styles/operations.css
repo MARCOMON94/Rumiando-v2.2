@@ -3,30 +3,6 @@
   gap: 1rem;
 }
 
-.field-home-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  padding: 1.25rem;
-  border: 1px solid rgba(216, 222, 215, 0.95);
-  border-radius: var(--radius-lg);
-  background: var(--surface-card);
-  box-shadow: var(--shadow-card);
-}
-
-.field-home-header h2 {
-  margin: 0;
-  color: var(--color-primary-dark);
-  font-size: clamp(1.7rem, 4vw, 2.35rem);
-  letter-spacing: -0.04em;
-}
-
-.field-home-header p {
-  margin: 0.35rem 0 0;
-  color: var(--color-muted);
-}
-
 .field-home-top-actions {
   display: flex;
   gap: 0.75rem;
@@ -41,30 +17,72 @@
 
 .field-operation-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.field-operation-grid-custom {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .field-operation-button {
-  min-height: 86px;
-  justify-content: flex-start;
-  padding: 1rem;
+  min-height: 64px;
+  justify-content: center;
+  padding: 0.85rem 1rem;
   border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
   background: var(--surface-card);
   color: var(--color-primary-dark);
   box-shadow: var(--shadow-card);
-  text-align: left;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 850;
 }
 
 .field-operation-button:hover {
   border-color: rgba(63, 107, 75, 0.28);
   background: var(--color-white);
+  transform: none;
+  box-shadow: var(--shadow-card);
 }
 
 .field-operation-button span {
   display: block;
   font-weight: 900;
   line-height: 1.15;
+}
+
+.field-operation-wide {
+  grid-column: 1 / -1;
+}
+
+.field-operation-live {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding-inline: 1.25rem 0.65rem;
+  background: var(--color-secondary);
+  border-color: rgba(63, 107, 75, 0.18);
+}
+
+.field-watchlist-pill {
+  min-width: 70px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px solid rgba(63, 107, 75, 0.24);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-dark);
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(35, 49, 39, 0.06);
+}
+
+.field-watchlist-pill strong {
+  font-size: 1.35rem;
+  line-height: 1;
 }
 
 .operation-panel,
@@ -314,8 +332,15 @@
 }
 
 @media (max-width: 520px) {
-  .field-operation-grid,
   .field-home-top-actions {
     grid-template-columns: 1fr;
+  }
+
+  .field-operation-grid-custom {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field-operation-wide {
+    grid-column: 1 / -1;
   }
 }

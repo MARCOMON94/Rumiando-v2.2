@@ -1,23 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { get } from '../api/apiClient';
-import OperationSessionPanel from '../components/operations/OperationSessionPanel';
-import { OPERATION_DEFINITIONS } from '../components/operations/operationConfig';
-import AnimalReaderPanel from '../components/reader/AnimalReaderPanel';
-import { useOperationSession } from '../context/OperationSessionContext';
 
-function modeForOperation(operationType) {
-  if (operationType === 'baja' || operationType === 'estado_reproductivo') {
-    return 'unitario';
-  }
-  return 'lote';
+function activateSilentReader() {
+  window.dispatchEvent(new CustomEvent('rumiando:silent-reader:activate'));
 }
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const { startOperation } = useOperationSession();
-  const [readerOpen, setReaderOpen] = useState(false);
-  const [readerNotice, setReaderNotice] = useState('');
+  const [searchParams] = useSearchParams();
   const [watchlistTotal, setWatchlistTotal] = useState(0);
 
   const loadWatchlistCount = useCallback(async function loadWatchlistCount() {
@@ -41,21 +32,11 @@ export default function HomePage() {
     };
   }, [loadWatchlistCount]);
 
-  function openOperation(operationType) {
-    setReaderOpen(false);
-    startOperation({
-      operationType,
-      mode: modeForOperation(operationType),
-      source: 'home',
-      status: 'reading'
-    });
-  }
-
-  function handleAnimalRead(animal) {
-    if (!animal?.id) return;
-    setReaderNotice(`${animal.crotal} encontrado.`);
-    navigate(`/animals/${animal.id}?preview=1`);
-  }
+  useEffect(() => {
+    if (searchParams.get('reader') === '1') {
+      activateSilentReader();
+    }
+  }, [searchParams]);
 
   return (
     <section className="clean-home-page field-home-page">
@@ -63,55 +44,96 @@ export default function HomePage() {
         <div>
           <p className="eyebrow">RumiAndo</p>
           <h2>Trabajo de campo</h2>
-          <p>Lee un crotal, abre el chat o registra una operacion.</p>
-        </div>
-
-        <div className="field-home-top-actions">
-          <button type="button" className="field-reader-button" onClick={() => setReaderOpen((value) => !value)}>
-            Lector
-          </button>
-          <button type="button" className="secondary" onClick={() => navigate('/ai-chat')}>
-            Chat IA
-          </button>
-          <button
-            type="button"
-            className="secondary field-watchlist-button"
-            onClick={() => navigate('/animal-watchlist')}
-          >
-            <span>Animal Watchlist</span>
-            <span className="watchlist-nav-count">{watchlistTotal}</span>
-          </button>
+          <p>Elige una acción o usa el lector para abrir la ficha del animal.</p>
         </div>
       </div>
 
-      {readerOpen && (
-        <AnimalReaderPanel
-          compact
-          title="Lector de crotal"
-          subtitle="Pasa el lector. Si el crotal existe, se abre la ficha previa."
-          initialMode="unitario"
-          hideActionSelect
-          onAnimalRead={handleAnimalRead}
-          onUnknownRead={(code) => setReaderNotice(`${code} no esta registrado.`)}
-        />
-      )}
+      <div className="field-operation-grid field-operation-grid-custom" aria-label="Operaciones principales">
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide field-operation-live"
+          onClick={activateSilentReader}
+        >
+          <span>Búsqueda viva</span>
 
-      {readerNotice && <p className="alert">{readerNotice}</p>}
+          <span className="field-watchlist-pill">
+            <strong>{watchlistTotal}</strong>
+            <span aria-hidden="true">🐑</span>
+          </span>
+        </button>
 
-      <div className="field-operation-grid" aria-label="Operaciones principales">
-        {OPERATION_DEFINITIONS.map((operation) => (
-          <button
-            key={operation.key}
-            type="button"
-            className="field-operation-button"
-            onClick={() => openOperation(operation.key)}
-          >
-            <span>{operation.label}</span>
-          </button>
-        ))}
+        <button
+          type="button"
+          className="field-operation-button"
+          onClick={activateSilentReader}
+        >
+          <span>Parto</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button"
+          onClick={activateSilentReader}
+        >
+          <span>Baja</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide"
+          onClick={() => navigate('/movements')}
+        >
+          <span>Movimiento de corral</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide"
+          onClick={() => navigate('/animals')}
+        >
+          <span>Estado reproductivo</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide"
+          onClick={() => navigate('/health')}
+        >
+          <span>Caso sanitario</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide"
+          onClick={() => navigate('/animals')}
+        >
+          <span>Censo</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide"
+          onClick={() => navigate('/dashboard')}
+        >
+          <span>Estadísticas</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide"
+          onClick={() => navigate('/reminders')}
+        >
+          <span>Alertas</span>
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide"
+          onClick={() => navigate('/ai-chat')}
+        >
+          <span>Asistente IA</span>
+        </button>
       </div>
-
-      <OperationSessionPanel />
     </section>
   );
 }
