@@ -40,6 +40,7 @@ export default function AdminInvitationsPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
   const [error, setError] = useState('');
 
   const isAdmin = user?.rol === 'ADMIN';
@@ -95,6 +96,32 @@ export default function AdminInvitationsPage() {
       setError(err.message || 'Error creando invitación');
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleCancelInvitation(invitation) {
+    const confirmed = window.confirm(
+      `¿Cancelar la invitación enviada a ${invitation.email}?`
+    );
+
+    if (!confirmed) return;
+
+    setCancellingId(invitation.id);
+    setSuccessMessage('');
+    setError('');
+
+    try {
+      const data = await post(`/invitations/${invitation.id}/cancel`, {});
+
+      setSuccessMessage(
+        data.message || 'Invitación cancelada correctamente.'
+      );
+
+      await loadInvitations();
+    } catch (err) {
+      setError(err.message || 'Error cancelando invitación');
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -252,6 +279,21 @@ export default function AdminInvitationsPage() {
                     <strong>Usuario creado:</strong>{' '}
                     {invitation.acceptedByUser.nombre || invitation.acceptedByUser.email}
                   </p>
+                )}
+
+                {invitation.status === 'PENDING' && (
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => handleCancelInvitation(invitation)}
+                      disabled={cancellingId === invitation.id}
+                    >
+                      {cancellingId === invitation.id
+                        ? 'Cancelando...'
+                        : 'Cancelar invitación'}
+                    </button>
+                  </div>
                 )}
               </article>
             ))}

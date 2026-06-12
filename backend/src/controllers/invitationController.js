@@ -83,9 +83,26 @@ async function listInvitations(req, res, next) {
   }
 }
 
+async function cancelInvitation(req, res, next) {
+  try {
+    const invitation = await invitationService.cancelInvitation(
+      req.params.id,
+      req.user
+    );
+
+    res.json({
+      message: 'Invitación cancelada correctamente',
+      invitation: removeSensitiveInvitationFields(invitation)
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createInvitation,
   validateInvitation,
   acceptInvitationWithGoogle,
-  listInvitations
+  listInvitations,
+  cancelInvitation
 };

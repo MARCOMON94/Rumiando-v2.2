@@ -20,6 +20,13 @@ router.post(
   invitationController.createInvitation
 );
 
+router.post(
+  '/:id/cancel',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  invitationController.cancelInvitation
+);
+
 router.get(
   '/validate/:token',
   invitationController.validateInvitation

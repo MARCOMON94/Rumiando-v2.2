@@ -250,9 +250,45 @@ async function listInvitations(adminUser) {
   });
 }
 
+async function cancelInvitation(invitationId, adminUser) {
+  if (!adminUser || adminUser.rol !== 'ADMIN') {
+    throw new AppError('Solo un administrador puede cancelar invitaciones', 403);
+  }
+
+  const id = Number(invitationId);
+
+  if (!Number.isInteger(id)) {
+    throw new AppError('ID de invitación no válido', 400);
+  }
+
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      id,
+      cuentaGanaderaId: adminUser.cuentaGanaderaId
+    }
+  });
+
+  if (!invitation) {
+    throw new AppError('Invitación no encontrada', 404);
+  }
+
+  if (invitation.status !== 'PENDING') {
+    throw new AppError('Solo se pueden cancelar invitaciones pendientes', 400);
+  }
+
+  await prisma.invitation.delete({
+    where: {
+      id: invitation.id
+    }
+  });
+
+  return invitation;
+}
+
 module.exports = {
   createInvitation,
   validateInvitation,
   acceptInvitationWithGoogle,
-  listInvitations
+  listInvitations,
+  cancelInvitation
 };
