@@ -26,7 +26,9 @@ function addDays(date, days) {
 }
 
 function getFrontendUrl() {
-  return process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  return frontendUrl.replace(/\/+$/, '');
 }
 
 function buildInvitationUrl(token) {
