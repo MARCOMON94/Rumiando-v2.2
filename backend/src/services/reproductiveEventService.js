@@ -30,6 +30,10 @@ async function checkAnimal(animalId, cuentaGanaderaId) {
     throw new AppError('Animal no encontrado para esta cuenta ganadera', 404);
   }
 
+  if (animal.estadoRegistro === 'BAJA') {
+    throw new AppError('No se pueden añadir eventos reproductivos a un animal dado de baja', 400);
+  }
+
   return animal;
 }
 

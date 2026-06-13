@@ -37,7 +37,10 @@ async function request(endpoint, options = {}) {
 
   if (!response.ok) {
     const message = data?.message || data?.error || 'Error en la petición';
-    throw new Error(message);
+    const error = new Error(message);
+    error.details = data?.details || null;
+    error.status = response.status;
+    throw error;
   }
 
   return data;

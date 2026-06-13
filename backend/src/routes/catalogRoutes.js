@@ -6,5 +6,6 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const router = express.Router();
 
 router.get('/', authMiddleware, catalogController.getCatalogs);
+router.post('/sanitary-normalize', authMiddleware, catalogController.normalizeSanitaryTerm);
 
 module.exports = router;

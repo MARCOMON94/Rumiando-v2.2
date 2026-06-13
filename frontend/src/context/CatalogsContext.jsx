@@ -20,7 +20,9 @@ const emptyCatalogs = {
   breeds: [],
   pens: [],
   reproductiveStatuses: [],
-  diseases: []
+  diseases: [],
+  vaccines: [],
+  dewormers: []
 };
 
 export function CatalogsProvider({ children }) {
@@ -50,7 +52,9 @@ export function CatalogsProvider({ children }) {
         breeds: getArray(data, ['breeds', 'razas']),
         pens: getArray(data, ['pens', 'corrales']),
         reproductiveStatuses: getArray(data, ['reproductiveStatuses', 'estadosReproductivos']),
-        diseases: getArray(data, ['diseases', 'enfermedades'])
+        diseases: getArray(data, ['diseases', 'enfermedades']),
+        vaccines: getArray(data, ['vaccines', 'vacunas']),
+        dewormers: getArray(data, ['dewormers', 'desparasitantes'])
       });
     } catch (err) {
       setError(err.message);

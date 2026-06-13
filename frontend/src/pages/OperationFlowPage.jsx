@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { get, post } from '../api/apiClient';
 import { useCatalogs } from '../context/CatalogsContext';
 import AppModal from '../components/ui/AppModal';
@@ -14,8 +14,8 @@ const OPERATION_META = {
     description: 'Elige el cambio reproductivo, pasa crotales y finaliza cuando esté la lista.'
   },
   health: {
-    title: 'Caso sanitario',
-    description: 'Registra vacunación, enfermedad o desparasitación para los animales leídos.'
+    title: 'Evento sanitario',
+    description: 'Registra vacunación, enfermedad, desparasitación u otro evento para los animales leídos.'
   }
 };
 
@@ -39,18 +39,69 @@ const EVENT_RESULTS = [
 
 const HEALTH_TYPES = [
   ['vaccination', 'Vacunación'],
+  ['deworming', 'Desparasitación'],
   ['disease', 'Enfermedad'],
-  ['deworming', 'Desparasitación']
+  ['other', 'Otro']
 ];
+
+const DEWORMING_TYPE_LABELS = {
+  INTERNA: 'Interna',
+  EXTERNA: 'Externa',
+  MIXTA: 'Mixta'
+};
+
+const VIA_OPTIONS = [
+  'Oral',
+  'Subcutánea',
+  'Intramuscular',
+  'Intravenosa',
+  'Tópica',
+  'Pour-on',
+  'Ocular',
+  'Otra'
+];
+
+const OTHER_VALUE = '__OTHER__';
 
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function createInitialFormData() {
+  return {
+    fecha: todayInputValue(),
+    unidadRegaId: '',
+    corralDestinoId: '',
+    motivo: '',
+    estadoResultanteId: '',
+    tipoEvento: 'REVISION_REPRODUCTIVA',
+    resultado: 'NO_APLICA',
+    semanasGestacion: '',
+    healthType: 'vaccination',
+    fullPen: false,
+    sourcePenId: '',
+    vacunaId: '',
+    vacunaTexto: '',
+    loteVacuna: '',
+    dosisTexto: '',
+    via: '',
+    enfermedadId: '',
+    enfermedadTexto: '',
+    gravedad: 'LEVE',
+    signosClinicos: '',
+    desparasitanteId: '',
+    desparasitanteTexto: '',
+    desparasitacionTipo: 'INTERNA',
+    otroSanitarioTexto: ''
+  };
+}
+
 function normalizeCode(value) {
   return String(value || '')
+    .normalize('NFKC')
     .trim()
-    .replace(/\s+/g, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
     .toUpperCase();
 }
 
@@ -71,10 +122,18 @@ function getItems(data, keys) {
   return [];
 }
 
-function isEditableTarget(target) {
+function isTextEditingTarget(target) {
   const tagName = String(target?.tagName || '').toLowerCase();
-  return ['input', 'textarea', 'select', 'button', 'a'].includes(tagName)
-    || Boolean(target?.isContentEditable);
+  if (target?.isContentEditable) return true;
+  if (tagName === 'textarea') return true;
+  if (tagName !== 'input') return false;
+
+  const type = String(target?.type || 'text').toLowerCase();
+  return !['button', 'checkbox', 'radio', 'submit', 'hidden'].includes(type);
+}
+
+function isManualEntryTarget(target) {
+  return Boolean(target?.closest?.('[data-reader-manual="true"]'));
 }
 
 function animalMatchesCode(animal, code) {
@@ -90,6 +149,14 @@ function animalPenName(animal) {
 
 function animalUnitId(animal) {
   return Number(animal?.unidadRegaId || animal?.unidadRega?.id || 0);
+}
+
+function animalSpeciesId(animal) {
+  return Number(animal?.especieId || animal?.especie?.id || 0);
+}
+
+function itemName(item, fallback = 'Sin nombre') {
+  return item?.nombre || item?.name || item?.codigoRega || fallback;
 }
 
 function formatRuleName(rule) {
@@ -112,9 +179,24 @@ function buildRuleQuery(type, rule) {
   return `¿Quieres mover también estos animales a ${formatRuleName(rule)}?`;
 }
 
+function draftStorageKey(operationType) {
+  return `rumiando-operation-draft:${operationType}`;
+}
+
+function filterBySpecies(items, speciesId) {
+  if (!speciesId) return items || [];
+  return (items || []).filter((item) => {
+    const itemSpeciesId = Number(item.especieId || item.especie?.id || 0);
+    return !itemSpeciesId || itemSpeciesId === Number(speciesId);
+  });
+}
+
+function dewormingTypeToBackend(value) {
+  return DEWORMING_TYPE_LABELS[value] || value || 'Interna';
+}
+
 export default function OperationFlowPage() {
   const { type } = useParams();
-  const navigate = useNavigate();
   const operationType = OPERATION_META[type] ? type : 'movement';
   const meta = OPERATION_META[operationType];
   const { catalogs, loading: loadingCatalogs, error: catalogsError, loadCatalogs } = useCatalogs();
@@ -122,6 +204,7 @@ export default function OperationFlowPage() {
   const readerInputRef = useRef(null);
   const readerBufferRef = useRef('');
   const readerTimerRef = useRef(null);
+  const restoredDraftRef = useRef(false);
 
   const [animals, setAnimals] = useState([]);
   const [rules, setRules] = useState([]);
@@ -130,43 +213,57 @@ export default function OperationFlowPage() {
   const [readerMessage, setReaderMessage] = useState('Pasa crotales y se irán añadiendo a la lista.');
   const [removeCandidate, setRemoveCandidate] = useState(null);
   const [pendingRule, setPendingRule] = useState(null);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
+  const [pendingNormalization, setPendingNormalization] = useState(null);
   const [result, setResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({
-    fecha: todayInputValue(),
-    unidadRegaId: '',
-    corralDestinoId: '',
-    motivo: '',
-    estadoResultanteId: '',
-    tipoEvento: 'REVISION_REPRODUCTIVA',
-    resultado: 'NO_APLICA',
-    semanasGestacion: '',
-    healthType: 'vaccination',
-    fullPen: false,
-    sourcePenId: '',
-    vacuna: '',
-    loteVacuna: '',
-    dosisTexto: '',
-    via: '',
-    enfermedadId: '',
-    gravedad: 'LEVE',
-    signosClinicos: '',
-    desparasitacionTipo: 'Interna',
-    producto: ''
-  });
+  const [formData, setFormData] = useState(createInitialFormData);
 
   const activeAnimals = useMemo(() => (
     animals.filter((animal) => animal.estadoRegistro !== 'BAJA')
   ), [animals]);
 
-  const filteredPens = useMemo(() => {
-    if (!formData.unidadRegaId) return catalogs.pens;
+  const animalsByCode = useMemo(() => {
+    const map = new Map();
+    for (const animal of animals) {
+      for (const value of [animal?.crotal, animal?.numeroInterno]) {
+        const code = normalizeCode(value);
+        if (code) map.set(code, animal);
+      }
+    }
+    return map;
+  }, [animals]);
 
-    return catalogs.pens.filter((pen) => (
+  const activeSpeciesId = useMemo(() => (
+    animalSpeciesId(selectedAnimals[0])
+  ), [selectedAnimals]);
+
+  const filteredPens = useMemo(() => {
+    if (!formData.unidadRegaId) return catalogs.pens || [];
+
+    return (catalogs.pens || []).filter((pen) => (
       Number(pen.unidadRegaId || pen.unidadRega?.id) === Number(formData.unidadRegaId)
     ));
   }, [catalogs.pens, formData.unidadRegaId]);
+
+  const vaccineOptions = useMemo(() => (
+    filterBySpecies(catalogs.vaccines || [], activeSpeciesId)
+  ), [catalogs.vaccines, activeSpeciesId]);
+
+  const diseaseOptions = useMemo(() => (
+    filterBySpecies(catalogs.diseases || [], activeSpeciesId)
+  ), [catalogs.diseases, activeSpeciesId]);
+
+  const dewormerOptions = useMemo(() => (
+    filterBySpecies(catalogs.dewormers || [], activeSpeciesId)
+  ), [catalogs.dewormers, activeSpeciesId]);
+
+  const selectedCrotales = useMemo(() => (
+    selectedAnimals
+      .map((animal) => animal.crotal || animal.numeroInterno)
+      .filter(Boolean)
+  ), [selectedAnimals]);
 
   const matchingMovementRule = useMemo(() => {
     if (!formData.corralDestinoId) return null;
@@ -192,11 +289,7 @@ export default function OperationFlowPage() {
     )) || null
   ), [formData.estadoResultanteId, formData.tipoEvento, formData.unidadRegaId, rules]);
 
-  const selectedCrotales = useMemo(() => (
-    selectedAnimals
-      .map((animal) => animal.crotal || animal.numeroInterno)
-      .filter(Boolean)
-  ), [selectedAnimals]);
+  const shouldBlockNavigation = selectedAnimals.length > 0 && !result;
 
   const focusReader = useCallback(function focusReader() {
     window.setTimeout(() => {
@@ -210,12 +303,48 @@ export default function OperationFlowPage() {
   }, []);
 
   const setField = useCallback(function setField(name, value) {
-    setFormData((current) => ({
-      ...current,
-      [name]: value
-    }));
+    setFormData((current) => {
+      const next = {
+        ...current,
+        [name]: value
+      };
+
+      if (name === 'tipoEvento' && value === 'DIAGNOSTICO_GESTACION' && current.resultado === 'NO_APLICA') {
+        next.resultado = 'POSITIVO';
+      }
+
+      if (name === 'sourcePenId') {
+        const pen = (catalogs.pens || []).find((item) => String(item.id) === String(value));
+        if (pen) {
+          next.unidadRegaId = String(pen.unidadRegaId || pen.unidadRega?.id || '');
+        }
+      }
+
+      if (name === 'corralDestinoId' && !current.unidadRegaId) {
+        const pen = (catalogs.pens || []).find((item) => String(item.id) === String(value));
+        if (pen) {
+          next.unidadRegaId = String(pen.unidadRegaId || pen.unidadRega?.id || '');
+        }
+      }
+
+      if (name === 'enfermedadId' && value && value !== OTHER_VALUE) {
+        const disease = (catalogs.diseases || []).find((item) => String(item.id) === String(value));
+        if (disease?.gravedadSugerida) {
+          next.gravedad = disease.gravedadSugerida;
+        }
+      }
+
+      if (name === 'desparasitanteId' && value && value !== OTHER_VALUE) {
+        const dewormer = (catalogs.dewormers || []).find((item) => String(item.id) === String(value));
+        if (dewormer?.tipo) {
+          next.desparasitacionTipo = dewormer.tipo;
+        }
+      }
+
+      return next;
+    });
     focusReader();
-  }, [focusReader]);
+  }, [catalogs.dewormers, catalogs.diseases, catalogs.pens, focusReader]);
 
   const addCodes = useCallback(function addCodes(rawCodes) {
     const codes = Array.isArray(rawCodes) ? rawCodes : extractCodes(rawCodes);
@@ -227,29 +356,33 @@ export default function OperationFlowPage() {
     let addedCount = 0;
     let duplicateCount = 0;
     let unknownCount = 0;
+    let inactiveCount = 0;
     let wrongUnitCount = 0;
 
     setSelectedAnimals((current) => {
       const next = [...current];
+      let inferredUnitId = formData.unidadRegaId;
 
       for (const code of codes) {
-        const animal = activeAnimals.find((item) => animalMatchesCode(item, code));
+        const animal = animalsByCode.get(normalizeCode(code));
 
         if (!animal) {
           unknownCount++;
           continue;
         }
 
-        if (formData.unidadRegaId && animalUnitId(animal) !== Number(formData.unidadRegaId)) {
+        if (animal.estadoRegistro === 'BAJA') {
+          inactiveCount++;
+          continue;
+        }
+
+        if (inferredUnitId && animalUnitId(animal) !== Number(inferredUnitId)) {
           wrongUnitCount++;
           continue;
         }
 
-        if (!formData.unidadRegaId) {
-          setFormData((currentForm) => ({
-            ...currentForm,
-            unidadRegaId: String(animalUnitId(animal) || '')
-          }));
+        if (!inferredUnitId) {
+          inferredUnitId = String(animalUnitId(animal) || '');
         }
 
         if (next.some((item) => item.id === animal.id)) {
@@ -261,6 +394,13 @@ export default function OperationFlowPage() {
         addedCount++;
       }
 
+      if (!formData.unidadRegaId && inferredUnitId) {
+        setFormData((currentForm) => ({
+          ...currentForm,
+          unidadRegaId: inferredUnitId
+        }));
+      }
+
       return next;
     });
 
@@ -268,11 +408,12 @@ export default function OperationFlowPage() {
     if (addedCount) parts.push(`${addedCount} añadido${addedCount === 1 ? '' : 's'}`);
     if (duplicateCount) parts.push(`${duplicateCount} repetido${duplicateCount === 1 ? '' : 's'}`);
     if (unknownCount) parts.push(`${unknownCount} no encontrado${unknownCount === 1 ? '' : 's'}`);
+    if (inactiveCount) parts.push(`${inactiveCount} dado${inactiveCount === 1 ? '' : 's'} de baja/no activo${inactiveCount === 1 ? '' : 's'}`);
     if (wrongUnitCount) parts.push(`${wrongUnitCount} de otra REGA`);
 
     setReaderMessage(parts.length ? parts.join(' · ') : 'Pasa crotales y se irán añadiendo a la lista.');
     focusReader();
-  }, [activeAnimals, focusReader, formData.unidadRegaId]);
+  }, [animalsByCode, focusReader, formData.unidadRegaId]);
 
   const flushReaderBuffer = useCallback(function flushReaderBuffer() {
     const raw = readerBufferRef.current;
@@ -284,23 +425,24 @@ export default function OperationFlowPage() {
     const finishKey = event.key === 'Enter' || event.key === 'Tab';
     const characterKey = event.key.length === 1;
 
-    if (!finishKey && !characterKey && event.key !== 'Backspace') return;
+    if (!finishKey && !characterKey && event.key !== 'Backspace') return false;
 
     event.preventDefault();
 
     if (finishKey) {
       flushReaderBuffer();
-      return;
+      return true;
     }
 
     if (event.key === 'Backspace') {
       readerBufferRef.current = readerBufferRef.current.slice(0, -1);
-      return;
+      return true;
     }
 
     readerBufferRef.current += event.key;
     window.clearTimeout(readerTimerRef.current);
     readerTimerRef.current = window.setTimeout(flushReaderBuffer, 180);
+    return true;
   }, [flushReaderBuffer]);
 
   useEffect(() => {
@@ -310,12 +452,20 @@ export default function OperationFlowPage() {
 
       try {
         const [animalsData, rulesData] = await Promise.all([
-          get('/animals?estadoRegistro=ACTIVO'),
+          get('/animals'),
           get('/management-rules?activo=true')
         ]);
 
-        setAnimals(getItems(animalsData, ['data', 'animals', 'animales']));
+        const loadedAnimals = getItems(animalsData, ['data', 'animals', 'animales']);
+        const loadedActiveAnimals = loadedAnimals.filter((animal) => animal.estadoRegistro !== 'BAJA');
+
+        setAnimals(loadedAnimals);
         setRules(getItems(rulesData, ['data', 'rules']));
+        setReaderMessage(
+          loadedActiveAnimals.length > 0
+            ? `${loadedActiveAnimals.length} animales cargados para lectura. Pasa crotales y se irán añadiendo a la lista.`
+            : 'No hay animales activos cargados para lectura.'
+        );
       } catch (err) {
         setError(err.message || 'Error cargando datos de trabajo');
       } finally {
@@ -332,13 +482,61 @@ export default function OperationFlowPage() {
   }, [focusReader]);
 
   useEffect(() => {
-    if (formData.unidadRegaId || catalogs.farmUnits.length === 0) return;
+    if (loadingData || restoredDraftRef.current) return;
 
-    setFormData((current) => ({
-      ...current,
-      unidadRegaId: String(catalogs.farmUnits[0]?.id || '')
+    restoredDraftRef.current = true;
+
+    try {
+      const saved = window.sessionStorage.getItem(draftStorageKey(operationType));
+      if (!saved) return;
+
+      const parsed = JSON.parse(saved);
+      setFormData({
+        ...createInitialFormData(),
+        ...(parsed.formData || {}),
+        fecha: todayInputValue()
+      });
+
+      const ids = new Set((parsed.selectedAnimalIds || []).map(Number));
+      if (ids.size) {
+        setSelectedAnimals(activeAnimals.filter((animal) => ids.has(Number(animal.id))));
+        setReaderMessage(`${ids.size} animales restaurados de la lista anterior.`);
+      }
+    } catch {
+      window.sessionStorage.removeItem(draftStorageKey(operationType));
+    }
+  }, [activeAnimals, loadingData, operationType]);
+
+  useEffect(() => {
+    if (!restoredDraftRef.current) return;
+
+    if (selectedAnimals.length === 0) {
+      window.sessionStorage.removeItem(draftStorageKey(operationType));
+      return;
+    }
+
+    window.sessionStorage.setItem(draftStorageKey(operationType), JSON.stringify({
+      formData,
+      selectedAnimalIds: selectedAnimals.map((animal) => animal.id)
     }));
-  }, [catalogs.farmUnits, formData.unidadRegaId]);
+  }, [formData, operationType, selectedAnimals]);
+
+  useEffect(() => {
+    if (!formData.unidadRegaId) return;
+
+    const penMatchesUnit = (penId) => filteredPens.some((pen) => String(pen.id) === String(penId));
+
+    setFormData((current) => {
+      const next = { ...current };
+      if (current.corralDestinoId && !penMatchesUnit(current.corralDestinoId)) {
+        next.corralDestinoId = '';
+      }
+      if (current.sourcePenId && !penMatchesUnit(current.sourcePenId)) {
+        next.sourcePenId = '';
+      }
+      return next;
+    });
+  }, [filteredPens, formData.unidadRegaId]);
 
   useEffect(() => {
     if (operationType !== 'health' || !formData.fullPen || !formData.sourcePenId) return;
@@ -356,20 +554,32 @@ export default function OperationFlowPage() {
   }, [activeAnimals, formData.fullPen, formData.sourcePenId, operationType]);
 
   useEffect(() => {
+    function stopReaderEvent(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
+
     function handleCapturePaste(event) {
-      if (isEditableTarget(event.target)) return;
+      if (isManualEntryTarget(event.target)) return;
 
       const pasted = event.clipboardData?.getData('text');
       if (!pasted) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-      addCodes(extractCodes(pasted));
+      const codes = extractCodes(pasted);
+      const containsKnownAnimal = codes.some((code) => animalsByCode.has(normalizeCode(code)));
+      if (!containsKnownAnimal && isTextEditingTarget(event.target)) return;
+
+      stopReaderEvent(event);
+      addCodes(codes);
     }
 
     function handleCaptureKeyDown(event) {
-      if (isEditableTarget(event.target)) return;
-      handleReaderKeyDown(event);
+      if (isManualEntryTarget(event.target)) return;
+      if (handleReaderKeyDown(event)) {
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+      }
     }
 
     window.addEventListener('paste', handleCapturePaste, true);
@@ -379,7 +589,39 @@ export default function OperationFlowPage() {
       window.removeEventListener('paste', handleCapturePaste, true);
       window.removeEventListener('keydown', handleCaptureKeyDown, true);
     };
-  }, [addCodes, handleReaderKeyDown]);
+  }, [addCodes, animalsByCode, handleReaderKeyDown]);
+
+  useEffect(() => {
+    function handleBeforeUnload(event) {
+      if (!shouldBlockNavigation) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [shouldBlockNavigation]);
+
+  useEffect(() => {
+    function handleNavigationRequest(event) {
+      if (!shouldBlockNavigation) return;
+
+      const to = String(event.detail?.to || '');
+      if (to.startsWith('/animals/') && to.includes('preview=1')) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation?.();
+      setPendingNavigation({
+        proceed: event.detail?.proceed || null
+      });
+    }
+
+    window.addEventListener('rumiando:navigation-request', handleNavigationRequest);
+
+    return () => {
+      window.removeEventListener('rumiando:navigation-request', handleNavigationRequest);
+    };
+  }, [shouldBlockNavigation]);
 
   function handleChange(event) {
     const { name, type: inputType, checked, value } = event.target;
@@ -404,12 +646,8 @@ export default function OperationFlowPage() {
       throw new Error('Debes leer al menos un animal.');
     }
 
-    if (!formData.fecha) {
-      throw new Error('La fecha es obligatoria.');
-    }
-
     if (!formData.unidadRegaId) {
-      throw new Error('Selecciona una unidad REGA.');
+      throw new Error('Lee un animal para tomar su unidad REGA.');
     }
   }
 
@@ -419,6 +657,141 @@ export default function OperationFlowPage() {
       failedCount: failures.length,
       failures
     });
+    window.sessionStorage.removeItem(draftStorageKey(operationType));
+  }
+
+  function findById(items, id) {
+    return (items || []).find((item) => String(item.id) === String(id)) || null;
+  }
+
+  function getManualHealthText() {
+    if (formData.healthType === 'vaccination' && formData.vacunaId === OTHER_VALUE) {
+      return formData.vacunaTexto.trim();
+    }
+    if (formData.healthType === 'deworming' && formData.desparasitanteId === OTHER_VALUE) {
+      return formData.desparasitanteTexto.trim();
+    }
+    if (formData.healthType === 'disease' && formData.enfermedadId === OTHER_VALUE) {
+      return formData.enfermedadTexto.trim();
+    }
+    if (formData.healthType === 'other') {
+      return formData.otroSanitarioTexto.trim();
+    }
+    return '';
+  }
+
+  function normalizationType() {
+    if (formData.healthType === 'other') return 'disease';
+    return formData.healthType;
+  }
+
+  async function requestHealthNormalization({ createIfMissing = false } = {}) {
+    const text = getManualHealthText();
+    if (!text) return null;
+
+    return post('/catalogs/sanitary-normalize', {
+      type: normalizationType(),
+      text,
+      especieId: activeSpeciesId || null,
+      gravedad: formData.gravedad,
+      dewormingType: formData.desparasitacionTipo,
+      createIfMissing
+    });
+  }
+
+  async function prepareHealthNormalization() {
+    if (operationType !== 'health') return true;
+
+    const needsManualNormalization = (
+      (formData.healthType === 'vaccination' && formData.vacunaId === OTHER_VALUE)
+      || (formData.healthType === 'deworming' && formData.desparasitanteId === OTHER_VALUE)
+      || (formData.healthType === 'disease' && formData.enfermedadId === OTHER_VALUE)
+      || formData.healthType === 'other'
+    );
+
+    if (!needsManualNormalization) return true;
+
+    const text = getManualHealthText();
+    if (!text) {
+      throw new Error('Indica el nombre o motivo del evento sanitario.');
+    }
+
+    const normalized = await requestHealthNormalization({ createIfMissing: false });
+
+    if (normalized?.status === 'suggested' && normalized.item) {
+      setPendingNormalization({
+        text,
+        item: normalized.item,
+        source: normalized.source
+      });
+      return false;
+    }
+
+    if (normalized?.status === 'matched' && normalized.item) {
+      await runOperation(false, null, normalized.item);
+      return false;
+    }
+
+    const created = await requestHealthNormalization({ createIfMissing: true });
+    await runOperation(false, null, created?.item || null);
+    return false;
+  }
+
+  function healthPayloadForAnimal(animal, normalizedItem = null) {
+    const corralId = animal.corralActualId || animal.corralActual?.id || formData.sourcePenId || null;
+    const unitId = Number(formData.unidadRegaId);
+
+    if (formData.healthType === 'vaccination') {
+      const selected = normalizedItem || findById(vaccineOptions, formData.vacunaId);
+      return {
+        endpoint: '/vaccinations',
+        body: {
+          fecha: formData.fecha,
+          vacuna: selected?.nombre || formData.vacunaTexto,
+          loteVacuna: formData.loteVacuna || null,
+          dosisTexto: formData.dosisTexto || null,
+          via: formData.via || null,
+          unidadRegaId: unitId,
+          animalId: animal.id,
+          corralId
+        }
+      };
+    }
+
+    if (formData.healthType === 'deworming') {
+      const selected = normalizedItem || findById(dewormerOptions, formData.desparasitanteId);
+      return {
+        endpoint: '/dewormings',
+        body: {
+          fecha: formData.fecha,
+          tipo: dewormingTypeToBackend(selected?.tipo || formData.desparasitacionTipo),
+          producto: selected?.nombre || formData.desparasitanteTexto,
+          principioActivo: selected?.principioActivo || null,
+          dosisTexto: formData.dosisTexto || null,
+          via: formData.via || null,
+          motivo: formData.motivo || null,
+          unidadRegaId: unitId,
+          animalId: animal.id,
+          corralId
+        }
+      };
+    }
+
+    const selectedDisease = normalizedItem || findById(diseaseOptions, formData.enfermedadId);
+    const diagnosis = selectedDisease?.nombre || formData.enfermedadTexto || formData.otroSanitarioTexto;
+    return {
+      endpoint: '/health-cases',
+      body: {
+        fechaInicio: formData.fecha,
+        signosClinicos: formData.signosClinicos || formData.otroSanitarioTexto || null,
+        diagnosticoPresuntivo: diagnosis || 'Evento sanitario registrado desde lector',
+        gravedad: selectedDisease?.gravedadSugerida || formData.gravedad || null,
+        unidadRegaId: unitId,
+        animalId: animal.id,
+        corralId,
+        enfermedadId: selectedDisease?.id || null
+      }
+    };
   }
 
   async function createReproductiveEvents(applyRule, rule) {
@@ -510,54 +883,14 @@ export default function OperationFlowPage() {
     buildSummary(successCount || selectedAnimals.length - failures.length, failures);
   }
 
-  async function createHealthRecords() {
+  async function createHealthRecords(normalizedItem = null) {
     const failures = [];
     let successCount = 0;
 
     for (const animal of selectedAnimals) {
-      const corralId = animal.corralActualId || animal.corralActual?.id || formData.sourcePenId || null;
-
       try {
-        if (formData.healthType === 'vaccination') {
-          await post('/vaccinations', {
-            fecha: formData.fecha,
-            vacuna: formData.vacuna,
-            loteVacuna: formData.loteVacuna || null,
-            dosisTexto: formData.dosisTexto || null,
-            via: formData.via || null,
-            unidadRegaId: Number(formData.unidadRegaId),
-            animalId: animal.id,
-            corralId
-          });
-        }
-
-        if (formData.healthType === 'disease') {
-          await post('/health-cases', {
-            fechaInicio: formData.fecha,
-            signosClinicos: formData.signosClinicos || null,
-            diagnosticoPresuntivo: formData.signosClinicos || 'Caso registrado desde lector',
-            gravedad: formData.gravedad || null,
-            unidadRegaId: Number(formData.unidadRegaId),
-            animalId: animal.id,
-            corralId,
-            enfermedadId: formData.enfermedadId || null
-          });
-        }
-
-        if (formData.healthType === 'deworming') {
-          await post('/dewormings', {
-            fecha: formData.fecha,
-            tipo: formData.desparasitacionTipo,
-            producto: formData.producto,
-            dosisTexto: formData.dosisTexto || null,
-            via: formData.via || null,
-            motivo: formData.motivo || null,
-            unidadRegaId: Number(formData.unidadRegaId),
-            animalId: animal.id,
-            corralId
-          });
-        }
-
+        const payload = healthPayloadForAnimal(animal, normalizedItem);
+        await post(payload.endpoint, payload.body);
         successCount++;
       } catch (err) {
         failures.push(`${animal.crotal}: ${err.message}`);
@@ -567,10 +900,11 @@ export default function OperationFlowPage() {
     buildSummary(successCount, failures);
   }
 
-  async function runOperation(applyRule = false, rule = null) {
+  async function runOperation(applyRule = false, rule = null, normalizedItem = null) {
     setSaving(true);
     setError('');
     setPendingRule(null);
+    setPendingNormalization(null);
 
     try {
       validateCommon();
@@ -587,13 +921,16 @@ export default function OperationFlowPage() {
       }
 
       if (operationType === 'health') {
-        if (formData.healthType === 'vaccination' && !formData.vacuna) {
+        if (formData.healthType === 'vaccination' && !formData.vacunaId && !formData.vacunaTexto) {
           throw new Error('Indica la vacuna.');
         }
-        if (formData.healthType === 'deworming' && !formData.producto) {
+        if (formData.healthType === 'deworming' && !formData.desparasitanteId && !formData.desparasitanteTexto) {
           throw new Error('Indica el producto de desparasitación.');
         }
-        await createHealthRecords();
+        if (formData.healthType === 'disease' && !formData.enfermedadId && !formData.enfermedadTexto) {
+          throw new Error('Indica la enfermedad.');
+        }
+        await createHealthRecords(normalizedItem);
       }
 
       await loadCatalogs?.();
@@ -605,12 +942,14 @@ export default function OperationFlowPage() {
     }
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setError('');
 
     try {
       validateCommon();
+      const shouldContinue = await prepareHealthNormalization();
+      if (!shouldContinue) return;
     } catch (err) {
       setError(err.message);
       return;
@@ -640,7 +979,36 @@ export default function OperationFlowPage() {
     setResult(null);
     setError('');
     setReaderMessage('Pasa crotales y se irán añadiendo a la lista.');
+    window.sessionStorage.removeItem(draftStorageKey(operationType));
     focusReader();
+  }
+
+  function confirmNavigation() {
+    window.sessionStorage.removeItem(draftStorageKey(operationType));
+    pendingNavigation?.proceed?.();
+    setPendingNavigation(null);
+  }
+
+  function cancelNavigation() {
+    setPendingNavigation(null);
+    focusReader();
+  }
+
+  async function acceptNormalizationSuggestion() {
+    if (!pendingNormalization?.item) return;
+    await runOperation(false, null, pendingNormalization.item);
+  }
+
+  async function saveManualNormalization() {
+    setSaving(true);
+    setError('');
+    try {
+      const created = await requestHealthNormalization({ createIfMissing: true });
+      await runOperation(false, null, created?.item || null);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
   }
 
   if (loadingCatalogs || loadingData) {
@@ -653,18 +1021,12 @@ export default function OperationFlowPage() {
 
   return (
     <section className="page batch-operation-page">
-      <header className="page-header batch-operation-header">
-        <div>
+      <form className="batch-operation-card" onSubmit={handleSubmit}>
+        <div className="batch-operation-intro">
           <h2>{meta.title}</h2>
           <p>{meta.description}</p>
         </div>
 
-        <button type="button" className="secondary" onClick={() => navigate('/home')}>
-          Volver
-        </button>
-      </header>
-
-      <form className="batch-operation-card" onSubmit={handleSubmit}>
         <input
           ref={readerInputRef}
           className="batch-reader-input"
@@ -685,36 +1047,6 @@ export default function OperationFlowPage() {
         </div>
 
         <div className="form-grid batch-operation-form-grid">
-          <label>
-            Fecha
-            <input
-              type="date"
-              name="fecha"
-              value={formData.fecha}
-              onChange={handleChange}
-              onBlur={focusReader}
-              required
-            />
-          </label>
-
-          <label>
-            Unidad REGA
-            <select
-              name="unidadRegaId"
-              value={formData.unidadRegaId}
-              onChange={handleChange}
-              onBlur={focusReader}
-              required
-            >
-              <option value="">Selecciona REGA</option>
-              {catalogs.farmUnits.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.nombre || unit.codigoRega || `REGA ${unit.id}`}
-                </option>
-              ))}
-            </select>
-          </label>
-
           {operationType === 'movement' && (
             <>
               <label>
@@ -738,6 +1070,7 @@ export default function OperationFlowPage() {
               <label>
                 Motivo
                 <input
+                  data-reader-manual="true"
                   name="motivo"
                   value={formData.motivo}
                   onChange={handleChange}
@@ -804,8 +1137,10 @@ export default function OperationFlowPage() {
                   <label>
                     Semanas estimadas
                     <input
+                      data-reader-manual="true"
                       type="number"
                       min="0"
+                      step="1"
                       name="semanasGestacion"
                       value={formData.semanasGestacion}
                       onChange={handleChange}
@@ -820,23 +1155,7 @@ export default function OperationFlowPage() {
 
           {operationType === 'health' && (
             <>
-              <label>
-                Tipo
-                <select
-                  name="healthType"
-                  value={formData.healthType}
-                  onChange={handleChange}
-                  onBlur={focusReader}
-                >
-                  {HEALTH_TYPES.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="batch-checkbox">
+              <label className="batch-checkbox batch-full-row">
                 <input
                   type="checkbox"
                   name="fullPen"
@@ -848,7 +1167,7 @@ export default function OperationFlowPage() {
               </label>
 
               {formData.fullPen && (
-                <label>
+                <label className="batch-full-row">
                   Corral
                   <select
                     name="sourcePenId"
@@ -867,27 +1186,118 @@ export default function OperationFlowPage() {
                 </label>
               )}
 
+              <label>
+                Tipo
+                <select
+                  name="healthType"
+                  value={formData.healthType}
+                  onChange={handleChange}
+                  onBlur={focusReader}
+                >
+                  {HEALTH_TYPES.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               {formData.healthType === 'vaccination' && (
                 <>
                   <label>
                     Vacuna
-                    <input
-                      name="vacuna"
-                      value={formData.vacuna}
+                    <select
+                      name="vacunaId"
+                      value={formData.vacunaId}
                       onChange={handleChange}
                       onBlur={focusReader}
                       required
-                    />
+                    >
+                      <option value="">Selecciona vacuna</option>
+                      {vaccineOptions.map((vaccine) => (
+                        <option key={vaccine.id} value={vaccine.id}>
+                          {itemName(vaccine)}
+                        </option>
+                      ))}
+                      <option value={OTHER_VALUE}>Otra</option>
+                    </select>
                   </label>
+                  {formData.vacunaId === OTHER_VALUE && (
+                    <label>
+                      Nombre de vacuna
+                      <input
+                        data-reader-manual="true"
+                        name="vacunaTexto"
+                        value={formData.vacunaTexto}
+                        onChange={handleChange}
+                        onBlur={focusReader}
+                        placeholder="Ej. basquilla, lengua azul..."
+                        required
+                      />
+                    </label>
+                  )}
                   <label>
                     Lote
                     <input
+                      data-reader-manual="true"
                       name="loteVacuna"
                       value={formData.loteVacuna}
                       onChange={handleChange}
                       onBlur={focusReader}
                       placeholder="Opcional"
                     />
+                  </label>
+                </>
+              )}
+
+              {formData.healthType === 'deworming' && (
+                <>
+                  <label>
+                    Producto
+                    <select
+                      name="desparasitanteId"
+                      value={formData.desparasitanteId}
+                      onChange={handleChange}
+                      onBlur={focusReader}
+                      required
+                    >
+                      <option value="">Selecciona producto</option>
+                      {dewormerOptions.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {itemName(item)}
+                        </option>
+                      ))}
+                      <option value={OTHER_VALUE}>Otro</option>
+                    </select>
+                  </label>
+                  {formData.desparasitanteId === OTHER_VALUE && (
+                    <label>
+                      Nombre del producto
+                      <input
+                        data-reader-manual="true"
+                        name="desparasitanteTexto"
+                        value={formData.desparasitanteTexto}
+                        onChange={handleChange}
+                        onBlur={focusReader}
+                        placeholder="Ej. ivermectina..."
+                        required
+                      />
+                    </label>
+                  )}
+                  <label>
+                    Tipo
+                    <select
+                      name="desparasitacionTipo"
+                      value={formData.desparasitacionTipo}
+                      onChange={handleChange}
+                      onBlur={focusReader}
+                    >
+                      {Object.entries(DEWORMING_TYPE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </>
               )}
@@ -901,15 +1311,31 @@ export default function OperationFlowPage() {
                       value={formData.enfermedadId}
                       onChange={handleChange}
                       onBlur={focusReader}
+                      required
                     >
-                      <option value="">Sin catálogo</option>
-                      {catalogs.diseases.map((disease) => (
+                      <option value="">Selecciona enfermedad</option>
+                      {diseaseOptions.map((disease) => (
                         <option key={disease.id} value={disease.id}>
-                          {disease.nombre}
+                          {itemName(disease)}
                         </option>
                       ))}
+                      <option value={OTHER_VALUE}>Otra</option>
                     </select>
                   </label>
+                  {formData.enfermedadId === OTHER_VALUE && (
+                    <label>
+                      Nombre de enfermedad
+                      <input
+                        data-reader-manual="true"
+                        name="enfermedadTexto"
+                        value={formData.enfermedadTexto}
+                        onChange={handleChange}
+                        onBlur={focusReader}
+                        placeholder="Ej. cojeras, mamitis..."
+                        required
+                      />
+                    </label>
+                  )}
                   <label>
                     Gravedad
                     <select
@@ -926,39 +1352,30 @@ export default function OperationFlowPage() {
                 </>
               )}
 
-              {formData.healthType === 'deworming' && (
-                <>
-                  <label>
-                    Tipo
-                    <select
-                      name="desparasitacionTipo"
-                      value={formData.desparasitacionTipo}
-                      onChange={handleChange}
-                      onBlur={focusReader}
-                    >
-                      <option value="Interna">Interna</option>
-                      <option value="Externa">Externa</option>
-                      <option value="Mixta">Mixta</option>
-                    </select>
-                  </label>
-                  <label>
-                    Producto
-                    <input
-                      name="producto"
-                      value={formData.producto}
-                      onChange={handleChange}
-                      onBlur={focusReader}
-                      required
-                    />
-                  </label>
-                </>
+              {formData.healthType === 'other' && (
+                <label className="batch-full-row">
+                  Motivo del evento
+                  <input
+                    data-reader-manual="true"
+                    name="otroSanitarioTexto"
+                    value={formData.otroSanitarioTexto}
+                    onChange={handleChange}
+                    onBlur={focusReader}
+                    placeholder="Ej. revisar ubre, herida, aborto..."
+                    required
+                  />
+                </label>
               )}
 
-              {formData.healthType !== 'disease' && (
+              {['vaccination', 'deworming'].includes(formData.healthType) && (
                 <>
                   <label>
                     Dosis
                     <input
+                      data-reader-manual="true"
+                      type="number"
+                      min="0"
+                      step="0.01"
                       name="dosisTexto"
                       value={formData.dosisTexto}
                       onChange={handleChange}
@@ -968,21 +1385,28 @@ export default function OperationFlowPage() {
                   </label>
                   <label>
                     Vía
-                    <input
+                    <select
                       name="via"
                       value={formData.via}
                       onChange={handleChange}
                       onBlur={focusReader}
-                      placeholder="Opcional"
-                    />
+                    >
+                      <option value="">Sin indicar</option>
+                      {VIA_OPTIONS.map((via) => (
+                        <option key={via} value={via}>
+                          {via}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </>
               )}
 
-              {formData.healthType === 'disease' && (
+              {['disease', 'other'].includes(formData.healthType) && (
                 <label className="batch-full-row">
-                  Signos o motivo
+                  Signos o notas
                   <textarea
+                    data-reader-manual="true"
                     name="signosClinicos"
                     rows="3"
                     value={formData.signosClinicos}
@@ -1094,6 +1518,43 @@ export default function OperationFlowPage() {
             onClick={() => runOperation(true, pendingRule?.rule)}
           >
             Sí, aplicar
+          </button>
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={Boolean(pendingNormalization)}
+        title="Revisar nombre"
+        description={pendingNormalization ? `Has escrito "${pendingNormalization.text}". ¿Querías decir "${pendingNormalization.item?.nombre}"?` : ''}
+        onClose={() => setPendingNormalization(null)}
+      >
+        <div className="app-modal-footer">
+          <button
+            type="button"
+            className="secondary"
+            disabled={saving}
+            onClick={saveManualNormalization}
+          >
+            Guardar como nuevo
+          </button>
+          <button type="button" disabled={saving} onClick={acceptNormalizationSuggestion}>
+            Sí, usar sugerencia
+          </button>
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={Boolean(pendingNavigation)}
+        title="Lista sin finalizar"
+        description="Vas a perder la lista de crotales de esta operación. ¿Seguro que quieres salir?"
+        onClose={cancelNavigation}
+      >
+        <div className="app-modal-footer">
+          <button type="button" className="secondary" onClick={cancelNavigation}>
+            Seguir aquí
+          </button>
+          <button type="button" onClick={confirmNavigation}>
+            Salir
           </button>
         </div>
       </AppModal>

@@ -13,6 +13,7 @@ export default function AnimalWatchlistButton({
   className = 'secondary',
   iconOnly = false,
   showMiniLabel = false,
+  disabled = false,
   onAdded
 }) {
   const [saving, setSaving] = useState(false);
@@ -57,7 +58,7 @@ export default function AnimalWatchlistButton({
   }, [checkExistingItem]);
 
   async function saveToWatchlist(nextReason) {
-    if (!animalId || saving || added) return;
+    if (!animalId || disabled || saving || added) return;
 
     setSaving(true);
     setError('');
@@ -84,7 +85,7 @@ export default function AnimalWatchlistButton({
   }
 
   async function removeFromWatchlist() {
-    if (!animalId || saving) return;
+    if (!animalId || disabled || saving) return;
 
     setSaving(true);
     setError('');
@@ -107,7 +108,7 @@ export default function AnimalWatchlistButton({
   }
 
   function handleClick() {
-    if (!animalId || saving) return;
+    if (!animalId || disabled || saving) return;
 
     if (added) {
       removeFromWatchlist();
@@ -134,7 +135,7 @@ export default function AnimalWatchlistButton({
           type="button"
           className={`${className} ${added ? 'watchlist-added' : ''}`}
           onClick={handleClick}
-          disabled={!animalId || saving}
+          disabled={!animalId || disabled || saving}
           title={title}
           aria-label={title}
         >

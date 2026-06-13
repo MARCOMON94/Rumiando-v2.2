@@ -103,11 +103,21 @@ async function getLearningWeeklySummary(authorization) {
 }
 
 
+async function normalizeSanitaryTerm(body, authorization) {
+  return requestAi('/api/catalogs/sanitary-normalize', {
+    method: 'POST',
+    body,
+    authorization
+  });
+}
+
+
 module.exports = {
   getHealth,
   chat,
   getHistory,
   getUnresolvedQuestions,
-  getLearningWeeklySummary
+  getLearningWeeklySummary,
+  normalizeSanitaryTerm
 };
 

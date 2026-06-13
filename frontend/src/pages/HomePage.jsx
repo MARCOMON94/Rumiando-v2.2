@@ -95,10 +95,6 @@ function activateSilentReader(action = 'lookup') {
   }));
 }
 
-function deactivateSilentReader() {
-  window.dispatchEvent(new Event('rumiando:silent-reader:deactivate'));
-}
-
 function OperationIcon({ src }) {
   return (
     <img
@@ -206,15 +202,16 @@ export default function HomePage() {
   }, [settingsOpen, isAdmin, selectedAlertUnitId, user]);
 
   function toggleSilentReader() {
-    if (silentReader.active) {
-      deactivateSilentReader();
-      return;
-    }
-
     activateSilentReader('lookup');
   }
 
   function closeSettings() {
+    if (settingsView !== 'main') {
+      setSettingsView('main');
+      setAlertConfigMessage('');
+      return;
+    }
+
     setSettingsOpen(false);
     setSettingsView('main');
     setAlertConfigMessage('');
@@ -343,14 +340,6 @@ export default function HomePage() {
   function renderAlertSettings() {
     return (
       <div className="settings-alert-config">
-        <button
-          type="button"
-          className="secondary settings-back-button"
-          onClick={() => setSettingsView('main')}
-        >
-          Volver
-        </button>
-
         <label>
           Unidad REGA
           <select
@@ -440,21 +429,20 @@ export default function HomePage() {
   function renderSettingsContent() {
     if (settingsView === 'alerts') return renderAlertSettings();
     if (settingsView === 'automation') {
-      return <ManagementRulesPanel onBack={() => setSettingsView('main')} />;
+      return <ManagementRulesPanel />;
     }
     if (settingsView === 'pens') {
-      return <PensSettingsPanel onBack={() => setSettingsView('main')} />;
+      return <PensSettingsPanel />;
     }
     if (settingsView === 'account') {
       return (
         <FarmAccountSettingsPanel
           currentUser={user}
-          onBack={() => setSettingsView('main')}
         />
       );
     }
     if (settingsView === 'user') {
-      return <UserSettingsPanel onBack={() => setSettingsView('main')} />;
+      return <UserSettingsPanel />;
     }
 
     return renderSettingsMain();
@@ -465,7 +453,7 @@ export default function HomePage() {
       <div className="field-home-search-row">
         <button
           type="button"
-          className={`field-crotal-search-button ${silentReader.active ? 'reading active' : ''}`}
+          className={`field-crotal-search-button ${silentReader.active ? 'reading active' : ''} silent-mode-${silentReader.action}`}
           aria-pressed={silentReader.active}
           onClick={toggleSilentReader}
         >
@@ -501,7 +489,7 @@ export default function HomePage() {
 
         <button
           type="button"
-          className="field-operation-button"
+          className={`field-operation-button ${silentReader.active && silentReader.action === 'parto' ? 'active' : ''}`}
           onClick={() => activateSilentReader('parto')}
         >
           <span>Parto</span>
@@ -509,7 +497,7 @@ export default function HomePage() {
 
         <button
           type="button"
-          className="field-operation-button"
+          className={`field-operation-button ${silentReader.active && silentReader.action === 'baja' ? 'active' : ''}`}
           onClick={() => activateSilentReader('baja')}
         >
           <span>Baja</span>
@@ -538,7 +526,7 @@ export default function HomePage() {
           className="field-operation-button field-operation-wide field-operation-with-icon"
           onClick={() => navigate('/operations/health')}
         >
-          <span>Caso sanitario</span>
+          <span>Evento sanitario</span>
           <OperationIcon src={HOME_ICONS.add} />
         </button>
 

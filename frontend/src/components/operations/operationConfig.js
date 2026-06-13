@@ -13,8 +13,8 @@ export const OPERATION_DEFINITIONS = [
   },
   {
     key: 'sanitario',
-    label: 'Sanitario',
-    title: 'Caso sanitario',
+    label: 'Evento sanitario',
+    title: 'Evento sanitario',
     readerAction: 'sanidad'
   },
   {

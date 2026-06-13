@@ -3,9 +3,11 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { get } from '../../api/apiClient';
 import { useAuth } from '../../context/AuthContext';
 import AppModal from '../ui/AppModal';
+import RouteErrorBoundary from '../ui/RouteErrorBoundary';
 
 const SILENT_READER_EVENT = 'rumiando:silent-reader:activate';
 const SILENT_READER_DEACTIVATE_EVENT = 'rumiando:silent-reader:deactivate';
+const NAVIGATION_REQUEST_EVENT = 'rumiando:navigation-request';
 const VALID_SILENT_ACTIONS = new Set(['lookup', 'parto', 'baja']);
 const INITIAL_SILENT_READER = {
   active: false,
@@ -27,8 +29,10 @@ function getItems(data, keys) {
 
 function normalizeCode(value) {
   return String(value || '')
+    .normalize('NFKC')
     .trim()
-    .replace(/\s+/g, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
     .toUpperCase();
 }
 
@@ -69,6 +73,32 @@ export default function AppLayout() {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
   const isAdmin = user?.rol === 'ADMIN';
+
+  const requestNavigation = useCallback(function requestNavigation(to, options = {}) {
+    const event = new CustomEvent(NAVIGATION_REQUEST_EVENT, {
+      cancelable: true,
+      detail: {
+        to,
+        proceed: () => navigate(to, options)
+      }
+    });
+
+    return window.dispatchEvent(event);
+  }, [navigate]);
+
+  const navigateWithGuard = useCallback(function navigateWithGuard(to, options = {}) {
+    if (requestNavigation(to, options)) {
+      navigate(to, options);
+    }
+  }, [navigate, requestNavigation]);
+
+  const guardedNavClick = useCallback(function guardedNavClick(to) {
+    return function handleGuardedNavClick(event) {
+      if (!requestNavigation(to)) {
+        event.preventDefault();
+      }
+    };
+  }, [requestNavigation]);
 
   useEffect(() => {
     silentReaderRef.current = silentReader;
@@ -143,6 +173,12 @@ export default function AppLayout() {
 
   const activateSilentReader = useCallback(function activateSilentReader(action = 'lookup') {
     const nextAction = VALID_SILENT_ACTIONS.has(action) ? action : 'lookup';
+
+    if (silentReaderRef.current.active && silentReaderRef.current.action === nextAction) {
+      deactivateSilentReader();
+      return;
+    }
+
     const nextReader = {
       active: true,
       action: nextAction,
@@ -155,7 +191,7 @@ export default function AppLayout() {
     setSilentReader(nextReader);
 
     ensureSilentReaderAnimals();
-  }, [ensureSilentReaderAnimals]);
+  }, [deactivateSilentReader, ensureSilentReaderAnimals]);
 
   const processSilentReaderCodes = useCallback(async function processSilentReaderCodes(rawCodes) {
     const codes = Array.isArray(rawCodes) ? rawCodes.map(normalizeCode).filter(Boolean) : extractCodes(rawCodes);
@@ -305,7 +341,7 @@ export default function AppLayout() {
       window.removeEventListener('paste', handleCapturePaste, true);
       window.clearTimeout(silentReaderTimerRef.current);
     };
-  }, [deactivateSilentReader, processSilentReaderCodes]);
+  }, [deactivateSilentReader, location.pathname, processSilentReaderCodes]);
 
   return (
     <div className="app-shell clean-app-shell">
@@ -319,22 +355,26 @@ export default function AppLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/dashboard">Dashboard</NavLink>
-          <NavLink to="/animals">Animales</NavLink>
-          <NavLink to="/reminders">Avisos</NavLink>
+          <NavLink to="/dashboard" onClick={guardedNavClick('/dashboard')}>Dashboard</NavLink>
+          <NavLink to="/animals" onClick={guardedNavClick('/animals')}>Animales</NavLink>
+          <NavLink to="/reminders" onClick={guardedNavClick('/reminders')}>Avisos</NavLink>
 
-          <NavLink to="/animal-watchlist" className="watchlist-nav-link">
+          <NavLink
+            to="/animal-watchlist"
+            className="watchlist-nav-link"
+            onClick={guardedNavClick('/animal-watchlist')}
+          >
             <span>Búsqueda inteligente</span>
             <span className="watchlist-nav-count">{watchlistTotal}</span>
           </NavLink>
 
-          <NavLink to="/pens">Corrales</NavLink>
-          <NavLink to="/health">Sanidad</NavLink>
-          <NavLink to="/movements">Movimientos</NavLink>
-          <NavLink to="/ai-chat">Asistente IA</NavLink>
+          <NavLink to="/pens" onClick={guardedNavClick('/pens')}>Corrales</NavLink>
+          <NavLink to="/health" onClick={guardedNavClick('/health')}>Sanidad</NavLink>
+          <NavLink to="/movements" onClick={guardedNavClick('/movements')}>Movimientos</NavLink>
+          <NavLink to="/ai-chat" onClick={guardedNavClick('/ai-chat')}>Asistente IA</NavLink>
 
           {isAdmin && (
-            <NavLink to="/admin/invitations">
+            <NavLink to="/admin/invitations" onClick={guardedNavClick('/admin/invitations')}>
               Invitaciones
             </NavLink>
           )}
@@ -349,8 +389,10 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      <main className="main-content clean-main-content" key={location.pathname}>
-        <Outlet />
+      <main className="main-content clean-main-content">
+        <RouteErrorBoundary locationKey={location.key}>
+          <Outlet />
+        </RouteErrorBoundary>
       </main>
 
       <nav className="mobile-bottom-nav" aria-label="Navegación principal móvil">
@@ -358,6 +400,7 @@ export default function AppLayout() {
           to="/home"
           className="mobile-nav-button mobile-nav-icon-button"
           aria-label="Inicio"
+          onClick={guardedNavClick('/home')}
         >
           <img
             src="/assets/icon-home-green.png"
@@ -383,12 +426,10 @@ export default function AppLayout() {
 
         <button
           type="button"
-          className={`mobile-search-button ${silentReader.active ? 'reading active' : ''}`}
+          className={`mobile-search-button ${silentReader.active ? 'reading active' : ''} silent-mode-${silentReader.action}`}
           aria-label="Búsqueda por lector"
           aria-pressed={silentReader.active}
-          onClick={() => (
-            silentReader.active ? deactivateSilentReader() : activateSilentReader('lookup')
-          )}
+          onClick={() => activateSilentReader('lookup')}
         >
           <span className="mobile-search-spinner" aria-hidden="true" />
           <img
@@ -403,6 +444,7 @@ export default function AppLayout() {
           to="/reminders"
           className="mobile-nav-button mobile-nav-alert"
           aria-label="Avisos"
+          onClick={guardedNavClick('/reminders')}
         >
           <span className="mobile-nav-badge-wrap">
             <img
@@ -423,6 +465,7 @@ export default function AppLayout() {
           to="/ai-chat"
           className="mobile-nav-button mobile-nav-ai"
           aria-label="IA"
+          onClick={guardedNavClick('/ai-chat')}
         >
           <img
             src="/assets/icon-ia-green.png"
@@ -443,34 +486,7 @@ export default function AppLayout() {
         <div className="quick-actions-sheet">
           <button
             type="button"
-            onClick={() => {
-              setQuickActionsOpen(false);
-              navigate('/operations/movement');
-            }}
-          >
-            Movimiento de corral
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setQuickActionsOpen(false);
-              navigate('/operations/reproductive');
-            }}
-          >
-            Estado reproductivo
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setQuickActionsOpen(false);
-              navigate('/operations/health');
-            }}
-          >
-            Caso sanitario
-          </button>
-          <button
-            type="button"
-            className="secondary"
+            className={silentReader.active && silentReader.action === 'parto' ? 'active' : 'secondary'}
             onClick={() => {
               setQuickActionsOpen(false);
               activateSilentReader('parto');
@@ -480,13 +496,40 @@ export default function AppLayout() {
           </button>
           <button
             type="button"
-            className="secondary"
+            className={silentReader.active && silentReader.action === 'baja' ? 'active' : 'secondary'}
             onClick={() => {
               setQuickActionsOpen(false);
               activateSilentReader('baja');
             }}
           >
             Baja
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              navigateWithGuard('/operations/movement');
+            }}
+          >
+            Movimiento de corral
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              navigateWithGuard('/operations/reproductive');
+            }}
+          >
+            Estado reproductivo
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              navigateWithGuard('/operations/health');
+            }}
+          >
+            Evento sanitario
           </button>
         </div>
       </AppModal>

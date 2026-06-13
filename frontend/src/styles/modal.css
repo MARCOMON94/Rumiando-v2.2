@@ -21,6 +21,18 @@
   box-shadow: 0 24px 60px rgba(35, 49, 39, 0.24);
   overflow-y: auto;
   overscroll-behavior: contain;
+  animation: appModalIn 0.18s ease-out;
+}
+
+@keyframes appModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .app-modal-header {
@@ -81,7 +93,8 @@
     width: 100%;
     max-height: calc(100dvh - 1.25rem - env(safe-area-inset-top));
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    margin-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    border-radius: var(--radius-lg);
   }
 
   .app-modal.settings-modal {
@@ -100,7 +113,20 @@
   }
 
   .app-modal.quick-actions-modal {
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: var(--radius-lg);
+    margin-bottom: calc(66px + env(safe-area-inset-bottom));
+    animation: quickActionsSheetIn 0.2s ease-out;
+  }
+
+  @keyframes quickActionsSheetIn {
+    from {
+      opacity: 0;
+      transform: translateY(22px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .app-modal-footer {

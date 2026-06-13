@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { del, get, post, put } from '../../api/apiClient';
+import AppModal from '../ui/AppModal';
 
 const REPRODUCTIVE_EVENTS = [
   ['CUBRICION', 'Cubrición'],
@@ -47,7 +48,7 @@ function ruleTitle(rule) {
   return `Reproducción → ${rule.targetCorral?.nombre || 'corral'}`;
 }
 
-export default function ManagementRulesPanel({ onBack }) {
+export default function ManagementRulesPanel() {
   const [catalogs, setCatalogs] = useState({
     farmUnits: [],
     pens: [],
@@ -59,6 +60,7 @@ export default function ManagementRulesPanel({ onBack }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [pendingDeleteRule, setPendingDeleteRule] = useState(null);
 
   const filteredPens = useMemo(() => {
     if (!form.unidadRegaId) return catalogs.pens;
@@ -179,6 +181,7 @@ export default function ManagementRulesPanel({ onBack }) {
     try {
       await del(`/management-rules/${rule.id}`);
       setMessage('Automatización eliminada.');
+      setPendingDeleteRule(null);
       await loadData();
     } catch (err) {
       setError(err.message);
@@ -193,10 +196,6 @@ export default function ManagementRulesPanel({ onBack }) {
 
   return (
     <div className="settings-management-panel">
-      <button type="button" className="secondary settings-back-button" onClick={onBack}>
-        Volver
-      </button>
-
       {error && <p className="alert error">{error}</p>}
       {message && <p className="alert">{message}</p>}
 
@@ -353,22 +352,57 @@ export default function ManagementRulesPanel({ onBack }) {
         </button>
       </form>
 
-      <div className="settings-list">
-        {rules.map((rule) => (
-          <article className="settings-list-row" key={rule.id}>
-            <div>
-              <strong>{ruleTitle(rule)}</strong>
-              <span>{rule.activo ? 'Activa' : 'Inactiva'}</span>
-            </div>
-            <button type="button" className="secondary" onClick={() => editRule(rule)}>
-              Editar
-            </button>
-            <button type="button" className="secondary" onClick={() => deleteRule(rule)}>
-              Eliminar
-            </button>
-          </article>
-        ))}
-      </div>
+      <section className="settings-subform">
+        <h3>Automatizaciones actuales</h3>
+
+        {rules.length === 0 ? (
+          <p className="muted">No hay automatizaciones creadas.</p>
+        ) : (
+          <div className="settings-list">
+            {rules.map((rule) => (
+              <article className="settings-list-row" key={rule.id}>
+                <div>
+                  <strong>{ruleTitle(rule)}</strong>
+                  <span>{rule.activo ? 'Activa' : 'Inactiva'}</span>
+                </div>
+                <button type="button" className="secondary" onClick={() => editRule(rule)}>
+                  Editar
+                </button>
+                <button type="button" className="secondary" onClick={() => setPendingDeleteRule(rule)}>
+                  Eliminar
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <AppModal
+        open={Boolean(pendingDeleteRule)}
+        title="Eliminar automatización"
+        description={pendingDeleteRule ? `Eliminar ${ruleTitle(pendingDeleteRule)}.` : ''}
+        onClose={() => {
+          if (!saving) setPendingDeleteRule(null);
+        }}
+      >
+        <div className="app-modal-footer">
+          <button
+            type="button"
+            className="secondary"
+            disabled={saving}
+            onClick={() => setPendingDeleteRule(null)}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => deleteRule(pendingDeleteRule)}
+          >
+            {saving ? 'Eliminando...' : 'Eliminar'}
+          </button>
+        </div>
+      </AppModal>
     </div>
   );
 }

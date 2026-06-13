@@ -31,7 +31,7 @@ function countAnimalsByStatus(animals, penId) {
   return counts;
 }
 
-export default function PensSettingsPanel({ onBack }) {
+export default function PensSettingsPanel() {
   const [catalogs, setCatalogs] = useState({
     farmUnits: [],
     pens: [],
@@ -41,6 +41,7 @@ export default function PensSettingsPanel({ onBack }) {
   const [form, setForm] = useState(emptyPenForm);
   const [retireDraft, setRetireDraft] = useState(null);
   const [retireDestinationId, setRetireDestinationId] = useState('');
+  const [suggestedPenName, setSuggestedPenName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -148,6 +149,9 @@ export default function PensSettingsPanel({ onBack }) {
       setForm(emptyPenForm(form.unidadRegaId));
       await loadData();
     } catch (err) {
+      if (err.details?.suggestedName) {
+        setSuggestedPenName(err.details.suggestedName);
+      }
       setError(err.message);
     } finally {
       setSaving(false);
@@ -196,10 +200,6 @@ export default function PensSettingsPanel({ onBack }) {
 
   return (
     <div className="settings-pens-panel">
-      <button type="button" className="secondary settings-back-button" onClick={onBack}>
-        Volver
-      </button>
-
       {error && <p className="alert error">{error}</p>}
       {message && <p className="alert">{message}</p>}
 
@@ -339,6 +339,32 @@ export default function PensSettingsPanel({ onBack }) {
           </button>
           <button type="button" onClick={retirePen} disabled={saving}>
             Eliminar corral
+          </button>
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={Boolean(suggestedPenName)}
+        title="Nombre de corral duplicado"
+        description={
+          suggestedPenName
+            ? `Ya existe un corral con ese nombre. Puedes usar ${suggestedPenName} para diferenciarlo.`
+            : ''
+        }
+        onClose={() => setSuggestedPenName('')}
+      >
+        <div className="app-modal-footer">
+          <button type="button" className="secondary" onClick={() => setSuggestedPenName('')}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setField('nombre', suggestedPenName);
+              setSuggestedPenName('');
+            }}
+          >
+            Usar sugerencia
           </button>
         </div>
       </AppModal>

@@ -136,6 +136,44 @@
   box-shadow: var(--shadow-hover);
 }
 
+.field-operation-button.active {
+  border-color: rgba(63, 107, 75, 0.35);
+  background: var(--color-secondary);
+  box-shadow: var(--shadow-hover);
+}
+
+.field-crotal-search-button.silent-mode-lookup.reading,
+.mobile-search-button.silent-mode-lookup.active {
+  background: #f97316;
+}
+
+.field-crotal-search-button.silent-mode-lookup.reading .field-crotal-search-spinner {
+  border-color: rgba(255, 255, 255, 0.28);
+  border-top-color: var(--color-white);
+}
+
+.field-crotal-search-button.silent-mode-parto,
+.mobile-search-button.silent-mode-parto {
+  background: #79b885;
+}
+
+.field-crotal-search-button.silent-mode-baja,
+.mobile-search-button.silent-mode-baja {
+  background: #5b4a3f;
+}
+
+.field-crotal-search-button.silent-mode-lookup.reading,
+.field-crotal-search-button.silent-mode-parto,
+.field-crotal-search-button.silent-mode-baja {
+  color: var(--color-white);
+}
+
+.field-crotal-search-button.silent-mode-lookup.reading .field-crotal-search-icon-wrap,
+.field-crotal-search-button.silent-mode-parto .field-crotal-search-icon-wrap,
+.field-crotal-search-button.silent-mode-baja .field-crotal-search-icon-wrap {
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .field-operation-button span {
   display: block;
   font-weight: 900;
@@ -943,6 +981,24 @@
   box-shadow: var(--shadow-card);
 }
 
+.batch-operation-intro {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.batch-operation-intro h2 {
+  margin: 0;
+  color: var(--color-primary-dark);
+  font-size: clamp(1.7rem, 6vw, 2.15rem);
+  line-height: 1.05;
+}
+
+.batch-operation-intro p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.35;
+}
+
 .batch-reader-input {
   position: fixed;
   width: 1px;
@@ -1090,6 +1146,11 @@
 
 .quick-actions-sheet button {
   min-height: 52px;
+}
+
+.quick-actions-sheet button.active {
+  background: var(--color-primary-dark);
+  color: var(--color-white);
 }
 
 .settings-subform {

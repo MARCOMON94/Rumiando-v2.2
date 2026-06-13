@@ -261,6 +261,25 @@ async function createMovement(data, user) {
         continue;
       }
 
+      if (animal.estadoRegistro === 'BAJA') {
+        notFoundCount++;
+
+        await tx.movimientoAnimalDetalle.create({
+          data: {
+            transaccionId: movement.id,
+            crotalLeido: earTag,
+            estadoProceso: 'ERROR',
+            animalId: animal.id,
+            corralOrigenId: animal.corralActualId,
+            corralDestinoId: Number(corralDestinoId),
+            observaciones: 'Animal dado de baja. No se permite moverlo.'
+          }
+        });
+
+        warnings.push(`${animal.crotal}: animal dado de baja`);
+        continue;
+      }
+
       if (animal.corralActualId === Number(corralDestinoId)) {
         alreadyInDestinationCount++;
 

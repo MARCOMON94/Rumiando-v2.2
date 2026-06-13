@@ -335,6 +335,41 @@ async function updateAnimal(id, data, cuentaGanaderaId) {
     }
   }
 
+  if (updateData.estadoRegistro === 'BAJA') {
+    return prisma.$transaction(async (tx) => {
+      const animal = await tx.animal.update({
+        where: {
+          id
+        },
+        data: updateData,
+        include: getAnimalInclude()
+      });
+
+      await tx.animalWatchlistItem.deleteMany({
+        where: {
+          animalId: id,
+          cuentaGanaderaId
+        }
+      });
+
+      await tx.recordatorio.updateMany({
+        where: {
+          animalId: id,
+          cuentaGanaderaId,
+          estado: {
+            in: ['PENDIENTE', 'POSPUESTO']
+          }
+        },
+        data: {
+          estado: 'CANCELADO',
+          pospuestoHasta: null
+        }
+      });
+
+      return animal;
+    });
+  }
+
   return prisma.animal.update({
     where: {
       id

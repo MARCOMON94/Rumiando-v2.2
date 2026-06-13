@@ -7,7 +7,8 @@
   const message = err.message || 'Error interno del servidor';
 
   res.status(statusCode).json({
-    error: message
+    error: message,
+    ...(err.details ? { details: err.details } : {})
   });
 }
 

@@ -250,6 +250,7 @@ export default function AnimalDetailPage() {
   ].join(' · ');
   const returnTo = location.state?.returnTo;
   const currentPath = `${location.pathname}${location.search || ''}${location.hash || ''}`;
+  const isDischarged = animal.estadoRegistro === 'BAJA';
 
   function toggleExpandedRow(rowId) {
     setExpandedRows((current) => ({
@@ -268,6 +269,8 @@ export default function AnimalDetailPage() {
   }
 
   function openBirthFlow() {
+    if (isDischarged) return;
+
     navigate(`/birth/new/${animal.id}`, {
       state: {
         returnTo: currentPath
@@ -276,6 +279,8 @@ export default function AnimalDetailPage() {
   }
 
   function openDischargeFlow() {
+    if (isDischarged) return;
+
     navigate(`/animals/${animal.id}/discharge`, {
       state: {
         returnTo: currentPath
@@ -370,6 +375,7 @@ export default function AnimalDetailPage() {
             className="secondary animal-profile-watch-button"
             iconOnly
             showMiniLabel
+            disabled={isDischarged}
           />
 
           <div className="animal-profile-age-pill">
@@ -381,6 +387,7 @@ export default function AnimalDetailPage() {
             type="button"
             className="secondary animal-profile-alert-button"
             onClick={() => setManualAlertOpen(true)}
+            disabled={isDischarged}
           >
             <img src="/assets/icon-cencerro-green.png" alt="" aria-hidden="true" />
             <small>Alerta</small>
@@ -388,10 +395,10 @@ export default function AnimalDetailPage() {
         </div>
 
         <div className="animal-profile-main-actions">
-          <button type="button" onClick={openBirthFlow}>
+          <button type="button" onClick={openBirthFlow} disabled={isDischarged}>
             Parto
           </button>
-          <button type="button" onClick={openDischargeFlow}>
+          <button type="button" onClick={openDischargeFlow} disabled={isDischarged}>
             Baja
           </button>
         </div>

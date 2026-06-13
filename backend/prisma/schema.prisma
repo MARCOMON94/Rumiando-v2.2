@@ -101,6 +101,12 @@ enum TipoReglaManejo {
   REPRODUCCION_A_CORRAL
 }
 
+enum TipoDesparasitanteCatalogo {
+  INTERNA
+  EXTERNA
+  MIXTA
+}
+
 model User {
   id           Int          @id @default(autoincrement())
   nombre       String
@@ -166,6 +172,8 @@ model CuentaGanadera {
   especies      CatalogoEspecie[]
   razas         CatalogoRaza[]
   enfermedades  CatalogoEnfermedad[]
+  vacunas       CatalogoVacuna[]
+  desparasitantes CatalogoDesparasitante[]
   estadosRepro  CatalogoEstadoReproductivo[]
   recordatorios Recordatorio[]
   exportaciones ExportacionRegistro[]
@@ -219,6 +227,9 @@ model CatalogoEspecie {
   unidadesRegaComoPrincipal UnidadRega[]
   razas                     CatalogoRaza[]
   animales                  Animal[]
+  enfermedades              CatalogoEnfermedad[]
+  vacunas                   CatalogoVacuna[]
+  desparasitantes           CatalogoDesparasitante[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -252,10 +263,15 @@ model CatalogoEnfermedad {
   descripcion            String?
   declaracionObligatoria Boolean @default(false)
   requiereLazareto       Boolean @default(false)
+  gravedadSugerida        String?
+  aliases                 Json?
   activo                 Boolean @default(true)
 
   cuentaGanaderaId Int
   cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+
+  especieId Int?
+  especie   CatalogoEspecie? @relation(fields: [especieId], references: [id])
 
   casosSanitarios CasoSanitario[]
 
@@ -263,6 +279,49 @@ model CatalogoEnfermedad {
   updatedAt DateTime @updatedAt
 
   @@unique([cuentaGanaderaId, nombre])
+  @@index([especieId])
+}
+
+model CatalogoVacuna {
+  id      Int     @id @default(autoincrement())
+  nombre  String
+  aliases Json?
+  activo  Boolean @default(true)
+
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+
+  especieId Int?
+  especie   CatalogoEspecie? @relation(fields: [especieId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cuentaGanaderaId, nombre])
+  @@index([cuentaGanaderaId])
+  @@index([especieId])
+}
+
+model CatalogoDesparasitante {
+  id              Int                       @id @default(autoincrement())
+  nombre          String
+  tipo            TipoDesparasitanteCatalogo @default(INTERNA)
+  principioActivo String?
+  aliases         Json?
+  activo          Boolean                   @default(true)
+
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+
+  especieId Int?
+  especie   CatalogoEspecie? @relation(fields: [especieId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cuentaGanaderaId, nombre])
+  @@index([cuentaGanaderaId])
+  @@index([especieId])
 }
 
 model CatalogoEstadoReproductivo {

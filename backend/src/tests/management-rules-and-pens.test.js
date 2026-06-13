@@ -254,6 +254,25 @@ describe('Management rules and safe pen retirement', () => {
     expect(remove.body.deleted).toBe(true);
   });
 
+  test('pen create rechaza nombres duplicados y devuelve sugerencia', async () => {
+    const existingPen = await prisma.corral.findFirst({
+      where: {
+        id: created.pens[0]
+      }
+    });
+
+    const duplicate = await request(app)
+      .post('/api/pens')
+      .set('Cookie', cookie)
+      .send({
+        nombre: `  ${existingPen.nombre.toUpperCase()}  `,
+        unidadRegaId: existingPen.unidadRegaId
+      });
+
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.body.details.suggestedName).toMatch(new RegExp(`^${existingPen.nombre} \\d+$`));
+  });
+
   test('pen retire bloquea con animales sin destino y mueve con historico si se indica destino', async () => {
     const [sourcePen, targetPen, emptyPen] = await prisma.corral.findMany({
       where: {

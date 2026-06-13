@@ -93,6 +93,53 @@ async function getPenById(id, cuentaGanaderaId) {
   return pen;
 }
 
+function normalizePenName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ');
+}
+
+function comparablePenName(name) {
+  return normalizePenName(name).toLocaleLowerCase('es-ES');
+}
+
+async function findDuplicatedPen({ name, unidadRegaId, excludeId = null }) {
+  const normalized = normalizePenName(name);
+  const pens = await prisma.corral.findMany({
+    where: {
+      unidadRegaId: Number(unidadRegaId),
+      ...(excludeId ? { NOT: { id: Number(excludeId) } } : {})
+    },
+    select: {
+      id: true,
+      nombre: true
+    }
+  });
+
+  return pens.find((pen) => comparablePenName(pen.nombre) === comparablePenName(normalized)) || null;
+}
+
+async function suggestPenName(baseName, unidadRegaId, excludeId = null) {
+  const normalized = normalizePenName(baseName);
+  const pens = await prisma.corral.findMany({
+    where: {
+      unidadRegaId: Number(unidadRegaId),
+      ...(excludeId ? { NOT: { id: Number(excludeId) } } : {})
+    },
+    select: {
+      nombre: true
+    }
+  });
+  const existing = new Set(pens.map((pen) => comparablePenName(pen.nombre)));
+
+  let suffix = 2;
+  let candidate = `${normalized} ${suffix}`;
+  while (existing.has(comparablePenName(candidate))) {
+    suffix++;
+    candidate = `${normalized} ${suffix}`;
+  }
+
+  return candidate;
+}
+
 async function checkRetireDestinationPen(currentPen, moveAnimalsToPenId, cuentaGanaderaId) {
   if (!moveAnimalsToPenId) {
     return null;
@@ -133,27 +180,30 @@ async function createPen(data, cuentaGanaderaId) {
     estadoReproductivoSugeridoId
   } = data;
 
-  if (!nombre || !unidadRegaId) {
+  const normalizedName = normalizePenName(nombre);
+
+  if (!normalizedName || !unidadRegaId) {
     throw new AppError('El nombre y la unidad REGA son obligatorios', 400);
   }
 
   await checkFarmUnit(unidadRegaId, cuentaGanaderaId);
   await checkReproductiveStatus(estadoReproductivoSugeridoId, cuentaGanaderaId);
 
-  const duplicatedPen = await prisma.corral.findFirst({
-    where: {
-      nombre: nombre.trim(),
-      unidadRegaId: Number(unidadRegaId)
-    }
+  const duplicatedPen = await findDuplicatedPen({
+    name: normalizedName,
+    unidadRegaId
   });
 
   if (duplicatedPen) {
-    throw new AppError('Ya existe un corral con ese nombre en esa unidad REGA', 409);
+    const suggestion = await suggestPenName(duplicatedPen.nombre, unidadRegaId);
+    throw new AppError('Ya existe un corral con ese nombre en esa unidad REGA', 409, {
+      suggestedName: suggestion
+    });
   }
 
   return prisma.corral.create({
     data: {
-      nombre: nombre.trim(),
+      nombre: normalizedName,
       tipoFuncional: tipoFuncional || null,
       capacidad: capacidad ? Number(capacidad) : null,
       aplicarEstadoAutomaticamente: aplicarEstadoAutomaticamente || false,
@@ -172,7 +222,10 @@ async function updatePen(id, data, cuentaGanaderaId) {
   const updateData = {};
 
   if (data.nombre !== undefined) {
-    updateData.nombre = data.nombre.trim();
+    updateData.nombre = normalizePenName(data.nombre);
+    if (!updateData.nombre) {
+      throw new AppError('El nombre del corral es obligatorio', 400);
+    }
   }
 
   if (data.tipoFuncional !== undefined) {
@@ -201,18 +254,21 @@ async function updatePen(id, data, cuentaGanaderaId) {
   }
 
   if (updateData.nombre) {
-    const duplicatedPen = await prisma.corral.findFirst({
-      where: {
-        nombre: updateData.nombre,
-        unidadRegaId: updateData.unidadRegaId || currentPen.unidadRegaId,
-        NOT: {
-          id
-        }
-      }
+    const duplicatedPen = await findDuplicatedPen({
+      name: updateData.nombre,
+      unidadRegaId: updateData.unidadRegaId || currentPen.unidadRegaId,
+      excludeId: id
     });
 
     if (duplicatedPen) {
-      throw new AppError('Ya existe otro corral con ese nombre en esa unidad REGA', 409);
+      const suggestion = await suggestPenName(
+        duplicatedPen.nombre,
+        updateData.unidadRegaId || currentPen.unidadRegaId,
+        id
+      );
+      throw new AppError('Ya existe otro corral con ese nombre en esa unidad REGA', 409, {
+        suggestedName: suggestion
+      });
     }
   }
 

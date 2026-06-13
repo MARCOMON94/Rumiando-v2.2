@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { put } from '../../api/apiClient';
 import { useAuth } from '../../context/AuthContext';
 
-export default function UserSettingsPanel({ onBack }) {
+export default function UserSettingsPanel() {
   const { user, refreshUser } = useAuth();
   const [name, setName] = useState(user?.nombre || '');
   const [saving, setSaving] = useState(false);
@@ -30,10 +30,6 @@ export default function UserSettingsPanel({ onBack }) {
 
   return (
     <div className="settings-user-panel">
-      <button type="button" className="secondary settings-back-button" onClick={onBack}>
-        Volver
-      </button>
-
       {error && <p className="alert error">{error}</p>}
       {message && <p className="alert">{message}</p>}
 

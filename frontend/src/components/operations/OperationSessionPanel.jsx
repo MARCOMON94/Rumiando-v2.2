@@ -310,7 +310,7 @@ export default function OperationSessionPanel({
           corralId: pen?.id || null,
           enfermedadId: operationData.enfermedadId ? Number(operationData.enfermedadId) : null
         }));
-        result = createResultSummary('Caso sanitario', registros.length, { raw: registros });
+        result = createResultSummary('Evento sanitario', registros.length, { raw: registros });
       } else if (session.operationType === 'tratamiento') {
         if (!operationData.medicamentoProducto) {
           throw new Error('Indica el medicamento o producto.');

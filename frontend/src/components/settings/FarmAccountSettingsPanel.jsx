@@ -11,7 +11,7 @@ function emptyAccountForm() {
   };
 }
 
-export default function FarmAccountSettingsPanel({ currentUser, onBack }) {
+export default function FarmAccountSettingsPanel({ currentUser }) {
   const navigate = useNavigate();
   const [settings, setSettings] = useState(null);
   const [accountForm, setAccountForm] = useState(emptyAccountForm);
@@ -169,10 +169,6 @@ export default function FarmAccountSettingsPanel({ currentUser, onBack }) {
 
   return (
     <div className="settings-account-panel">
-      <button type="button" className="secondary settings-back-button" onClick={onBack}>
-        Volver
-      </button>
-
       {error && <p className="alert error">{error}</p>}
       {message && <p className="alert">{message}</p>}
 

@@ -42,6 +42,8 @@ async function clearDatabase() {
   await prisma.corral.deleteMany();
   await prisma.unidadRega.deleteMany();
   await prisma.catalogoEstadoReproductivo.deleteMany();
+  await prisma.catalogoVacuna.deleteMany();
+  await prisma.catalogoDesparasitante.deleteMany();
   await prisma.catalogoEnfermedad.deleteMany();
   await prisma.catalogoRaza.deleteMany();
   await prisma.catalogoEspecie.deleteMany();
@@ -50,29 +52,45 @@ async function clearDatabase() {
 }
 
 async function createCatalogs(cuentaId) {
-  const caprino = await prisma.catalogoEspecie.create({
-    data: { nombre: 'Caprino', cuentaGanaderaId: cuentaId }
-  });
+  const speciesSeed = ['Caprino', 'Ovino', 'Equino', 'Vacuno', 'Porcino', 'Otras especies'];
+  const species = {};
 
-  const ovino = await prisma.catalogoEspecie.create({
-    data: { nombre: 'Ovino', cuentaGanaderaId: cuentaId }
-  });
+  for (const nombre of speciesSeed) {
+    species[nombre] = await prisma.catalogoEspecie.create({
+      data: { nombre, cuentaGanaderaId: cuentaId }
+    });
+  }
 
-  const majorera = await prisma.catalogoRaza.create({
-    data: { nombre: 'Majorera', cuentaGanaderaId: cuentaId, especieId: caprino.id }
-  });
+  const breedSeed = {
+    Caprino: ['Majorera', 'Murciano-Granadina', 'Malagueña', 'Florida', 'Palmera', 'Tinerfeña', 'Payoya', 'Verata', 'Blanca Celtibérica', 'Otra raza'],
+    Ovino: ['Manchega', 'Merina', 'Canaria', 'Assaf', 'Lacaune', 'Latxa', 'Segureña', 'Churra', 'Castellana', 'Rasa Aragonesa', 'Otra raza'],
+    Equino: ['Pura Raza Española', 'Hispano-Árabe', 'Caballo de Deporte Español', 'Asturcón', 'Burguete', 'Pottoka', 'Menorquina', 'Árabe', 'Anglo-Árabe', 'Otra raza'],
+    Vacuno: ['Frisona', 'Rubia Gallega', 'Retinta', 'Asturiana de los Valles', 'Asturiana de la Montaña', 'Avileña-Negra Ibérica', 'Limusina', 'Charolesa', 'Parda de Montaña', 'Lidia', 'Pirenaica', 'Otra raza'],
+    Porcino: ['Ibérico', 'Duroc', 'Landrace', 'Large White', 'Pietrain', 'Chato Murciano', 'Gochu Asturcelta', 'Porco Celta', 'Euskal Txerria', 'Negra Canaria', 'Otra raza'],
+    'Otras especies': ['Otros animales']
+  };
 
-  const murcianoGranadina = await prisma.catalogoRaza.create({
-    data: { nombre: 'Murciano-Granadina', cuentaGanaderaId: cuentaId, especieId: caprino.id }
-  });
+  const breeds = {};
 
-  const manchega = await prisma.catalogoRaza.create({
-    data: { nombre: 'Manchega', cuentaGanaderaId: cuentaId, especieId: ovino.id }
-  });
+  for (const [speciesName, breedNames] of Object.entries(breedSeed)) {
+    for (const breedName of breedNames) {
+      const key = `${speciesName}:${breedName}`;
+      breeds[key] = await prisma.catalogoRaza.create({
+        data: {
+          nombre: breedName,
+          cuentaGanaderaId: cuentaId,
+          especieId: species[speciesName].id
+        }
+      });
+    }
+  }
 
-  const canaria = await prisma.catalogoRaza.create({
-    data: { nombre: 'Canaria', cuentaGanaderaId: cuentaId, especieId: ovino.id }
-  });
+  const caprino = species.Caprino;
+  const ovino = species.Ovino;
+  const majorera = breeds['Caprino:Majorera'];
+  const murcianoGranadina = breeds['Caprino:Murciano-Granadina'];
+  const manchega = breeds['Ovino:Manchega'];
+  const canaria = breeds['Ovino:Canaria'];
 
   const estadosSeed = [
     ['No aplica', 1],
@@ -103,49 +121,65 @@ async function createCatalogs(cuentaId) {
       nombre: 'Lengua azul',
       descripcion: 'Enfermedad vírica transmitida por culicoides. Ejemplo de enfermedad de declaración obligatoria.',
       declaracionObligatoria: true,
-      requiereLazareto: true
+      requiereLazareto: true,
+      gravedadSugerida: 'GRAVE',
+      aliases: ['btv', 'blue tongue']
     },
     {
       nombre: 'Brucelosis ovina y caprina',
       descripcion: 'Zoonosis bacteriana incluida como ejemplo de control sanitario oficial.',
       declaracionObligatoria: true,
-      requiereLazareto: true
+      requiereLazareto: true,
+      gravedadSugerida: 'GRAVE',
+      aliases: ['brucela', 'brucelosis']
     },
     {
       nombre: 'Agalaxia contagiosa ovina y caprina',
       descripcion: 'Proceso infeccioso relevante en pequeños rumiantes, asociado a mamitis, artritis y queratoconjuntivitis.',
       declaracionObligatoria: false,
-      requiereLazareto: true
+      requiereLazareto: true,
+      gravedadSugerida: 'GRAVE',
+      aliases: ['agalaxia', 'seca de leche']
     },
     {
       nombre: 'Mamitis clínica',
       descripcion: 'Inflamación clínica de la glándula mamaria con alteración de leche y/o estado general.',
       declaracionObligatoria: false,
-      requiereLazareto: false
+      requiereLazareto: false,
+      gravedadSugerida: 'MEDIA',
+      aliases: ['mamitis', 'mastitis', 'ubre mala', 'ubres']
     },
     {
       nombre: 'Pododermatitis / cojeras',
       descripcion: 'Proceso podal frecuente relacionado con manejo, humedad, heridas o infección secundaria.',
       declaracionObligatoria: false,
-      requiereLazareto: false
+      requiereLazareto: false,
+      gravedadSugerida: 'MEDIA',
+      aliases: ['cojera', 'cojeras', 'patas', 'pedero', 'podredumbre de pezuña']
     },
     {
       nombre: 'Coccidiosis',
       descripcion: 'Proceso parasitario digestivo frecuente en recría.',
       declaracionObligatoria: false,
-      requiereLazareto: false
+      requiereLazareto: false,
+      gravedadSugerida: 'MEDIA',
+      aliases: ['coccidios', 'diarrea de recría', 'diarrea cria']
     },
     {
       nombre: 'Parasitosis gastrointestinal',
       descripcion: 'Proceso parasitario digestivo de manejo habitual en pequeños rumiantes.',
       declaracionObligatoria: false,
-      requiereLazareto: false
+      requiereLazareto: false,
+      gravedadSugerida: 'LEVE',
+      aliases: ['parasitos', 'lombrices', 'gusanos', 'parasitos intestinales']
     },
     {
       nombre: 'Neumonía',
       descripcion: 'Proceso respiratorio compatible con fiebre, tos, disnea o decaimiento.',
       declaracionObligatoria: false,
-      requiereLazareto: true
+      requiereLazareto: true,
+      gravedadSugerida: 'GRAVE',
+      aliases: ['pulmonia', 'tos', 'respiratorio', 'neumonia']
     }
   ];
 
@@ -157,8 +191,52 @@ async function createCatalogs(cuentaId) {
     });
   }
 
+  const vaccinesSeed = [
+    { especie: null, nombre: 'Lengua azul', aliases: ['btv', 'blue tongue'] },
+    { especie: null, nombre: 'Clostridial polivalente', aliases: ['clostridial', 'basquilla', 'enterotoxemia', 'vacuna de basquilla'] },
+    { especie: null, nombre: 'Agalaxia contagiosa', aliases: ['agalaxia'] },
+    { especie: 'Equino', nombre: 'Influenza equina', aliases: ['gripe equina', 'influenza'] },
+    { especie: 'Equino', nombre: 'Rinoneumonitis equina', aliases: ['rinoneumonitis', 'herpesvirus equino', 'ehv'] },
+    { especie: 'Vacuno', nombre: 'IBR/BVD', aliases: ['ibr', 'bvd', 'rinotraqueitis bovina', 'diarrea viral bovina'] },
+    { especie: 'Porcino', nombre: 'Parvovirosis porcina', aliases: ['parvo', 'parvovirus'] },
+    { especie: 'Porcino', nombre: 'Mal rojo', aliases: ['erisipela', 'mal rojo'] }
+  ];
+
+  for (const vaccine of vaccinesSeed) {
+    await prisma.catalogoVacuna.create({
+      data: {
+        nombre: vaccine.nombre,
+        aliases: vaccine.aliases,
+        cuentaGanaderaId: cuentaId,
+        especieId: vaccine.especie ? species[vaccine.especie].id : null
+      }
+    });
+  }
+
+  const dewormersSeed = [
+    ['Ivermectina', 'MIXTA', 'Ivermectina', ['ivermectina', 'ivomec']],
+    ['Albendazol', 'INTERNA', 'Albendazol', ['albendazol', 'alben']],
+    ['Fenbendazol', 'INTERNA', 'Fenbendazol', ['fenbendazol']],
+    ['Closantel', 'INTERNA', 'Closantel', ['closantel']],
+    ['Levamisol', 'INTERNA', 'Levamisol', ['levamisol']],
+    ['Moxidectina', 'MIXTA', 'Moxidectina', ['moxidectina']],
+    ['Eprinomectina', 'MIXTA', 'Eprinomectina', ['eprinomectina']]
+  ];
+
+  for (const [nombre, tipo, principioActivo, aliases] of dewormersSeed) {
+    await prisma.catalogoDesparasitante.create({
+      data: {
+        nombre,
+        tipo,
+        principioActivo,
+        aliases,
+        cuentaGanaderaId: cuentaId
+      }
+    });
+  }
+
   return {
-    species: { caprino, ovino },
+    species: { caprino, ovino, equino: species.Equino, vacuno: species.Vacuno, porcino: species.Porcino, otras: species['Otras especies'] },
     breeds: { majorera, murcianoGranadina, manchega, canaria },
     estados,
     enfermedades

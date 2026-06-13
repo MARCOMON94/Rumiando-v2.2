@@ -7,7 +7,14 @@ const WATCHLIST_ACTIONS = [
   { key: 'movement', label: 'Movimiento de corral' },
   { key: 'reproductive_status', label: 'Estado reproductivo' },
   { key: 'reproductive_event', label: 'Evento reproductivo' },
-  { key: 'health', label: 'Sanitario' }
+  { key: 'health', label: 'Evento sanitario' }
+];
+
+const HEALTH_TYPES = [
+  ['vaccination', 'Vacunación'],
+  ['deworming', 'Desparasitación'],
+  ['disease', 'Enfermedad'],
+  ['other', 'Otro']
 ];
 
 const REPRODUCTIVE_EVENTS = [
@@ -62,6 +69,23 @@ function itemName(item, fallback = 'Sin nombre') {
   return item?.nombre || item?.name || item?.codigoRega || fallback;
 }
 
+function filterBySpecies(items, animal) {
+  const speciesId = Number(animal?.especieId || animal?.especie?.id || 0);
+  if (!speciesId) return items || [];
+
+  return (items || []).filter((item) => {
+    const itemSpeciesId = Number(item.especieId || item.especie?.id || 0);
+    return !itemSpeciesId || itemSpeciesId === speciesId;
+  });
+}
+
+function dewormingTypeToBackend(value) {
+  if (value === 'INTERNA') return 'Interna';
+  if (value === 'EXTERNA') return 'Externa';
+  if (value === 'MIXTA') return 'Mixta';
+  return value || 'Interna';
+}
+
 function formatReadInfo(item) {
   if (!item?.lastReadAt) return 'Sin lectura';
 
@@ -89,6 +113,8 @@ export default function AnimalWatchlistPage() {
   const [activeItem, setActiveItem] = useState(null);
   const [actionKind, setActionKind] = useState('');
   const [subActionValue, setSubActionValue] = useState('');
+  const [healthActionType, setHealthActionType] = useState('vaccination');
+  const [healthActionValue, setHealthActionValue] = useState('');
   const [actionSaving, setActionSaving] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
   const [actionError, setActionError] = useState('');
@@ -185,6 +211,8 @@ export default function AnimalWatchlistPage() {
     setActiveItem(item);
     setActionKind('');
     setSubActionValue('');
+    setHealthActionType('vaccination');
+    setHealthActionValue('');
     setActionMessage('');
     setActionError('');
   }
@@ -366,6 +394,8 @@ export default function AnimalWatchlistPage() {
   function handleActionKindChange(event) {
     setActionKind(event.target.value);
     setSubActionValue('');
+    setHealthActionType('vaccination');
+    setHealthActionValue('');
     setActionMessage('');
     setActionError('');
   }
@@ -386,8 +416,13 @@ export default function AnimalWatchlistPage() {
 
     if (!actionKind) return true;
 
-    if (!value) {
+    if (actionKind !== 'health' && !value) {
       setActionError('Selecciona una opción antes de finalizar.');
+      return false;
+    }
+
+    if (actionKind === 'health' && healthActionType !== 'other' && !healthActionValue) {
+      setActionError('Selecciona una opción sanitaria antes de finalizar.');
       return false;
     }
 
@@ -429,14 +464,42 @@ export default function AnimalWatchlistPage() {
           observaciones: 'Registrado desde Búsqueda inteligente.'
         });
       } else if (actionKind === 'health') {
-        await post('/health-cases', {
-          fechaInicio: today,
-          signosClinicos: 'Caso abierto desde Búsqueda inteligente.',
-          gravedad: 'Media',
-          unidadRegaId: Number(animal.unidadRegaId),
-          animalId: animal.id,
-          enfermedadId: value === '__NO_DISEASE__' ? null : Number(value)
-        });
+        const corralId = animal.corralActualId || animal.corralActual?.id || null;
+
+        if (healthActionType === 'vaccination') {
+          const vaccine = (catalogs.vaccines || []).find((item) => String(item.id) === String(healthActionValue));
+          await post('/vaccinations', {
+            fecha: today,
+            vacuna: itemName(vaccine, 'Vacuna registrada desde Búsqueda inteligente'),
+            unidadRegaId: Number(animal.unidadRegaId),
+            animalId: animal.id,
+            corralId
+          });
+        } else if (healthActionType === 'deworming') {
+          const dewormer = (catalogs.dewormers || []).find((item) => String(item.id) === String(healthActionValue));
+          await post('/dewormings', {
+            fecha: today,
+            tipo: dewormingTypeToBackend(dewormer?.tipo),
+            producto: itemName(dewormer, 'Desparasitación registrada desde Búsqueda inteligente'),
+            unidadRegaId: Number(animal.unidadRegaId),
+            animalId: animal.id,
+            corralId
+          });
+        } else {
+          const disease = (catalogs.diseases || []).find((item) => String(item.id) === String(healthActionValue));
+          await post('/health-cases', {
+            fechaInicio: today,
+            signosClinicos: healthActionType === 'other'
+              ? 'Evento sanitario abierto desde Búsqueda inteligente.'
+              : 'Caso abierto desde Búsqueda inteligente.',
+            diagnosticoPresuntivo: disease?.nombre || 'Evento sanitario registrado desde Búsqueda inteligente',
+            gravedad: disease?.gravedadSugerida || 'MEDIA',
+            unidadRegaId: Number(animal.unidadRegaId),
+            animalId: animal.id,
+            corralId,
+            enfermedadId: disease?.id || null
+          });
+        }
       }
 
       setActionMessage('Registrado correctamente.');
@@ -508,9 +571,93 @@ export default function AnimalWatchlistPage() {
       );
     }
 
+    if (actionKind === 'health') {
+      const vaccines = filterBySpecies(catalogs.vaccines || [], activeItem?.animal);
+      const dewormers = filterBySpecies(catalogs.dewormers || [], activeItem?.animal);
+      const diseases = filterBySpecies(catalogs.diseases || [], activeItem?.animal);
+
+      return (
+        <>
+          <label>
+            Tipo sanitario
+            <select
+              value={healthActionType}
+              onChange={(event) => {
+                setHealthActionType(event.target.value);
+                setHealthActionValue('');
+                setActionMessage('');
+                setActionError('');
+              }}
+              disabled={actionSaving}
+            >
+              {HEALTH_TYPES.map(([optionValue, label]) => (
+                <option key={optionValue} value={optionValue}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {healthActionType === 'vaccination' && (
+            <label>
+              Vacuna
+              <select
+                value={healthActionValue}
+                onChange={(event) => setHealthActionValue(event.target.value)}
+                disabled={actionSaving}
+              >
+                <option value="">Selecciona vacuna</option>
+                {vaccines.map((vaccine) => (
+                  <option key={vaccine.id} value={vaccine.id}>
+                    {itemName(vaccine)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {healthActionType === 'deworming' && (
+            <label>
+              Desparasitación
+              <select
+                value={healthActionValue}
+                onChange={(event) => setHealthActionValue(event.target.value)}
+                disabled={actionSaving}
+              >
+                <option value="">Selecciona producto</option>
+                {dewormers.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {itemName(item)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {healthActionType === 'disease' && (
+            <label>
+              Enfermedad
+              <select
+                value={healthActionValue}
+                onChange={(event) => setHealthActionValue(event.target.value)}
+                disabled={actionSaving}
+              >
+                <option value="">Selecciona enfermedad</option>
+                {diseases.map((disease) => (
+                  <option key={disease.id} value={disease.id}>
+                    {itemName(disease)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
+      );
+    }
+
     return (
       <label>
-        Caso sanitario
+        Evento sanitario
         <select value={subActionValue} onChange={handleSubActionChange} disabled={actionSaving}>
           <option value="">Selecciona opción</option>
           <option value="__NO_DISEASE__">Abrir caso sin diagnóstico</option>

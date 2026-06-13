@@ -9,7 +9,7 @@ const MODES = [
 
 const ACTIONS = [
   { key: 'cambio_corral', label: 'Cambio de corral' },
-  { key: 'sanidad', label: 'Caso sanitario' },
+  { key: 'sanidad', label: 'Evento sanitario' },
   { key: 'tratamiento', label: 'Tratamiento' },
   { key: 'vacunacion', label: 'Vacunacion' },
   { key: 'desparasitacion', label: 'Desparasitacion' },

@@ -34,7 +34,7 @@ export default function HealthPage() {
   });
 
   if (loading) {
-    return <p>Cargando casos sanitarios...</p>;
+    return <p>Cargando eventos sanitarios...</p>;
   }
 
   if (error) {
@@ -45,7 +45,7 @@ export default function HealthPage() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h2>Casos sanitarios</h2>
+          <h2>Eventos sanitarios</h2>
           <p>{openCases.length} casos abiertos de {healthCases.length} registrados</p>
         </div>
       </header>
@@ -87,7 +87,7 @@ export default function HealthPage() {
               )}
             </div>
 
-            <h3>{healthCase.enfermedad?.nombre || healthCase.diagnostico || 'Caso sanitario'}</h3>
+            <h3>{healthCase.enfermedad?.nombre || healthCase.diagnostico || 'Evento sanitario'}</h3>
 
             <p>
               <strong>Animal:</strong>{' '}
