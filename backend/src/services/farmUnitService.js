@@ -6,6 +6,10 @@ async function listFarmUnits(cuentaGanaderaId) {
     where: {
       cuentaGanaderaId
     },
+    include: {
+      especiePrincipal: true,
+      razaPrincipal: true
+    },
     orderBy: {
       nombre: 'asc'
     }
@@ -17,6 +21,10 @@ async function getFarmUnitById(id, cuentaGanaderaId) {
     where: {
       id,
       cuentaGanaderaId
+    },
+    include: {
+      especiePrincipal: true,
+      razaPrincipal: true
     }
   });
 
@@ -31,9 +39,10 @@ async function createFarmUnit(data, cuentaGanaderaId) {
   const {
     nombre,
     codigoRega,
-    direccion,
     municipio,
     provincia,
+    especiePrincipalId,
+    razaPrincipalId,
     activa
   } = data;
 
@@ -58,9 +67,10 @@ async function createFarmUnit(data, cuentaGanaderaId) {
     data: {
       nombre: nombre.trim(),
       codigoRega: codigoRega ? codigoRega.trim() : null,
-      direccion: direccion || null,
       municipio: municipio || null,
       provincia: provincia || null,
+      especiePrincipalId: especiePrincipalId ? Number(especiePrincipalId) : null,
+      razaPrincipalId: razaPrincipalId ? Number(razaPrincipalId) : null,
       activa: activa !== undefined ? activa : true,
       cuentaGanaderaId
     }
@@ -80,10 +90,6 @@ async function updateFarmUnit(id, data, cuentaGanaderaId) {
     updateData.codigoRega = data.codigoRega ? data.codigoRega.trim() : null;
   }
 
-  if (data.direccion !== undefined) {
-    updateData.direccion = data.direccion || null;
-  }
-
   if (data.municipio !== undefined) {
     updateData.municipio = data.municipio || null;
   }
@@ -94,6 +100,18 @@ async function updateFarmUnit(id, data, cuentaGanaderaId) {
 
   if (data.activa !== undefined) {
     updateData.activa = data.activa;
+  }
+
+  if (data.especiePrincipalId !== undefined) {
+    updateData.especiePrincipalId = data.especiePrincipalId
+      ? Number(data.especiePrincipalId)
+      : null;
+  }
+
+  if (data.razaPrincipalId !== undefined) {
+    updateData.razaPrincipalId = data.razaPrincipalId
+      ? Number(data.razaPrincipalId)
+      : null;
   }
 
   if (updateData.codigoRega) {

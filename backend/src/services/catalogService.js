@@ -14,6 +14,10 @@ async function getCatalogs(cuentaGanaderaId) {
         cuentaGanaderaId,
         activa: true
       },
+      include: {
+        especiePrincipal: true,
+        razaPrincipal: true
+      },
       orderBy: {
         nombre: 'asc'
       }

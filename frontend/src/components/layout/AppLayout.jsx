@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { get } from '../../api/apiClient';
 import { useAuth } from '../../context/AuthContext';
+import AppModal from '../ui/AppModal';
 
 const SILENT_READER_EVENT = 'rumiando:silent-reader:activate';
 const SILENT_READER_DEACTIVATE_EVENT = 'rumiando:silent-reader:deactivate';
@@ -65,6 +66,7 @@ export default function AppLayout() {
   const [automaticAlertsTotal, setAutomaticAlertsTotal] = useState(0);
   const [silentReaderAnimals, setSilentReaderAnimals] = useState([]);
   const [silentReader, setSilentReader] = useState(INITIAL_SILENT_READER);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
   const isAdmin = user?.rol === 'ADMIN';
 
@@ -365,10 +367,11 @@ export default function AppLayout() {
           />
         </NavLink>
 
-        <NavLink
-          to="/animals/new"
+        <button
+          type="button"
           className="mobile-nav-button mobile-nav-plus"
-          aria-label="Añadir animal"
+          aria-label="Abrir acciones"
+          onClick={() => setQuickActionsOpen(true)}
         >
           <img
             src="/assets/icon-add-green.png"
@@ -376,7 +379,7 @@ export default function AppLayout() {
             aria-hidden="true"
             className="mobile-nav-img mobile-nav-action-img"
           />
-        </NavLink>
+        </button>
 
         <button
           type="button"
@@ -429,6 +432,64 @@ export default function AppLayout() {
           />
         </NavLink>
       </nav>
+
+      <AppModal
+        open={quickActionsOpen}
+        title="Acciones"
+        description="Elige el flujo y pasa el lector cuando se abra."
+        onClose={() => setQuickActionsOpen(false)}
+        modalClassName="quick-actions-modal"
+      >
+        <div className="quick-actions-sheet">
+          <button
+            type="button"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              navigate('/operations/movement');
+            }}
+          >
+            Movimiento de corral
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              navigate('/operations/reproductive');
+            }}
+          >
+            Estado reproductivo
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              navigate('/operations/health');
+            }}
+          >
+            Caso sanitario
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              activateSilentReader('parto');
+            }}
+          >
+            Parto
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setQuickActionsOpen(false);
+              activateSilentReader('baja');
+            }}
+          >
+            Baja
+          </button>
+        </div>
+      </AppModal>
     </div>
   );
 }

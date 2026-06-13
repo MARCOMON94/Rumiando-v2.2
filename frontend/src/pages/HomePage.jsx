@@ -3,6 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { get } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 import AppModal from '../components/ui/AppModal';
+import ManagementRulesPanel from '../components/settings/ManagementRulesPanel';
+import PensSettingsPanel from '../components/settings/PensSettingsPanel';
+import FarmAccountSettingsPanel from '../components/settings/FarmAccountSettingsPanel';
+import UserSettingsPanel from '../components/settings/UserSettingsPanel';
 
 const INITIAL_SILENT_READER = {
   active: false,
@@ -294,15 +298,34 @@ export default function HomePage() {
             <button
               type="button"
               className="secondary"
-              onClick={() => {
-                closeSettings();
-                navigate('/automation');
-              }}
+              onClick={() => setSettingsView('automation')}
             >
               Automatización
             </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('pens')}
+            >
+              Corrales
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('account')}
+            >
+              Cuenta ganadera
+            </button>
           </>
         )}
+
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => setSettingsView('user')}
+        >
+          Usuario
+        </button>
 
         <button
           type="button"
@@ -396,6 +419,47 @@ export default function HomePage() {
     );
   }
 
+  function settingsTitle() {
+    if (settingsView === 'alerts') return 'Avisos';
+    if (settingsView === 'automation') return 'Automatización';
+    if (settingsView === 'pens') return 'Corrales';
+    if (settingsView === 'account') return 'Cuenta ganadera';
+    if (settingsView === 'user') return 'Usuario';
+    return 'Configuración';
+  }
+
+  function settingsDescription() {
+    if (settingsView === 'alerts') return 'Ajustes orientativos por REGA.';
+    if (settingsView === 'automation') return 'Reglas de manejo entre corrales y reproducción.';
+    if (settingsView === 'pens') return 'Edita corrales y traslados seguros.';
+    if (settingsView === 'account') return 'Datos de explotación, REGAs y usuarios.';
+    if (settingsView === 'user') return 'Tus datos visibles en la app.';
+    return user?.nombre || user?.email || 'Sesión activa';
+  }
+
+  function renderSettingsContent() {
+    if (settingsView === 'alerts') return renderAlertSettings();
+    if (settingsView === 'automation') {
+      return <ManagementRulesPanel onBack={() => setSettingsView('main')} />;
+    }
+    if (settingsView === 'pens') {
+      return <PensSettingsPanel onBack={() => setSettingsView('main')} />;
+    }
+    if (settingsView === 'account') {
+      return (
+        <FarmAccountSettingsPanel
+          currentUser={user}
+          onBack={() => setSettingsView('main')}
+        />
+      );
+    }
+    if (settingsView === 'user') {
+      return <UserSettingsPanel onBack={() => setSettingsView('main')} />;
+    }
+
+    return renderSettingsMain();
+  }
+
   return (
     <section className="clean-home-page field-home-page">
       <div className="field-home-search-row">
@@ -454,7 +518,7 @@ export default function HomePage() {
         <button
           type="button"
           className="field-operation-button field-operation-wide field-operation-with-icon"
-          onClick={() => navigate('/movements')}
+          onClick={() => navigate('/operations/movement')}
         >
           <span>Movimiento de corral</span>
           <OperationIcon src={HOME_ICONS.add} />
@@ -463,7 +527,7 @@ export default function HomePage() {
         <button
           type="button"
           className="field-operation-button field-operation-wide field-operation-with-icon"
-          onClick={() => navigate('/animals')}
+          onClick={() => navigate('/operations/reproductive')}
         >
           <span>Estado reproductivo</span>
           <OperationIcon src={HOME_ICONS.add} />
@@ -472,7 +536,7 @@ export default function HomePage() {
         <button
           type="button"
           className="field-operation-button field-operation-wide field-operation-with-icon"
-          onClick={() => navigate('/health')}
+          onClick={() => navigate('/operations/health')}
         >
           <span>Caso sanitario</span>
           <OperationIcon src={HOME_ICONS.add} />
@@ -526,16 +590,12 @@ export default function HomePage() {
 
       <AppModal
         open={settingsOpen}
-        title={settingsView === 'alerts' ? 'Avisos' : 'Configuración'}
-        description={
-          settingsView === 'alerts'
-            ? 'Ajustes orientativos por REGA.'
-            : user?.nombre || user?.email || 'Sesión activa'
-        }
+        title={settingsTitle()}
+        description={settingsDescription()}
         onClose={closeSettings}
         modalClassName="settings-modal"
       >
-        {settingsView === 'alerts' ? renderAlertSettings() : renderSettingsMain()}
+        {renderSettingsContent()}
       </AppModal>
     </section>
   );

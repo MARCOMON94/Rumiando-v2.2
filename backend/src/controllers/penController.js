@@ -53,9 +53,24 @@ async function updatePen(req, res, next) {
   }
 }
 
+async function retirePen(req, res, next) {
+  try {
+    const pen = await penService.retirePen(
+      Number(req.params.id),
+      req.body,
+      req.user
+    );
+
+    res.json(pen);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listPens,
   getPenById,
   createPen,
-  updatePen
+  updatePen,
+  retirePen
 };

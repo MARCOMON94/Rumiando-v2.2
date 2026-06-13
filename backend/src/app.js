@@ -20,6 +20,8 @@ const exportRoutes = require('./routes/exportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const animalWatchlistRoutes = require('./routes/animalWatchlistRoutes');
+const managementRuleRoutes = require('./routes/managementRuleRoutes');
+const accountSettingsRoutes = require('./routes/accountSettingsRoutes');
 
 const automationRoutes = require('./routes/automationRoutes');
 
@@ -92,6 +94,8 @@ app.use('/api/exports', exportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/animal-watchlist', animalWatchlistRoutes);
+app.use('/api/management-rules', managementRuleRoutes);
+app.use('/api/account-settings', accountSettingsRoutes);
 
 app.use('/api/automation', automationRoutes);
 
@@ -116,6 +120,7 @@ app.get('/', (req, res) => {
   'GET /api/pens/:id',
   'POST /api/pens',
   'PUT /api/pens/:id',
+  'POST /api/pens/:id/retire',
 
   'GET /api/farm-units',
   'GET /api/farm-units/:id',
@@ -171,6 +176,17 @@ app.get('/', (req, res) => {
 'POST /api/animal-watchlist/read',
 'DELETE /api/animal-watchlist/:id',
 'DELETE /api/animal-watchlist',
+
+'GET /api/management-rules',
+'POST /api/management-rules',
+'PUT /api/management-rules/:id',
+'DELETE /api/management-rules/:id',
+
+'GET /api/account-settings',
+'PUT /api/account-settings/account',
+'PUT /api/account-settings/farm-units/:id',
+'PUT /api/account-settings/users/:id',
+'PUT /api/account-settings/me',
 
 'GET /api/ai/health',
 'POST /api/ai/chat',

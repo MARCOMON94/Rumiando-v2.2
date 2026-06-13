@@ -50,6 +50,7 @@ async function checkReproductiveStatus(estadoReproductivoSugeridoId, cuentaGanad
 async function listPens(cuentaGanaderaId) {
   return prisma.corral.findMany({
     where: {
+      activo: true,
       unidadRega: {
         cuentaGanaderaId
       }
@@ -90,6 +91,36 @@ async function getPenById(id, cuentaGanaderaId) {
   }
 
   return pen;
+}
+
+async function checkRetireDestinationPen(currentPen, moveAnimalsToPenId, cuentaGanaderaId) {
+  if (!moveAnimalsToPenId) {
+    return null;
+  }
+
+  if (Number(moveAnimalsToPenId) === currentPen.id) {
+    throw new AppError('El corral destino debe ser distinto al corral eliminado', 400);
+  }
+
+  const destinationPen = await prisma.corral.findFirst({
+    where: {
+      id: Number(moveAnimalsToPenId),
+      activo: true,
+      unidadRega: {
+        cuentaGanaderaId
+      }
+    }
+  });
+
+  if (!destinationPen) {
+    throw new AppError('El corral destino no existe o no pertenece a esta cuenta', 404);
+  }
+
+  if (destinationPen.unidadRegaId !== currentPen.unidadRegaId) {
+    throw new AppError('El traslado por eliminación debe hacerse dentro de la misma unidad REGA', 400);
+  }
+
+  return destinationPen;
 }
 
 async function createPen(data, cuentaGanaderaId) {
@@ -194,9 +225,119 @@ async function updatePen(id, data, cuentaGanaderaId) {
   });
 }
 
+async function retirePen(id, data, user) {
+  const currentPen = await prisma.corral.findFirst({
+    where: {
+      id,
+      unidadRega: {
+        cuentaGanaderaId: user.cuentaGanaderaId
+      }
+    },
+    include: {
+      unidadRega: true,
+      animalesActuales: {
+        select: {
+          id: true,
+          crotal: true,
+          corralActualId: true
+        },
+        orderBy: {
+          crotal: 'asc'
+        }
+      }
+    }
+  });
+
+  if (!currentPen) {
+    throw new AppError('Corral no encontrado', 404);
+  }
+
+  if (currentPen.activo === false) {
+    return currentPen;
+  }
+
+  const animals = currentPen.animalesActuales || [];
+  const destinationPen = await checkRetireDestinationPen(
+    currentPen,
+    data?.moveAnimalsToPenId,
+    user.cuentaGanaderaId
+  );
+
+  if (animals.length > 0 && !destinationPen) {
+    throw new AppError('Este corral tiene animales. Elige un corral destino o cancela la eliminación.', 400);
+  }
+
+  const retireDate = data?.fecha ? new Date(data.fecha) : new Date();
+
+  return prisma.$transaction(async (tx) => {
+    let movement = null;
+
+    if (animals.length > 0 && destinationPen) {
+      movement = await tx.movimientoTransaccion.create({
+        data: {
+          tipoOperacion: 'CORRAL_COMPLETO',
+          motivo: 'Corral eliminado',
+          fecha: retireDate,
+          unidadRegaId: currentPen.unidadRegaId,
+          corralOrigenId: currentPen.id,
+          corralDestinoId: destinationPen.id,
+          userId: user.id,
+          resumen: {
+            procesados: animals.length,
+            motivo: 'Corral eliminado',
+            corralOrigenId: currentPen.id,
+            corralDestinoId: destinationPen.id
+          }
+        }
+      });
+
+      for (const animal of animals) {
+        await tx.animal.update({
+          where: {
+            id: animal.id
+          },
+          data: {
+            corralActualId: destinationPen.id,
+            fechaEntradaCorralActual: retireDate
+          }
+        });
+
+        await tx.movimientoAnimalDetalle.create({
+          data: {
+            transaccionId: movement.id,
+            crotalLeido: animal.crotal,
+            estadoProceso: 'PROCESADO',
+            animalId: animal.id,
+            corralOrigenId: currentPen.id,
+            corralDestinoId: destinationPen.id,
+            observaciones: 'Traslado por eliminación de corral'
+          }
+        });
+      }
+    }
+
+    const retiredPen = await tx.corral.update({
+      where: {
+        id: currentPen.id
+      },
+      data: {
+        activo: false
+      },
+      include: getPenInclude()
+    });
+
+    return {
+      ...retiredPen,
+      movedAnimals: animals.length,
+      movementId: movement?.id || null
+    };
+  });
+}
+
 module.exports = {
   listPens,
   getPenById,
   createPen,
-  updatePen
+  updatePen,
+  retirePen
 };

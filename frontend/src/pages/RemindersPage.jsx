@@ -120,7 +120,6 @@ export default function RemindersPage() {
                 <span className={`priority ${getLevelClass(alert.level)}`}>
                   {getLevelText(alert.level)}
                 </span>
-                <span className="tag">{getReadableType(alert.type)}</span>
               </div>
 
               <h3>{alert.title}</h3>

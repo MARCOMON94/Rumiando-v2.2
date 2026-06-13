@@ -23,4 +23,11 @@ router.put(
   penController.updatePen
 );
 
+router.post(
+  '/:id/retire',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  penController.retirePen
+);
+
 module.exports = router;

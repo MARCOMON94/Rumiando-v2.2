@@ -96,6 +96,11 @@ enum ResultadoEventoReproductivo {
   NO_APLICA
 }
 
+enum TipoReglaManejo {
+  CORRAL_A_REPRODUCCION
+  REPRODUCCION_A_CORRAL
+}
+
 model User {
   id           Int          @id @default(autoincrement())
   nombre       String
@@ -165,6 +170,7 @@ model CuentaGanadera {
   recordatorios Recordatorio[]
   exportaciones ExportacionRegistro[]
   animalWatchlistItems AnimalWatchlistItem[]
+  managementRules ManagementRule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -184,6 +190,9 @@ model UnidadRega {
   especiePrincipalId Int?
   especiePrincipal   CatalogoEspecie? @relation(fields: [especiePrincipalId], references: [id])
 
+  razaPrincipalId Int?
+  razaPrincipal   CatalogoRaza? @relation(fields: [razaPrincipalId], references: [id])
+
   corrales          Corral[]
   animales          Animal[]
   movimientos       MovimientoTransaccion[]
@@ -191,6 +200,7 @@ model UnidadRega {
   vacunaciones      Vacunacion[]
   desparasitaciones Desparasitacion[]
   exportaciones     ExportacionRegistro[]
+  managementRules   ManagementRule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -228,6 +238,7 @@ model CatalogoRaza {
   especie   CatalogoEspecie @relation(fields: [especieId], references: [id])
 
   animales Animal[]
+  unidadesRegaComoPrincipal UnidadRega[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -266,6 +277,8 @@ model CatalogoEstadoReproductivo {
   animales           Animal[]
   corralesSugeridos  Corral[]
   eventosResultantes EventoReproductivo[]
+  reglasDisparadas   ManagementRule[] @relation("ManagementRuleTriggerStatus")
+  reglasObjetivo     ManagementRule[] @relation("ManagementRuleTargetStatus")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -299,6 +312,8 @@ model Corral {
   vacunaciones      Vacunacion[]
   desparasitaciones Desparasitacion[]
   recordatorios     Recordatorio[]
+  reglasDisparadas  ManagementRule[] @relation("ManagementRuleTriggerCorral")
+  reglasObjetivo    ManagementRule[] @relation("ManagementRuleTargetCorral")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -386,6 +401,43 @@ model AnimalWatchlistItem {
   @@unique([userId, animalId])
   @@index([cuentaGanaderaId])
   @@index([animalId])
+}
+
+model ManagementRule {
+  id     Int             @id @default(autoincrement())
+  tipo   TipoReglaManejo
+  activo Boolean         @default(true)
+
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+
+  unidadRegaId Int?
+  unidadRega   UnidadRega? @relation(fields: [unidadRegaId], references: [id])
+
+  triggerCorralId Int?
+  triggerCorral   Corral? @relation("ManagementRuleTriggerCorral", fields: [triggerCorralId], references: [id])
+
+  triggerEstadoReproductivoId Int?
+  triggerEstadoReproductivo   CatalogoEstadoReproductivo? @relation("ManagementRuleTriggerStatus", fields: [triggerEstadoReproductivoId], references: [id])
+
+  triggerEventoReproductivo TipoEventoReproductivo?
+
+  targetCorralId Int?
+  targetCorral   Corral? @relation("ManagementRuleTargetCorral", fields: [targetCorralId], references: [id])
+
+  targetEstadoReproductivoId Int?
+  targetEstadoReproductivo   CatalogoEstadoReproductivo? @relation("ManagementRuleTargetStatus", fields: [targetEstadoReproductivoId], references: [id])
+
+  targetEventoReproductivo TipoEventoReproductivo?
+  targetResultadoEvento    ResultadoEventoReproductivo?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cuentaGanaderaId])
+  @@index([tipo])
+  @@index([triggerCorralId])
+  @@index([targetCorralId])
 }
 
 model MovimientoTransaccion {

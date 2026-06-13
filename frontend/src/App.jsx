@@ -21,6 +21,7 @@ import AdminInvitationsPage from './pages/AdminInvitationsPage';
 import AnimalWatchlistPage from './pages/AnimalWatchlistPage';
 import BirthNewPage from './pages/BirthNewPage';
 import AnimalDischargePage from './pages/AnimalDischargePage';
+import OperationFlowPage from './pages/OperationFlowPage';
 
 export default function App() {
   useEffect(() => {
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/animals/:id" element={<AnimalDetailPage />} />
         <Route path="/animals/:id/discharge" element={<AnimalDischargePage />} />
         <Route path="/birth/new/:motherId" element={<BirthNewPage />} />
+        <Route path="/operations/:type" element={<OperationFlowPage />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/pens" element={<PensPage />} />
         <Route path="/health" element={<HealthPage />} />

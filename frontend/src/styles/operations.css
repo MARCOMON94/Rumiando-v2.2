@@ -570,7 +570,7 @@
 
 .animal-profile-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 72px;
   gap: 0.75rem;
   align-items: stretch;
 }
@@ -602,12 +602,22 @@
 }
 
 .animal-profile-watch-button {
-  width: 72px;
+  width: 100%;
   min-width: 72px;
   height: 58px;
   min-height: 58px;
   padding: 0.35rem 0.45rem;
   border-radius: var(--radius-pill);
+}
+
+.animal-profile-top > .watchlist-add-wrapper {
+  width: 72px;
+  align-self: stretch;
+}
+
+.animal-profile-top > .watchlist-add-wrapper button {
+  width: 100%;
+  height: 100%;
 }
 
 .animal-profile-watch-button .watchlist-button-mark img {
@@ -695,7 +705,7 @@
 
 .animal-profile-main-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
@@ -878,10 +888,6 @@
     grid-template-columns: 1fr;
   }
 
-  .manual-alert-inline {
-    grid-template-columns: 1fr;
-  }
-
   .animal-preview-main {
     padding-right: 0;
   }
@@ -907,5 +913,300 @@
 
   .field-operation-wide {
     grid-column: 1 / -1;
+  }
+}
+
+.batch-operation-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.batch-operation-header {
+  align-items: start;
+}
+
+.batch-operation-card,
+.settings-subform,
+.settings-management-panel,
+.settings-pens-panel,
+.settings-account-panel,
+.settings-user-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.batch-operation-card {
+  padding: 1rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.batch-reader-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.batch-reader-status {
+  display: grid;
+  grid-template-columns: 14px minmax(0, max-content) minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  color: var(--color-primary-dark);
+}
+
+.batch-reader-status p {
+  margin: 0;
+  color: var(--color-muted);
+  font-weight: 750;
+}
+
+.batch-reader-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.16);
+}
+
+.batch-operation-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.batch-full-row {
+  grid-column: 1 / -1;
+}
+
+.batch-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 48px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  color: var(--color-primary-dark);
+  font-weight: 850;
+}
+
+.batch-checkbox input {
+  width: auto;
+}
+
+.batch-selected-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.8rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-card-strong);
+}
+
+.batch-selected-list header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.batch-selected-list h3 {
+  margin: 0;
+  color: var(--color-primary-dark);
+}
+
+.batch-selected-list p {
+  margin: 0.2rem 0 0;
+  color: var(--color-muted);
+}
+
+.batch-empty-hint {
+  padding: 1rem;
+  border: 1px dashed rgba(63, 107, 75, 0.22);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  text-align: center;
+  font-weight: 800;
+}
+
+.batch-animal-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.batch-animal-row,
+.settings-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.batch-animal-row strong,
+.settings-list-row strong {
+  display: block;
+  color: var(--color-primary-dark);
+  line-height: 1.15;
+}
+
+.batch-animal-row span,
+.settings-list-row span,
+.settings-list-row small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-muted);
+  font-weight: 750;
+}
+
+.batch-result-panel {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  border-radius: var(--radius-md);
+  background: var(--color-secondary);
+  color: var(--color-primary-dark);
+}
+
+.batch-result-panel p,
+.batch-result-panel ul {
+  margin: 0;
+}
+
+.quick-actions-sheet,
+.settings-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.quick-actions-sheet button {
+  min-height: 52px;
+}
+
+.settings-subform {
+  padding: 0.75rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.settings-list-row button {
+  min-width: 86px;
+}
+
+.settings-pen-row {
+  align-items: start;
+}
+
+.settings-subform h3 {
+  margin: 0;
+  color: var(--color-primary-dark);
+  font-size: 1.05rem;
+}
+
+.settings-sensitive-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+  font-weight: 750;
+}
+
+.settings-unit-row,
+.settings-user-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-unit-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.settings-user-row {
+  gap: 0.75rem;
+}
+
+.settings-section-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.settings-readonly-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.settings-readonly-grid div {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid rgba(216, 222, 215, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.settings-readonly-grid span {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.settings-readonly-grid strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--color-primary-dark);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .batch-operation-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-reader-status {
+    grid-template-columns: 14px minmax(0, 1fr);
+  }
+
+  .batch-reader-status p {
+    grid-column: 1 / -1;
+  }
+
+  .batch-animal-row,
+  .settings-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-list-row button:last-child {
+    grid-column: 2;
+  }
+
+  .settings-unit-row,
+  .settings-user-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-unit-row button,
+  .settings-user-row button,
+  .settings-list-row.settings-unit-row button:last-child,
+  .settings-list-row.settings-user-row button:last-child {
+    grid-column: auto;
+  }
+
+  .settings-unit-fields,
+  .settings-readonly-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -361,33 +361,33 @@ export default function AnimalDetailPage() {
             <strong>{animal.crotal}</strong>
           </div>
 
-          <div className="animal-profile-side-actions">
-            <AnimalWatchlistButton
-              animalId={animal.id}
-              sourceType="animal_detail"
-              sourceRef={`animal-${animal.id}`}
-              promptReason
-              label="Búsqueda"
-              className="secondary animal-profile-watch-button"
-              iconOnly
-              showMiniLabel
-            />
-            <button
-              type="button"
-              className="secondary animal-profile-alert-button"
-              onClick={() => setManualAlertOpen(true)}
-            >
-              <img src="/assets/icon-cencerro-green.png" alt="" aria-hidden="true" />
-              <small>Alerta</small>
-            </button>
-          </div>
-        </div>
+          <AnimalWatchlistButton
+            animalId={animal.id}
+            sourceType="animal_detail"
+            sourceRef={`animal-${animal.id}`}
+            promptReason
+            label="Búsqueda"
+            className="secondary animal-profile-watch-button"
+            iconOnly
+            showMiniLabel
+          />
 
-        <div className="animal-profile-main-actions">
           <div className="animal-profile-age-pill">
             <span>Edad</span>
             <strong>{formatAge(animal.fechaNacimiento)}</strong>
           </div>
+
+          <button
+            type="button"
+            className="secondary animal-profile-alert-button"
+            onClick={() => setManualAlertOpen(true)}
+          >
+            <img src="/assets/icon-cencerro-green.png" alt="" aria-hidden="true" />
+            <small>Alerta</small>
+          </button>
+        </div>
+
+        <div className="animal-profile-main-actions">
           <button type="button" onClick={openBirthFlow}>
             Parto
           </button>
@@ -540,6 +540,7 @@ export default function AnimalDetailPage() {
         onClose={() => {
           if (!manualAlertSaving) setManualAlertOpen(false);
         }}
+        modalClassName="manual-alert-modal"
       >
         <form className="manual-alert-form" onSubmit={submitManualAlert}>
           <div className="manual-alert-mode-grid" role="group" aria-label="Tipo de fecha">
@@ -618,14 +619,6 @@ export default function AnimalDetailPage() {
           {manualAlertError && <p className="alert error">Error: {manualAlertError}</p>}
 
           <div className="app-modal-footer">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setManualAlertOpen(false)}
-              disabled={manualAlertSaving}
-            >
-              Cancelar
-            </button>
             <button type="submit" disabled={manualAlertSaving}>
               {manualAlertSaving ? 'Añadiendo...' : 'Añadir alerta'}
             </button>
