@@ -152,25 +152,25 @@
   border-top-color: var(--color-white);
 }
 
-.field-crotal-search-button.silent-mode-parto,
-.mobile-search-button.silent-mode-parto {
-  background: #79b885;
+.field-crotal-search-button.silent-mode-parto.reading,
+.mobile-search-button.silent-mode-parto.reading {
+  background: #ef8f8f;
 }
 
-.field-crotal-search-button.silent-mode-baja,
-.mobile-search-button.silent-mode-baja {
+.field-crotal-search-button.silent-mode-baja.reading,
+.mobile-search-button.silent-mode-baja.reading {
   background: #5b4a3f;
 }
 
 .field-crotal-search-button.silent-mode-lookup.reading,
-.field-crotal-search-button.silent-mode-parto,
-.field-crotal-search-button.silent-mode-baja {
+.field-crotal-search-button.silent-mode-parto.reading,
+.field-crotal-search-button.silent-mode-baja.reading {
   color: var(--color-white);
 }
 
 .field-crotal-search-button.silent-mode-lookup.reading .field-crotal-search-icon-wrap,
-.field-crotal-search-button.silent-mode-parto .field-crotal-search-icon-wrap,
-.field-crotal-search-button.silent-mode-baja .field-crotal-search-icon-wrap {
+.field-crotal-search-button.silent-mode-parto.reading .field-crotal-search-icon-wrap,
+.field-crotal-search-button.silent-mode-baja.reading .field-crotal-search-icon-wrap {
   background: rgba(255, 255, 255, 0.18);
 }
 
@@ -1022,6 +1022,24 @@
   margin: 0;
   color: var(--color-muted);
   font-weight: 750;
+}
+
+.batch-ai-hint,
+.batch-ai-warning {
+  margin: 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-md);
+  font-weight: 800;
+}
+
+.batch-ai-hint {
+  background: rgba(255, 122, 24, 0.12);
+  color: var(--color-primary-dark);
+}
+
+.batch-ai-warning {
+  background: rgba(255, 210, 145, 0.4);
+  color: #6f3f0d;
 }
 
 .batch-reader-dot {

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { get } from '../api/apiClient';
+import { get, put } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 import AppModal from '../components/ui/AppModal';
 import ManagementRulesPanel from '../components/settings/ManagementRulesPanel';
 import PensSettingsPanel from '../components/settings/PensSettingsPanel';
 import FarmAccountSettingsPanel from '../components/settings/FarmAccountSettingsPanel';
 import UserSettingsPanel from '../components/settings/UserSettingsPanel';
+import AddAnimalsSettingsPanel from '../components/settings/AddAnimalsSettingsPanel';
 
 const INITIAL_SILENT_READER = {
   active: false,
@@ -76,10 +77,6 @@ function getInitialTheme() {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function getAlertConfigStorageKey(user, farmUnitId) {
-  return `rumiando-alert-config:${user?.cuentaGanaderaId || 'account'}:${farmUnitId || 'default'}`;
-}
-
 function createAlertConfig(preset = 'ovino') {
   const values = ALERT_PRESETS[preset] || ALERT_PRESETS.ovino;
 
@@ -89,10 +86,43 @@ function createAlertConfig(preset = 'ovino') {
   };
 }
 
+function alertScopeKey(farmUnitId) {
+  return farmUnitId && farmUnitId !== 'default' ? String(farmUnitId) : 'default';
+}
+
 function activateSilentReader(action = 'lookup') {
   window.dispatchEvent(new CustomEvent('rumiando:silent-reader:activate', {
     detail: { action }
   }));
+}
+
+const LIVESTOCK_IMPORT_PROMPT_STORAGE_PREFIX = 'rumiando:livestock-import-prompt-seen';
+
+function livestockImportPromptStorageKey(user) {
+  const accountId = user?.cuentaGanaderaId || user?.cuentaGanadera?.id;
+
+  if (accountId) {
+    return `${LIVESTOCK_IMPORT_PROMPT_STORAGE_PREFIX}:account:${accountId}`;
+  }
+
+  const fallbackUserId = user?.id || user?.email || 'unknown';
+  return `${LIVESTOCK_IMPORT_PROMPT_STORAGE_PREFIX}:user:${fallbackUserId}`;
+}
+
+function hasSeenLivestockImportPromptLocally(user) {
+  try {
+    return window.localStorage.getItem(livestockImportPromptStorageKey(user)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function rememberLivestockImportPromptLocally(user) {
+  try {
+    window.localStorage.setItem(livestockImportPromptStorageKey(user), '1');
+  } catch {
+    // Si localStorage no esta disponible, el backend sigue siendo la fuente persistente.
+  }
 }
 
 function OperationIcon({ src }) {
@@ -109,18 +139,41 @@ function OperationIcon({ src }) {
 export default function HomePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [watchlistTotal, setWatchlistTotal] = useState(0);
   const [silentReader, setSilentReader] = useState(INITIAL_SILENT_READER);
   const [theme, setTheme] = useState(getInitialTheme);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsView, setSettingsView] = useState('main');
+  const [livestockImportPromptOpen, setLivestockImportPromptOpen] = useState(false);
+  const [livestockImportPromptSeen, setLivestockImportPromptSeen] = useState(false);
   const [farmUnits, setFarmUnits] = useState([]);
   const [selectedAlertUnitId, setSelectedAlertUnitId] = useState('');
+  const [alertSettingsByScope, setAlertSettingsByScope] = useState({});
   const [alertConfig, setAlertConfig] = useState(() => createAlertConfig('ovino'));
   const [alertConfigMessage, setAlertConfigMessage] = useState('');
+  const [savingAlertConfig, setSavingAlertConfig] = useState(false);
 
   const isAdmin = user?.rol === 'ADMIN';
+
+  useEffect(() => {
+    if (!isAdmin || livestockImportPromptSeen || user?.cuentaGanadera?.livestockImportPromptSeenAt) return;
+
+    if (hasSeenLivestockImportPromptLocally(user)) {
+      setLivestockImportPromptSeen(true);
+      return;
+    }
+
+    rememberLivestockImportPromptLocally(user);
+    setLivestockImportPromptSeen(true);
+    setLivestockImportPromptOpen(true);
+
+    put('/account-settings/onboarding/livestock-import-seen', {})
+      .then(() => refreshUser?.())
+      .catch(() => {
+        // El aviso ya se marco localmente para no insistir si la red o la migracion fallan.
+      });
+  }, [isAdmin, livestockImportPromptSeen, refreshUser, user]);
 
   const loadWatchlistCount = useCallback(async function loadWatchlistCount() {
     try {
@@ -167,27 +220,45 @@ export default function HomePage() {
   }, [theme]);
 
   useEffect(() => {
-    if (!settingsOpen || !isAdmin || farmUnits.length > 0) return;
+    if (!settingsOpen || !isAdmin) return;
 
-    async function loadFarmUnits() {
+    async function loadFarmSettings() {
       try {
-        const data = await get('/catalogs');
-        const units = Array.isArray(data?.farmUnits) ? data.farmUnits : [];
+        const [catalogData, alertSettingsData] = await Promise.all([
+          get('/catalogs'),
+          get('/alert-settings')
+        ]);
+        const units = Array.isArray(catalogData?.farmUnits) ? catalogData.farmUnits : [];
+        const alertItems = Array.isArray(alertSettingsData?.data) ? alertSettingsData.data : [];
+        const alertMap = Object.fromEntries(alertItems.map((item) => [
+          item.scopeKey || alertScopeKey(item.unidadRegaId),
+          {
+            preset: item.preset || 'ovino',
+            values: {
+              ...createAlertConfig(item.preset || 'ovino').values,
+              ...(item.values || {})
+            }
+          }
+        ]));
+
         setFarmUnits(units);
+        setAlertSettingsByScope(alertMap);
         setSelectedAlertUnitId((current) => current || String(units[0]?.id || 'default'));
       } catch {
         setFarmUnits([]);
+        setAlertSettingsByScope({});
         setSelectedAlertUnitId('default');
       }
     }
 
-    loadFarmUnits();
-  }, [settingsOpen, isAdmin, farmUnits.length]);
+    loadFarmSettings();
+  }, [settingsOpen, isAdmin]);
 
   useEffect(() => {
     if (!settingsOpen || !isAdmin || !selectedAlertUnitId) return;
 
-    const saved = window.localStorage.getItem(getAlertConfigStorageKey(user, selectedAlertUnitId));
+    const savedConfig = alertSettingsByScope[alertScopeKey(selectedAlertUnitId)];
+    const saved = savedConfig ? JSON.stringify(savedConfig) : null;
 
     if (saved) {
       try {
@@ -199,7 +270,7 @@ export default function HomePage() {
     }
 
     setAlertConfig(createAlertConfig('ovino'));
-  }, [settingsOpen, isAdmin, selectedAlertUnitId, user]);
+  }, [alertSettingsByScope, settingsOpen, isAdmin, selectedAlertUnitId]);
 
   function toggleSilentReader() {
     activateSilentReader('lookup');
@@ -215,6 +286,30 @@ export default function HomePage() {
     setSettingsOpen(false);
     setSettingsView('main');
     setAlertConfigMessage('');
+  }
+
+  async function markLivestockPromptSeen() {
+    setLivestockImportPromptSeen(true);
+    rememberLivestockImportPromptLocally(user);
+
+    try {
+      await put('/account-settings/onboarding/livestock-import-seen', {});
+      await refreshUser?.();
+    } catch {
+      // Si falla el marcado, no bloqueamos al usuario.
+    }
+  }
+
+  async function openLivestockImportFromPrompt() {
+    setLivestockImportPromptOpen(false);
+    await markLivestockPromptSeen();
+    setSettingsOpen(true);
+    setSettingsView('add-animals');
+  }
+
+  async function dismissLivestockImportPrompt() {
+    setLivestockImportPromptOpen(false);
+    await markLivestockPromptSeen();
   }
 
   function applyAlertPreset(preset) {
@@ -242,17 +337,104 @@ export default function HomePage() {
     setAlertConfigMessage('');
   }
 
-  function saveAlertConfig() {
-    window.localStorage.setItem(
-      getAlertConfigStorageKey(user, selectedAlertUnitId),
-      JSON.stringify(alertConfig)
-    );
-    setAlertConfigMessage('Configuración guardada en este dispositivo.');
+  async function saveAlertConfig() {
+    setSavingAlertConfig(true);
+    setAlertConfigMessage('');
+
+    try {
+      const saved = await put(`/alert-settings/${selectedAlertUnitId || 'default'}`, alertConfig);
+      const key = saved.scopeKey || alertScopeKey(selectedAlertUnitId);
+      const nextConfig = {
+        preset: saved.preset || alertConfig.preset,
+        values: {
+          ...createAlertConfig(saved.preset || alertConfig.preset).values,
+          ...(saved.values || alertConfig.values || {})
+        }
+      };
+
+      setAlertSettingsByScope((current) => ({
+        ...current,
+        [key]: nextConfig
+      }));
+      setAlertConfig(nextConfig);
+      setAlertConfigMessage('Configuración guardada para la cuenta ganadera.');
+    } catch (err) {
+      setAlertConfigMessage(err.message || 'No se pudo guardar la configuración.');
+    } finally {
+      setSavingAlertConfig(false);
+    }
   }
 
   function renderSettingsMain() {
     return (
       <div className="home-settings-actions">
+        {isAdmin && (
+          <>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('account')}
+            >
+              Cuenta ganadera
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('user')}
+            >
+              Usuario
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                closeSettings();
+                navigate('/admin/invitations');
+              }}
+            >
+              Invitaciones
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('pens')}
+            >
+              Corrales
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('alerts')}
+            >
+              Avisos
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('automation')}
+            >
+              Automatización
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSettingsView('add-animals')}
+            >
+              Añadir animales
+            </button>
+          </>
+        )}
+
+        {!isAdmin && (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setSettingsView('user')}
+          >
+            Usuario
+          </button>
+        )}
+
         <section className="settings-theme-section" aria-label="Modo de color">
           <span>Modo de color</span>
           <div className="theme-toggle" role="group" aria-label="Seleccionar modo de color">
@@ -272,57 +454,6 @@ export default function HomePage() {
             </button>
           </div>
         </section>
-
-        {isAdmin && (
-          <>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => {
-                closeSettings();
-                navigate('/admin/invitations');
-              }}
-            >
-              Invitaciones
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setSettingsView('alerts')}
-            >
-              Avisos
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setSettingsView('automation')}
-            >
-              Automatización
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setSettingsView('pens')}
-            >
-              Corrales
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setSettingsView('account')}
-            >
-              Cuenta ganadera
-            </button>
-          </>
-        )}
-
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => setSettingsView('user')}
-        >
-          Usuario
-        </button>
 
         <button
           type="button"
@@ -401,8 +532,8 @@ export default function HomePage() {
 
         {alertConfigMessage && <p className="alert">{alertConfigMessage}</p>}
 
-        <button type="button" onClick={saveAlertConfig}>
-          Guardar avisos
+        <button type="button" onClick={saveAlertConfig} disabled={savingAlertConfig}>
+          {savingAlertConfig ? 'Guardando...' : 'Guardar avisos'}
         </button>
       </div>
     );
@@ -414,6 +545,7 @@ export default function HomePage() {
     if (settingsView === 'pens') return 'Corrales';
     if (settingsView === 'account') return 'Cuenta ganadera';
     if (settingsView === 'user') return 'Usuario';
+    if (settingsView === 'add-animals') return 'Añadir animales';
     return 'Configuración';
   }
 
@@ -423,6 +555,7 @@ export default function HomePage() {
     if (settingsView === 'pens') return 'Edita corrales y traslados seguros.';
     if (settingsView === 'account') return 'Datos de explotación, REGAs y usuarios.';
     if (settingsView === 'user') return 'Tus datos visibles en la app.';
+    if (settingsView === 'add-animals') return 'Alta por lector o importación de Excel.';
     return user?.nombre || user?.email || 'Sesión activa';
   }
 
@@ -443,6 +576,9 @@ export default function HomePage() {
     }
     if (settingsView === 'user') {
       return <UserSettingsPanel />;
+    }
+    if (settingsView === 'add-animals') {
+      return <AddAnimalsSettingsPanel />;
     }
 
     return renderSettingsMain();
@@ -584,6 +720,22 @@ export default function HomePage() {
         modalClassName="settings-modal"
       >
         {renderSettingsContent()}
+      </AppModal>
+
+      <AppModal
+        open={livestockImportPromptOpen}
+        title="Importar ganado actual"
+        description="Puedes cargar el censo inicial ahora o hacerlo más adelante desde Configuración."
+        onClose={dismissLivestockImportPrompt}
+      >
+        <div className="app-modal-footer">
+          <button type="button" className="secondary" onClick={dismissLivestockImportPrompt}>
+            Más adelante
+          </button>
+          <button type="button" onClick={openLivestockImportFromPrompt}>
+            Importar ahora
+          </button>
+        </div>
       </AppModal>
     </section>
   );

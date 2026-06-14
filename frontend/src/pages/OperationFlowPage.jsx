@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { get, post } from '../api/apiClient';
 import { useCatalogs } from '../context/CatalogsContext';
 import AppModal from '../components/ui/AppModal';
+import useReaderCapture from '../hooks/useReaderCapture';
+
+const SILENT_READER_STATE_EVENT = 'rumiando:silent-reader:state';
+const AI_DRAFT_STORAGE_PREFIX = 'rumiando-ai-draft:';
 
 const OPERATION_META = {
   movement: {
@@ -105,6 +109,15 @@ function normalizeCode(value) {
     .toUpperCase();
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 function extractCodes(raw) {
   return String(raw || '')
     .split(/[\s,;]+/)
@@ -122,27 +135,6 @@ function getItems(data, keys) {
   return [];
 }
 
-function isTextEditingTarget(target) {
-  const tagName = String(target?.tagName || '').toLowerCase();
-  if (target?.isContentEditable) return true;
-  if (tagName === 'textarea') return true;
-  if (tagName !== 'input') return false;
-
-  const type = String(target?.type || 'text').toLowerCase();
-  return !['button', 'checkbox', 'radio', 'submit', 'hidden'].includes(type);
-}
-
-function isManualEntryTarget(target) {
-  return Boolean(target?.closest?.('[data-reader-manual="true"]'));
-}
-
-function animalMatchesCode(animal, code) {
-  const normalized = normalizeCode(code);
-  return [animal?.crotal, animal?.numeroInterno]
-    .filter(Boolean)
-    .some((value) => normalizeCode(value) === normalized);
-}
-
 function animalPenName(animal) {
   return animal?.corralActual?.nombre || animal?.corralActual?.name || 'Sin corral';
 }
@@ -155,8 +147,61 @@ function animalSpeciesId(animal) {
   return Number(animal?.especieId || animal?.especie?.id || 0);
 }
 
+function animalSpeciesName(animal) {
+  return itemName(animal?.especie, '');
+}
+
 function itemName(item, fallback = 'Sin nombre') {
   return item?.nombre || item?.name || item?.codigoRega || fallback;
+}
+
+function itemMatchesAlias(item, aliases = []) {
+  const name = normalizeText(itemName(item, ''));
+  return aliases.some((alias) => {
+    const normalizedAlias = normalizeText(alias);
+    return normalizedAlias && (
+      name === normalizedAlias
+      || name.includes(normalizedAlias)
+      || normalizedAlias.includes(name)
+    );
+  });
+}
+
+function penAliases(alias) {
+  const normalized = normalizeText(alias);
+  const base = [normalized, alias].filter(Boolean);
+  const known = {
+    produccion: ['produccion', 'productoras', 'lactacion', 'lactancia', 'ordenio', 'ordeno'],
+    lactacion: ['produccion', 'productoras', 'lactacion', 'lactancia'],
+    lactancia: ['produccion', 'productoras', 'lactacion', 'lactancia'],
+    paridera: ['paridera', 'paridas', 'partos'],
+    paridas: ['paridera', 'paridas', 'partos'],
+    gestantes: ['gestantes', 'prenadas', 'preñadas'],
+    secado: ['secado', 'secas', 'seca'],
+    cebo: ['cebo'],
+    reposicion: ['reposicion', 'recria'],
+    lazareto: ['lazareto', 'enfermeria']
+  };
+  return [...new Set([...(known[normalized] || []), ...base])].filter(Boolean);
+}
+
+function statusAliases(alias) {
+  const normalized = normalizeText(alias);
+  const known = {
+    gestante: ['gestante', 'gestantes', 'prenada', 'preñada'],
+    produccion: ['produccion', 'productora', 'lactacion', 'lactancia'],
+    productora: ['produccion', 'productora', 'lactacion', 'lactancia'],
+    seca: ['seca', 'secado'],
+    lactante: ['lactante', 'cria'],
+    parida: ['parida', 'paridas']
+  };
+  return [...new Set([...(known[normalized] || []), normalized, alias].filter(Boolean))];
+}
+
+function findByAlias(items, alias, aliasBuilder = (value) => [value]) {
+  if (!alias) return null;
+  const aliases = aliasBuilder(alias);
+  return (items || []).find((item) => itemMatchesAlias(item, aliases)) || null;
 }
 
 function formatRuleName(rule) {
@@ -197,6 +242,7 @@ function dewormingTypeToBackend(value) {
 
 export default function OperationFlowPage() {
   const { type } = useParams();
+  const [searchParams] = useSearchParams();
   const operationType = OPERATION_META[type] ? type : 'movement';
   const meta = OPERATION_META[operationType];
   const { catalogs, loading: loadingCatalogs, error: catalogsError, loadCatalogs } = useCatalogs();
@@ -205,6 +251,8 @@ export default function OperationFlowPage() {
   const readerBufferRef = useRef('');
   const readerTimerRef = useRef(null);
   const restoredDraftRef = useRef(false);
+  const appliedAiDraftRef = useRef(false);
+  const silentReaderActiveRef = useRef(false);
 
   const [animals, setAnimals] = useState([]);
   const [rules, setRules] = useState([]);
@@ -219,6 +267,19 @@ export default function OperationFlowPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState(createInitialFormData);
+  const [aiDraftMeta, setAiDraftMeta] = useState(null);
+
+  useEffect(() => {
+    function handleSilentReaderState(event) {
+      silentReaderActiveRef.current = Boolean(event.detail?.active);
+    }
+
+    window.addEventListener(SILENT_READER_STATE_EVENT, handleSilentReaderState);
+
+    return () => {
+      window.removeEventListener(SILENT_READER_STATE_EVENT, handleSilentReaderState);
+    };
+  }, []);
 
   const activeAnimals = useMemo(() => (
     animals.filter((animal) => animal.estadoRegistro !== 'BAJA')
@@ -264,6 +325,30 @@ export default function OperationFlowPage() {
       .map((animal) => animal.crotal || animal.numeroInterno)
       .filter(Boolean)
   ), [selectedAnimals]);
+
+  const aiDraftTargetText = useMemo(() => {
+    if (!aiDraftMeta) return '';
+    const parts = [];
+    if (aiDraftMeta.expectedCount) {
+      parts.push(`${selectedAnimals.length}/${aiDraftMeta.expectedCount}`);
+    }
+    if (aiDraftMeta.expectedSpecies) {
+      parts.push(aiDraftMeta.expectedSpecies);
+    }
+    if (operationType === 'movement' && (aiDraftMeta.targetPenName || aiDraftMeta.corralDestinoAlias)) {
+      parts.push(`a ${aiDraftMeta.targetPenName || aiDraftMeta.corralDestinoAlias}`);
+    }
+    return parts.join(' ');
+  }, [aiDraftMeta, operationType, selectedAnimals.length]);
+
+  const aiSpeciesMismatchCount = useMemo(() => {
+    if (!aiDraftMeta?.expectedSpecies || selectedAnimals.length === 0) return 0;
+    const expected = normalizeText(aiDraftMeta.expectedSpecies);
+    return selectedAnimals.filter((animal) => {
+      const name = normalizeText(animalSpeciesName(animal));
+      return name && expected && !name.includes(expected.replace(/s$/, '')) && !expected.includes(name);
+    }).length;
+  }, [aiDraftMeta, selectedAnimals]);
 
   const matchingMovementRule = useMemo(() => {
     if (!formData.corralDestinoId) return null;
@@ -445,6 +530,14 @@ export default function OperationFlowPage() {
     return true;
   }, [flushReaderBuffer]);
 
+  useReaderCapture({
+    active: true,
+    delay: 160,
+    extractCodes,
+    onCodes: addCodes,
+    shouldPause: () => silentReaderActiveRef.current
+  });
+
   useEffect(() => {
     async function loadData() {
       setLoadingData(true);
@@ -457,15 +550,10 @@ export default function OperationFlowPage() {
         ]);
 
         const loadedAnimals = getItems(animalsData, ['data', 'animals', 'animales']);
-        const loadedActiveAnimals = loadedAnimals.filter((animal) => animal.estadoRegistro !== 'BAJA');
 
         setAnimals(loadedAnimals);
         setRules(getItems(rulesData, ['data', 'rules']));
-        setReaderMessage(
-          loadedActiveAnimals.length > 0
-            ? `${loadedActiveAnimals.length} animales cargados para lectura. Pasa crotales y se irán añadiendo a la lista.`
-            : 'No hay animales activos cargados para lectura.'
-        );
+        setReaderMessage('Pasa crotales y se irán añadiendo a la lista.');
       } catch (err) {
         setError(err.message || 'Error cargando datos de trabajo');
       } finally {
@@ -508,6 +596,101 @@ export default function OperationFlowPage() {
   }, [activeAnimals, loadingData, operationType]);
 
   useEffect(() => {
+    if (loadingData || loadingCatalogs || appliedAiDraftRef.current) return;
+
+    const draftId = searchParams.get('aiDraft');
+    if (!draftId) return;
+
+    appliedAiDraftRef.current = true;
+
+    try {
+      const key = `${AI_DRAFT_STORAGE_PREFIX}${draftId}`;
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return;
+
+      const draft = JSON.parse(raw);
+      setAiDraftMeta(draft);
+
+      setFormData((current) => {
+        const next = { ...current };
+
+        if (operationType === 'movement') {
+          if (draft.motivo) next.motivo = draft.motivo;
+
+          const targetPenId = draft.corralDestinoId || draft.corral_destino_id;
+          if (targetPenId) {
+            next.corralDestinoId = String(targetPenId);
+          } else {
+            const aliases = penAliases(draft.targetPenName || draft.corralDestinoAlias || draft.destination);
+            const matches = (catalogs.pens || []).filter((pen) => itemMatchesAlias(pen, aliases));
+            if (matches.length === 1) {
+              next.corralDestinoId = String(matches[0].id);
+              next.unidadRegaId = String(matches[0].unidadRegaId || matches[0].unidadRega?.id || '');
+            }
+          }
+        }
+
+        if (operationType === 'reproductive') {
+          if (draft.tipoEvento) next.tipoEvento = draft.tipoEvento;
+          if (draft.resultado) next.resultado = draft.resultado;
+          if (draft.semanasGestacion) next.semanasGestacion = String(draft.semanasGestacion);
+          if (draft.estadoResultanteId) {
+            next.estadoResultanteId = String(draft.estadoResultanteId);
+          } else if (draft.estadoResultanteAlias) {
+            const status = findByAlias(
+              catalogs.reproductiveStatuses || [],
+              draft.estadoResultanteAlias,
+              statusAliases
+            );
+            if (status?.id) next.estadoResultanteId = String(status.id);
+          }
+        }
+
+        if (operationType === 'health') {
+          if (draft.healthType) next.healthType = draft.healthType;
+          if (draft.fullPen !== undefined) next.fullPen = Boolean(draft.fullPen);
+          if (draft.vacunaTexto) {
+            next.vacunaId = OTHER_VALUE;
+            next.vacunaTexto = draft.vacunaTexto;
+          }
+          if (draft.enfermedadTexto) {
+            next.enfermedadId = OTHER_VALUE;
+            next.enfermedadTexto = draft.enfermedadTexto;
+          }
+          if (draft.desparasitanteTexto) {
+            next.desparasitanteId = OTHER_VALUE;
+            next.desparasitanteTexto = draft.desparasitanteTexto;
+          }
+          if (draft.otroSanitarioTexto) next.otroSanitarioTexto = draft.otroSanitarioTexto;
+          if (draft.dosisTexto) next.dosisTexto = draft.dosisTexto;
+          if (draft.via) next.via = draft.via;
+          if (draft.gravedad) next.gravedad = draft.gravedad;
+        }
+
+        return next;
+      });
+
+      if (Array.isArray(draft.crotales) && draft.crotales.length) {
+        addCodes(draft.crotales);
+      } else {
+        setReaderMessage('Pasa crotales y se irán añadiendo a la lista.');
+      }
+
+      window.sessionStorage.removeItem(key);
+    } catch {
+      setAiDraftMeta(null);
+    }
+  }, [
+    addCodes,
+    catalogs.pens,
+    catalogs.reproductiveStatuses,
+    loadingCatalogs,
+    loadingData,
+    operationType,
+    searchParams
+  ]);
+
+  useEffect(() => {
     if (!restoredDraftRef.current) return;
 
     if (selectedAnimals.length === 0) {
@@ -539,6 +722,25 @@ export default function OperationFlowPage() {
   }, [filteredPens, formData.unidadRegaId]);
 
   useEffect(() => {
+    if (operationType !== 'movement' || formData.corralDestinoId) return;
+    const target = aiDraftMeta?.targetPenName || aiDraftMeta?.corralDestinoAlias || aiDraftMeta?.destination;
+    if (!target) return;
+
+    const match = findByAlias(filteredPens, target, penAliases);
+    if (match?.id) {
+      setFormData((current) => ({
+        ...current,
+        corralDestinoId: String(match.id)
+      }));
+    }
+  }, [
+    aiDraftMeta,
+    filteredPens,
+    formData.corralDestinoId,
+    operationType
+  ]);
+
+  useEffect(() => {
     if (operationType !== 'health' || !formData.fullPen || !formData.sourcePenId) return;
 
     const penAnimals = activeAnimals.filter((animal) => (
@@ -548,48 +750,10 @@ export default function OperationFlowPage() {
     setSelectedAnimals(penAnimals);
     setReaderMessage(
       penAnimals.length > 0
-        ? `${penAnimals.length} animales cargados desde el corral.`
+        ? 'Corral completo preparado. Revisa la lista abajo.'
         : 'Ese corral no tiene animales activos.'
     );
   }, [activeAnimals, formData.fullPen, formData.sourcePenId, operationType]);
-
-  useEffect(() => {
-    function stopReaderEvent(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation?.();
-    }
-
-    function handleCapturePaste(event) {
-      if (isManualEntryTarget(event.target)) return;
-
-      const pasted = event.clipboardData?.getData('text');
-      if (!pasted) return;
-
-      const codes = extractCodes(pasted);
-      const containsKnownAnimal = codes.some((code) => animalsByCode.has(normalizeCode(code)));
-      if (!containsKnownAnimal && isTextEditingTarget(event.target)) return;
-
-      stopReaderEvent(event);
-      addCodes(codes);
-    }
-
-    function handleCaptureKeyDown(event) {
-      if (isManualEntryTarget(event.target)) return;
-      if (handleReaderKeyDown(event)) {
-        event.stopPropagation();
-        event.stopImmediatePropagation?.();
-      }
-    }
-
-    window.addEventListener('paste', handleCapturePaste, true);
-    window.addEventListener('keydown', handleCaptureKeyDown, true);
-
-    return () => {
-      window.removeEventListener('paste', handleCapturePaste, true);
-      window.removeEventListener('keydown', handleCaptureKeyDown, true);
-    };
-  }, [addCodes, animalsByCode, handleReaderKeyDown]);
 
   useEffect(() => {
     function handleBeforeUnload(event) {
@@ -1033,8 +1197,12 @@ export default function OperationFlowPage() {
           aria-label="Lector activo"
           inputMode="none"
           autoComplete="off"
-          onKeyDown={handleReaderKeyDown}
+          onKeyDown={(event) => {
+            if (silentReaderActiveRef.current) return;
+            handleReaderKeyDown(event);
+          }}
           onPaste={(event) => {
+            if (silentReaderActiveRef.current) return;
             event.preventDefault();
             addCodes(extractCodes(event.clipboardData?.getData('text')));
           }}
@@ -1045,6 +1213,16 @@ export default function OperationFlowPage() {
           <strong>Lector activo</strong>
           <p>{readerMessage}</p>
         </div>
+
+        {aiDraftTargetText && (
+          <p className="batch-ai-hint">Preparado por IA: {aiDraftTargetText}</p>
+        )}
+
+        {aiSpeciesMismatchCount > 0 && (
+          <p className="batch-ai-warning">
+            Hay {aiSpeciesMismatchCount} animal{aiSpeciesMismatchCount === 1 ? '' : 'es'} que no coincide{aiSpeciesMismatchCount === 1 ? '' : 'n'} con la especie esperada. Puedes continuar si es correcto.
+          </p>
+        )}
 
         <div className="form-grid batch-operation-form-grid">
           {operationType === 'movement' && (

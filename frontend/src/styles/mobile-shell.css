@@ -159,7 +159,7 @@
     padding: 0 0.28rem;
     border: 2px solid var(--color-white);
     border-radius: var(--radius-pill);
-    background: var(--color-primary);
+    background: #f97316;
     color: var(--color-white);
     font-size: 0.68rem;
     line-height: 1;
@@ -191,14 +191,14 @@
     background: #f97316;
   }
 
-  .mobile-search-button.silent-mode-parto,
-  .mobile-search-button.silent-mode-parto:hover,
+  .mobile-search-button.silent-mode-parto.reading,
+  .mobile-search-button.silent-mode-parto.reading:hover,
   .mobile-search-button.silent-mode-parto.active {
     background: #ef8f8f;
   }
 
-  .mobile-search-button.silent-mode-baja,
-  .mobile-search-button.silent-mode-baja:hover,
+  .mobile-search-button.silent-mode-baja.reading,
+  .mobile-search-button.silent-mode-baja.reading:hover,
   .mobile-search-button.silent-mode-baja.active {
     background: #5b4a3f;
   }

@@ -4,7 +4,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './context/AuthContext';
 import { CatalogsProvider } from './context/CatalogsContext';
-import { OperationSessionProvider } from './context/OperationSessionContext';
+// CLEANUP-CANDIDATE: OperationSessionProvider belonged to the old guided panel flow.
+// New actions use /operations/*, silent reader and page-local state.
+// import { OperationSessionProvider } from './context/OperationSessionContext';
 import App from './App';
 
 import './styles/variables.css';
@@ -27,9 +29,8 @@ createRoot(document.getElementById('root')).render(
       <BrowserRouter>
         <AuthProvider>
           <CatalogsProvider>
-            <OperationSessionProvider>
-              <App />
-            </OperationSessionProvider>
+            {/* CLEANUP-CANDIDATE: old OperationSessionProvider disabled for verification. */}
+            <App />
           </CatalogsProvider>
         </AuthProvider>
       </BrowserRouter>

@@ -1,41 +1,46 @@
 # Uso de la app RumiAndo para ganaderos
 
 ## Resumen
-Manual conversacional no tecnico para explicar la app a ganaderos. Cubre consulta de animales, altas, movimientos, avisos, Animal Watchlist, dashboard, sanidad, ficha individual, busqueda por crotal, lector RFID y limites de seguridad. Los apartados de movimientos y rutas internas quedan sujetos a documentos marcados como pendientes de rutas finales.
+Manual conversacional para explicar la app a ganaderos sin tecnicismos. Cubre busqueda de animales, ficha individual, Busqueda inteligente, lector silencioso, operaciones por lista, parto, baja, alertas, censo, estadisticas, importacion y limites de seguridad.
+
+La regla principal es simple: la IA ayuda a entender la orden y abre el flujo correcto ya preparado, pero los cambios reales se guardan desde la pantalla de la app cuando el ganadero pulsa `Finalizar`, `Guardar`, `Anadir alerta` o el boton equivalente.
 
 ## Reglas operativas
-- Para buscar un animal, usar crotal oficial, RFID o identificador visible. Si hay varios resultados, la IA debe pedir elegir uno y no asumir.
-- Antes de modificar datos, revisar ficha individual: especie, sexo, edad, corral, lote, estado, historial sanitario, tratamientos, partos, movimientos y avisos.
-- Para alta, recoger especie, sexo, fecha de nacimiento o entrada, crotal, origen, madre si aplica, corral inicial y estado inicial. Si no hay crotal oficial, usar provisional segun modelo.
-- Para movimientos, la IA prepara: lee crotales, revisa origen, destino, incidencias y resumen. La ejecucion queda pendiente de rutas finales y confirmacion del usuario.
-- Para sanidad, la app debe consultar casos, tratamientos, vacunas, retiradas y revisiones. La IA puede crear borrador, no diagnosticar ni prescribir.
-- Para avisos, la IA puede listar pendientes, explicar motivo, priorizar y preparar recordatorios. No debe eliminar avisos criticos sin confirmacion.
-- El dashboard debe resumir animales por especie, corrales, estados, avisos, tratamientos activos, retiradas, partos proximos y bajas recientes si esos datos existen.
-- El lector RFID introduce crotales. Leer no mueve, no cambia estado y no trata animales. Solo crea una seleccion para decidir una accion.
-- Animal Watchlist es una lista privada y persistente por usuario para localizar animales concretos con el lector. Puede llenarse desde avisos, ficha de animal o censo, con motivo automatico o manual opcional.
-- En `/animal-watchlist` el lector esta activo por defecto. Si se lee un crotal marcado, la app avisa, muestra tarjeta flotante con animal y motivo, y marca el item como visto sin eliminarlo.
-- Desde la tarjeta de Animal Watchlist se puede elegir una accion posterior. La accion no se valida al seleccionar destino; se registra solo al pulsar `Finalizar`.
-- La IA puede responder directamente, abrir pantalla, precargar formulario o preparar accion. Las acciones criticas requieren confirmacion.
+- Para buscar un animal, usar crotal oficial, RFID o identificador visible. Si hay varios resultados, pedir elegir uno.
+- Antes de modificar datos, conviene revisar ficha individual: especie, sexo, edad, corral, estado reproductivo, historial sanitario, partos, movimientos y avisos.
+- El lector inferior es busqueda silenciosa. Sirve para leer un animal desde cualquier pantalla, abrir su ficha en segundo plano y apagarse automaticamente al encontrarlo.
+- Busqueda inteligente es una lista privada y persistente por usuario. Puede llenarse desde avisos, ficha o censo. Leer un animal de la lista lo marca como visto, pero no lo elimina.
+- Movimiento de corral, Estado reproductivo y Evento sanitario usan pantallas `/operations/*`: el ganadero configura la accion, pasa crotales, ve una lista editable y pulsa `Finalizar`.
+- En esas operaciones, leer un crotal no guarda nada todavia. Solo anade el animal a la lista de trabajo.
+- Parto y Baja son flujos unitarios: si no hay crotal, la IA activa el lector silencioso en modo `parto` o `baja`; si ya hay animal claro, abre la pantalla correspondiente.
+- Para sanidad, la IA puede orientar, preparar el flujo y normalizar nombres comunes, pero no diagnostica ni prescribe tratamientos cerrados.
+- Para avisos, la IA puede listar, explicar, priorizar, abrir la ficha, anadir a Busqueda inteligente o preparar recordatorio manual.
+- Estadisticas y Censo son herramientas de consulta: permiten filtrar animales, ver listados y exportar datos utiles.
+- La importacion de ganado actual ayuda a cargar animales iniciales desde lectura o Excel/CSV. Despues se pueden mover con Movimiento de corral si el corral inicial era provisional.
 
 ## Casos frecuentes
-- Busca esta oveja: pedir crotal/RFID y mostrar ficha.
-- Que avisos tengo: listar por prioridad y explicar motivo.
-- Pon esta oveja en Animal Watchlist: abrir o preparar la lista de busqueda viva con motivo opcional.
-- Ya he encontrado esta de la lista: explicar que queda tachada/vista hasta que el usuario la elimine manualmente.
-- Pasa estas a paridas: preparar movimiento y confirmar. *documento pendiente de rutas finales*.
-- Registra que la vacune: preparar borrador con producto, fecha, dosis, via, lote y proxima dosis.
+- "Busca esta oveja" -> pedir crotal si falta o activar lector silencioso `lookup`.
+- "Que avisos tengo" -> abrir o resumir avisos por prioridad.
+- "Pon esta oveja en Busqueda inteligente" -> anadir a la lista privada con motivo opcional si se identifica el animal.
+- "Busca la lista" -> abrir `/animal-watchlist`.
+- "Pasa 3 cabras a produccion" -> abrir `/operations/movement` con destino Produccion y objetivo visual 3.
+- "Pon estas como gestantes de 8 semanas" -> abrir `/operations/reproductive` con diagnostico de gestacion positivo y semanas estimadas 8.
+- "Vacuna estas de lengua azul" -> abrir `/operations/health` con tipo Vacunacion y texto para normalizar.
+- "Desparasita este lote" -> abrir `/operations/health` con tipo Desparasitacion.
+- "Ha parido esta cabra" -> activar lector silencioso `parto` o abrir `/birth/new/:motherId`.
+- "Se ha muerto esta" -> activar lector silencioso `baja` o abrir `/animals/:id/discharge`.
+- "Ponme un aviso para revisar ubre en 7 dias" -> preparar recordatorio manual con motivo, fecha y prioridad.
 
 ## Limites y cautelas
-La IA no debe ejecutar bajas, muertes, movimientos, tratamientos con retirada o cierres sanitarios sin confirmacion. No debe inventar rutas ni permisos. La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, dificultad respiratoria, sangre, aborto, mortalidad, dolor intenso, sospecha zoonotica o varios animales afectados, debe recomendar contactar con veterinario. Si una norma depende de MAPA, CCAA o criterio veterinario, debe verificarse antes de aplicarla en produccion.
+La IA no debe ejecutar bajas, muertes, movimientos, tratamientos con retirada ni cierres sanitarios sin pantalla y confirmacion del usuario. Tampoco debe inventar permisos, rutas o datos veterinarios.
+
+La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, dificultad respiratoria, sangre, aborto, mortalidad, dolor intenso, sospecha zoonotica o varios animales afectados, debe recomendar contactar con veterinario. Si una norma depende de MAPA, CCAA o criterio veterinario, debe verificarse antes de aplicarla en produccion.
 
 ## Fuentes internas
-- Requisitos RumiAndo: manual conversacional para ganaderos.
-- Decision de producto: la IA prepara o redirige, el usuario confirma.
-- Decision de producto: Animal Watchlist persiste por usuario y no elimina animales al leerlos; solo los marca como vistos.
-- Estado tecnico: movimientos y endpoints pendientes de rutas finales.
+- Decision de producto: la IA prepara o redirige; el usuario confirma en la pantalla.
+- Decision de producto: Busqueda inteligente persiste por usuario y no elimina animales al leerlos.
+- Decision de producto: las configuraciones de explotacion persisten por cuenta ganadera; el modo de color es preferencia visual.
+- Estado tecnico: el flujo vigente es `/operations/*`, lector silencioso y pantallas reales. `OperationSessionPanel` es antiguo.
 
 ## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
-
-## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
+Recuperar este documento cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La respuesta debe decir que se ha entendido, que pantalla o flujo se abre, que datos faltan y que debe confirmar el usuario.

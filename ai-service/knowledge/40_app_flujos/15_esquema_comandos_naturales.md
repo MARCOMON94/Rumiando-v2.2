@@ -1,39 +1,38 @@
 # Esquema de comandos naturales
 
 ## Resumen
-Recopila frases que el ganadero podria usar con la IA y como interpretarlas. Sirve para guiar movimientos, busquedas, avisos, reproduccion, sanidad, tratamientos y dashboard. Traduce lenguaje natural a intencion, datos requeridos y siguiente paso seguro.
+El chat interpreta lenguaje de campo y lo transforma en una pantalla preparada. No debe ejecutar acciones ocultas: abre el flujo, rellena lo que entienda y deja que el ganadero pase el lector y pulse `Finalizar`.
 
-## Reglas operativas
-- Comandos de movimiento usan pasar, meter, llevar, apartar, sacar o mover: "pasa estas al corral de paridas", "mete estas en cebo", "estas van al lazareto". Intencion: abrir operacion de Corral.
-- Para movimientos, datos requeridos: animales, destino y si implica cambio de estado. Si falta algo, abrir panel guiado o preguntar lo minimo. La ejecucion real requiere confirmacion.
-- Comandos de busqueda: "busca esta oveja", "donde esta la 3482", "ensename su ficha". Intencion: lectura. Requiere crotal, RFID o seleccion.
-- Comandos reproductivos: "cuanto lleva prenada", "cuando deberia parir", "ponla como cubierta", "ha abortado". Distinguir consulta de cambio de estado.
-- Comandos sanitarios: "no come", "esta tumbada", "tiene diarrea", "tose", "cojea", "creo que tiene lengua azul". Intencion: orientacion sanitaria o apertura de caso.
-- Comandos de tratamiento: "le puse antibiotico", "vacune estas", "desparasite el lote", "cuando vendo leche". Requiere producto, fecha, dosis, via, retirada y animales/corral.
-- Comandos de avisos: "ponme un aviso", "recuerdame revisarla", "que tengo pendiente", "por que salta esto", "posponlo tres dias".
-- Comandos de dashboard: "cuantas hay en produccion", "que hay en lazareto", "resumen de hoy", "animales con retirada". Intencion: consulta agregada.
-- El parser debe aceptar lenguaje coloquial, pero no ejecutar acciones por intuicion. Primero entender, luego pedir datos, luego confirmar.
+## Movimiento de corral
+- Verbos: pasar, meter, echar, mover, apartar, mandar, llevar, cambiar de sitio.
+- Ejemplos: "quiero pasar 3 cabras a produccion", "mete estas en paridera", "manda el lote a secado".
+- Resultado: `ui_action.operation_flow` con `operationType=movement`, ruta `/operations/movement`, destino sugerido y objetivo orientativo si aparece.
+- Aliases: produccion/lactacion/ordeno, paridera/paridas, gestantes/prenadas, secado/secas, cebo, reposicion, lazareto/enfermeria.
 
-## OperationSession
-- Todas las acciones guiadas se abren con la misma base: Unitario, Lote o Corral completo.
-- Unitario: una lectura identifica un animal y se prepara la accion.
-- Lote: cada lectura valida se anade; duplicados se ignoran; Finalizar prepara resumen.
-- Corral completo: se selecciona uno o varios corrales y la accion se aplica al corral completo.
-- Finalizar no registra nada. Confirmar es el unico paso que ejecuta endpoint real.
+## Estado reproductivo
+- Verbos y frases: poner como, marcar como, diagnostico, ecografia, gestante, prenada, seca, secado, cubricion, inseminacion, aborto.
+- Ejemplos: "pon estas como gestantes de 8 semanas", "diagnostico positivo", "pasa estas a secas".
+- Resultado: `ui_action.operation_flow` con `operationType=reproductive`, ruta `/operations/reproductive`, evento, resultado y semanas si se infieren.
 
-## Casos frecuentes
-- "Pasa estas al corral de paridas": abrir OperationSession de Corral, pedir modo, leer crotales y confirmar.
-- "Baja este animal": abrir OperationSession de Baja; pedir crotal/RFID, fecha y causa opcional.
-- "Se ha muerto una cabra": detectar muerte, pedir crotal/RFID y preparar baja por muerte sin ejecutar.
-- "Vacuna este corral": abrir OperationSession de Vacunacion en modo Corral completo; pedir vacuna, fecha y corral.
-- "Desparasita el lote": abrir OperationSession de Desparasitacion en modo Lote; pedir producto, tipo y fecha.
-- "Abre caso sanitario para esta oveja": responder triaje si hay sintomas y abrir OperationSession de Sanitario si el usuario quiere registrar.
-- "Dime cuanto lleva prenada": consulta reproductiva; calcular desde cubricion/inseminacion o diagnostico registrado.
-- "Pon aviso en 15 dias": preparar recordatorio; confirmar animal/lote, fecha y texto.
-- "Tiene basquilla": usar diccionario, preguntar signos y recomendar veterinario si hay urgencia.
+## Evento sanitario
+- Cambiar texto visible de caso sanitario a evento sanitario.
+- Frases: "vacuna estas de lengua azul", "desparasita el lote", "abre enfermedad de mamitis", "registrar otro evento sanitario".
+- Resultado: `ui_action.operation_flow` con `operationType=health`, ruta `/operations/health`, tipo `vaccination`, `deworming`, `disease` u `other`.
+- Si hay nombres populares o faltas, usar catalogos/alias/RAG y confirmar si hay duda antes de guardar.
 
-## Limites y cautelas
-El parser no debe convertir nombres populares en diagnosticos ni frases ambiguas en acciones ejecutadas. La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, dificultad respiratoria, sangre, aborto, mortalidad, dolor intenso, sospecha zoonotica o varios animales afectados, debe recomendar contactar con veterinario.
+## Parto y baja
+- "Ha parido esta oveja", "pario esta cabra": activar lector silencioso `parto`. Si hay crotal claro, abrir `/birth/new/:motherId`.
+- "Se ha muerto esta cabra", "da de baja este animal", "vendida", "sacrificio": activar lector silencioso `baja`. Si hay crotal claro, abrir `/animals/:id/discharge` con causa sugerida.
+- Estos flujos son unitarios; no usan lista por lote.
 
-## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa.
+## Busqueda, avisos y consultas
+- "Busca la lista", "abre busqueda inteligente": abrir `/animal-watchlist`.
+- "Busca este crotal" o "ensenname la ficha": usar lector silencioso `lookup` o buscar por crotal si esta en el mensaje.
+- "Ponme un aviso": preparar alerta manual, no cerrarla sin pantalla.
+- Consultas como "cuantas hay en produccion" usan endpoints de lectura y responden con datos vivos.
+
+## Reglas de seguridad
+- Si falta un dato, abrir el flujo igualmente cuando sea razonable y dejar el campo visible para corregir.
+- Si el animal no coincide con la especie esperada, avisar sin bloquear.
+- Si el usuario dice "estas" o "este lote", la accion sigue siendo valida: la lista se llena con el lector.
+- El objetivo "3 cabras" es una guia visual, no un limite duro.

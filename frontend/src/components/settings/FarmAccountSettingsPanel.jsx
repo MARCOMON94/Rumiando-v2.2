@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, put } from '../../api/apiClient';
+import { get, post, put } from '../../api/apiClient';
 
 function emptyAccountForm() {
   return {
@@ -15,6 +15,12 @@ export default function FarmAccountSettingsPanel({ currentUser }) {
   const navigate = useNavigate();
   const [settings, setSettings] = useState(null);
   const [accountForm, setAccountForm] = useState(emptyAccountForm);
+  const [newUnitDraft, setNewUnitDraft] = useState({
+    nombre: '',
+    codigoRega: '',
+    especiePrincipalId: '',
+    razaPrincipalId: ''
+  });
   const [unitDrafts, setUnitDrafts] = useState({});
   const [userDrafts, setUserDrafts] = useState({});
   const [loading, setLoading] = useState(true);
@@ -103,6 +109,15 @@ export default function FarmAccountSettingsPanel({ currentUser }) {
     setMessage('');
   }
 
+  function setNewUnitField(name, value) {
+    setNewUnitDraft((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === 'especiePrincipalId' ? { razaPrincipalId: '' } : {})
+    }));
+    setMessage('');
+  }
+
   function setUserField(userId, name, value) {
     setUserDrafts((current) => ({
       ...current,
@@ -139,6 +154,29 @@ export default function FarmAccountSettingsPanel({ currentUser }) {
     try {
       await put(`/account-settings/farm-units/${unitId}`, unitDrafts[unitId]);
       setMessage('REGA actualizada.');
+      await loadSettings();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createUnit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      await post('/farm-units', newUnitDraft);
+      setNewUnitDraft({
+        nombre: '',
+        codigoRega: '',
+        especiePrincipalId: '',
+        razaPrincipalId: ''
+      });
+      setMessage('REGA añadida.');
       await loadSettings();
     } catch (err) {
       setError(err.message);
@@ -217,6 +255,60 @@ export default function FarmAccountSettingsPanel({ currentUser }) {
 
       <section className="settings-subform">
         <h3>REGAs</h3>
+        <form className="settings-list-row settings-unit-row" onSubmit={createUnit}>
+          <div className="settings-unit-fields">
+            <label>
+              Nombre
+              <input
+                value={newUnitDraft.nombre}
+                onChange={(event) => setNewUnitField('nombre', event.target.value)}
+                placeholder="Ej. REGA principal"
+                required
+              />
+            </label>
+            <label>
+              Número REGA
+              <input
+                value={newUnitDraft.codigoRega}
+                onChange={(event) => setNewUnitField('codigoRega', event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Especie
+              <select
+                value={newUnitDraft.especiePrincipalId}
+                onChange={(event) => setNewUnitField('especiePrincipalId', event.target.value)}
+              >
+                <option value="">Sin especie</option>
+                {(settings?.especies || []).map((species) => (
+                  <option key={species.id} value={species.id}>
+                    {species.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Raza
+              <select
+                value={newUnitDraft.razaPrincipalId}
+                onChange={(event) => setNewUnitField('razaPrincipalId', event.target.value)}
+                disabled={!newUnitDraft.especiePrincipalId}
+              >
+                <option value="">Sin raza</option>
+                {(breedsBySpecies.get(String(newUnitDraft.especiePrincipalId || '')) || []).map((breed) => (
+                  <option key={breed.id} value={breed.id}>
+                    {breed.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <button type="submit" disabled={saving}>
+            Añadir REGA
+          </button>
+        </form>
+
         {(settings?.unidadesRega || []).map((unit) => {
           const draft = unitDrafts[unit.id] || {};
           const availableBreeds = breedsBySpecies.get(String(draft.especiePrincipalId || '')) || [];

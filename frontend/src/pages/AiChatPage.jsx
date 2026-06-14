@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { post } from '../api/apiClient';
-import OperationSessionPanel from '../components/operations/OperationSessionPanel';
-import { operationFromActionType } from '../components/operations/operationConfig';
-import { useOperationSession } from '../context/OperationSessionContext';
+import { useNavigate } from 'react-router-dom';
+import { get, post } from '../api/apiClient';
 
 const QUICK_PROMPTS = [
   'Cuantos animales tengo por especie',
@@ -10,18 +8,12 @@ const QUICK_PROMPTS = [
   'Prepara un cambio de corral'
 ];
 
-const READER_ACTION_TYPES = [
-  'ANIMAL_DISCHARGE',
-  'CHANGE_PEN',
-  'CREATE_HEALTH_CASE',
-  'CREATE_TREATMENT',
-  'CREATE_VACCINATION',
-  'CREATE_DEWORMING',
-  'CREATE_REPRODUCTIVE_EVENT'
-];
+const AI_DRAFT_STORAGE_PREFIX = 'rumiando-ai-draft:';
+const SILENT_READER_EVENT = 'rumiando:silent-reader:activate';
 
 function ChatMessage({ message }) {
   const isAssistant = message.role === 'assistant';
+  const content = formatChatText(message.content);
 
   return (
     <article className={`chat-message ${isAssistant ? 'assistant' : 'user'}`}>
@@ -30,64 +22,249 @@ function ChatMessage({ message }) {
         {message.requiresConfirmation && <strong>Requiere confirmacion</strong>}
       </div>
 
-      <p>{message.content}</p>
+      <p>
+        {content.split('\n').map((line, index) => (
+          <span key={`${line}-${index}`}>
+            {index > 0 && <br />}
+            {line}
+          </span>
+        ))}
+      </p>
     </article>
   );
 }
 
-function readerRequestFromToolCalls(toolCalls = []) {
-  const tool = toolCalls.find((item) => {
-    const actionType = item?.data?.action_type || item?.data?.actionType;
-    return READER_ACTION_TYPES.includes(actionType);
-  });
-
-  if (!tool) {
-    return null;
-  }
-
-  const actionType = tool.data?.action_type || tool.data?.actionType;
-  return {
-    actionType,
-    toolName: tool.name,
-    summary: tool.output_summary,
-    draft: tool.data?.draft || null,
-    preferredMode: tool.data?.draft?.preferred_mode || null,
-    originalMessage: tool.data?.original_message || tool.data?.originalMessage || ''
-  };
+function formatChatText(value) {
+  return String(value || '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
 }
 
-function initialModeForReader(request) {
-  if (!request) return 'lote';
-  if (request.preferredMode) return request.preferredMode;
-  if (request.actionType === 'ANIMAL_DISCHARGE' || request.actionType === 'CREATE_REPRODUCTIVE_EVENT') {
-    return 'unitario';
-  }
-
-  const text = `${request.originalMessage || ''} ${request.summary || ''}`.toLowerCase();
-  if (text.includes('corral completo') || text.includes('todo el corral') || text.includes('por corral')) {
-    return 'corral';
-  }
-
-  return 'lote';
+function uiActionFromToolCalls(toolCalls = []) {
+  return toolCalls
+    .map((tool) => tool?.data?.ui_action || tool?.data?.uiAction)
+    .find(Boolean) || null;
 }
 
-function operationDataFromReaderRequest(request) {
-  const draft = request?.draft || {};
-  return {
-    fecha: draft.fecha || '',
-    motivo: draft.motivo || draft.reason || '',
-    observaciones: draft.observaciones || draft.notes || '',
-    corralDestinoId: draft.corralDestinoId || draft.corral_destino_id || '',
-    estadoReproductivoId: draft.estadoReproductivoId || draft.estado_reproductivo_id || '',
-    medicamentoProducto: draft.medicamentoProducto || draft.medicamento_producto || '',
-    vacuna: draft.vacuna || '',
-    producto: draft.producto || ''
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+const MOVEMENT_DESTINATIONS = [
+  ['secado', 'secado'],
+  ['secas', 'secado'],
+  ['seca', 'secado'],
+  ['produccion', 'produccion'],
+  ['productoras', 'produccion'],
+  ['lactacion', 'produccion'],
+  ['lactancia', 'produccion'],
+  ['paridera', 'paridas'],
+  ['paridas', 'paridas'],
+  ['gestantes', 'gestantes'],
+  ['gestante', 'gestantes'],
+  ['prenadas', 'gestantes'],
+  ['cebo', 'cebo'],
+  ['reposicion', 'reposicion'],
+  ['recria', 'reposicion'],
+  ['lazareto', 'lazareto'],
+  ['enfermeria', 'lazareto']
+];
+
+function expectedSpeciesFromText(normalized) {
+  if (/\b(cabra|cabras|caprino|caprinas)\b/.test(normalized)) return 'cabras';
+  if (/\b(oveja|ovejas|ovino|ovinas)\b/.test(normalized)) return 'ovejas';
+  if (/\b(cordero|corderos)\b/.test(normalized)) return 'corderos';
+  if (/\b(cabrito|cabritos)\b/.test(normalized)) return 'cabritos';
+  if (/\b(vaca|vacas|vacuno)\b/.test(normalized)) return 'vacas';
+  return null;
+}
+
+function expectedCountFromText(normalized) {
+  const numberMatch = normalized.match(/\b(\d{1,3})\s+(?:animales?|cabras?|ovejas?|corderos?|cabritos?|vacas?)\b/);
+  if (numberMatch) return Number(numberMatch[1]);
+
+  const words = {
+    una: 1,
+    un: 1,
+    dos: 2,
+    tres: 3,
+    cuatro: 4,
+    cinco: 5,
+    seis: 6,
+    siete: 7,
+    ocho: 8,
+    nueve: 9,
+    diez: 10
   };
+
+  for (const [word, value] of Object.entries(words)) {
+    if (new RegExp(`\\b${word}\\s+(?:animales?|cabras?|ovejas?|corderos?|cabritos?|vacas?)\\b`).test(normalized)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function movementDestinationFromText(normalized) {
+  const placeTerms = MOVEMENT_DESTINATIONS.map(([term]) => term).join('|');
+  const fromToMatch = normalized.match(new RegExp(`\\b(?:de|desde)\\s+(?:el\\s+)?(?:corral\\s+|lote\\s+)?(?:${placeTerms})\\s+(?:a|al|hacia|para)\\s+(?:el\\s+)?(?:corral\\s+|lote\\s+)?(${placeTerms})\\b`));
+  const directMatch = normalized.match(new RegExp(`\\b(?:a|al|hacia|para)\\s+(?:el\\s+)?(?:corral\\s+|lote\\s+)?(${placeTerms})\\b`));
+  const found = fromToMatch?.[1] || directMatch?.[1];
+
+  if (found) {
+    return MOVEMENT_DESTINATIONS.find(([term]) => term === found)?.[1] || found;
+  }
+
+  return MOVEMENT_DESTINATIONS.find(([term]) => new RegExp(`\\b${term}\\b`).test(normalized))?.[1] || null;
+}
+
+function looksLikeMovement(normalized) {
+  const placeTerms = MOVEMENT_DESTINATIONS.map(([term]) => term).join('|');
+  if (new RegExp(`\\b(?:de|desde)\\s+(?:el\\s+)?(?:corral\\s+|lote\\s+)?(?:${placeTerms})\\s+(?:a|al|hacia|para)\\s+(?:el\\s+)?(?:corral\\s+|lote\\s+)?(?:${placeTerms})\\b`).test(normalized)) {
+    return true;
+  }
+
+  return /\b(mover|mueve|muevo|trasladar|traslada|pasar|pasa|meter|mete|apartar|aparta|cambiar|cambia)\b/.test(normalized)
+    && /\b(oveja|ovejas|cabra|cabras|animal|animales|ganado|corral|lote|sitio)\b/.test(normalized);
+}
+
+function fallbackUiActionFromMessage(message, recentMessages = []) {
+  const recentText = recentMessages
+    .filter((item) => item.role === 'user')
+    .map((item) => item.content)
+    .join('\n');
+  const normalized = normalizeText(`${recentText}\n${message}`);
+  const current = normalizeText(message);
+  const crotales = String(message || '').match(/\b(?:es[-_]?)?[a-z]{0,12}\d[a-z0-9_/-]{2,}\b/gi) || [];
+
+  if (/\b(se ha muerto|se murio|ha muerto|esta muerto|esta muerta|muerto|muerta|fallecio|fallecido|fallecida)\b/.test(current)) {
+    return {
+      kind: 'silent_reader',
+      action: 'baja',
+      route: '/animals/:id/discharge',
+      crotales,
+      draft: {
+        motivo: 'muerte',
+        fecha: 'hoy',
+        observaciones: 'muerte indicada por el usuario'
+      }
+    };
+  }
+
+  if (/\b(ha parido|pario|parto|ha tenido cria|ha tenido crias|nacimiento)\b/.test(current)) {
+    return {
+      kind: 'silent_reader',
+      action: 'parto',
+      route: '/birth/new/:motherId',
+      crotales,
+      draft: {
+        expectedSpecies: expectedSpeciesFromText(normalized)
+      }
+    };
+  }
+
+  if (looksLikeMovement(current) || looksLikeMovement(normalized)) {
+    const targetPenName = movementDestinationFromText(current) || movementDestinationFromText(normalized);
+    return {
+      kind: 'operation_flow',
+      operationType: 'movement',
+      route: '/operations/movement',
+      draft: {
+        operationType: 'movement',
+        targetPenName,
+        corralDestinoAlias: targetPenName,
+        expectedCount: expectedCountFromText(normalized),
+        expectedSpecies: expectedSpeciesFromText(normalized),
+        crotales,
+        motivo: 'Preparado desde el chat IA'
+      }
+    };
+  }
+
+  if (/\b(vacuna|vacunar|vacune|vacunacion)\b/.test(current)) {
+    return {
+      kind: 'operation_flow',
+      operationType: 'health',
+      route: '/operations/health',
+      draft: {
+        operationType: 'health',
+        healthType: 'vaccination',
+        expectedCount: expectedCountFromText(normalized),
+        expectedSpecies: expectedSpeciesFromText(normalized),
+        crotales
+      }
+    };
+  }
+
+  if (/\b(desparasita|desparasitar|desparasitado|antiparasitario)\b/.test(current)) {
+    return {
+      kind: 'operation_flow',
+      operationType: 'health',
+      route: '/operations/health',
+      draft: {
+        operationType: 'health',
+        healthType: 'deworming',
+        expectedCount: expectedCountFromText(normalized),
+        expectedSpecies: expectedSpeciesFromText(normalized),
+        crotales
+      }
+    };
+  }
+
+  return null;
+}
+
+function getItems(data) {
+  if (Array.isArray(data)) return data;
+  for (const key of ['data', 'animals', 'animales']) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+  return [];
+}
+
+function normalizeCode(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
+}
+
+function routeForSilentAction(action, animalId) {
+  if (action === 'parto') return `/birth/new/${animalId}`;
+  if (action === 'baja') return `/animals/${animalId}/discharge`;
+  return `/animals/${animalId}?preview=1`;
+}
+
+function dischargeReason(reason) {
+  const normalized = String(reason || '').toLowerCase();
+  if (normalized.includes('venta') || normalized.includes('traslado')) return 'Venta / traslado';
+  if (normalized.includes('sacrificio')) return 'Sacrificio';
+  if (normalized.includes('desapare')) return 'Desaparecido';
+  if (normalized.includes('otro')) return 'Otro';
+  return 'Muerte';
+}
+
+function storeAiDraft(uiAction) {
+  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  window.sessionStorage.setItem(`${AI_DRAFT_STORAGE_PREFIX}${id}`, JSON.stringify({
+    ...(uiAction.draft || {}),
+    source: 'ai_chat',
+    createdAt: new Date().toISOString()
+  }));
+  return id;
 }
 
 
 export default function AiChatPage() {
-  const { startOperation } = useOperationSession();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
@@ -100,6 +277,78 @@ export default function AiChatPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const endRef = useRef(null);
+
+  async function findAnimalByCode(code) {
+    const normalized = normalizeCode(code);
+    if (!normalized) return null;
+
+    const data = await get(`/animals?search=${encodeURIComponent(normalized)}`);
+    return getItems(data).find((animal) => (
+      [animal?.crotal, animal?.numeroInterno]
+        .filter(Boolean)
+        .some((value) => normalizeCode(value) === normalized)
+    )) || getItems(data)[0] || null;
+  }
+
+  async function handleUiAction(uiAction) {
+    if (!uiAction?.kind) return;
+
+    if (uiAction.kind === 'operation_flow') {
+      const route = uiAction.route || `/operations/${uiAction.operationType || 'movement'}`;
+      const draftId = storeAiDraft(uiAction);
+      navigate(`${route}?aiDraft=${encodeURIComponent(draftId)}`, {
+        state: { fromAiChat: true }
+      });
+      return;
+    }
+
+    if (uiAction.kind === 'open_route') {
+      navigate(uiAction.route || '/');
+      return;
+    }
+
+    if (uiAction.kind === 'manual_reminder') {
+      navigate(uiAction.route || '/reminders', {
+        state: { aiDraft: uiAction.draft || null, fromAiChat: true }
+      });
+      return;
+    }
+
+    if (uiAction.kind === 'silent_reader') {
+      const action = uiAction.action || 'lookup';
+      const firstCode = (uiAction.crotales || [])[0];
+      const state = {
+        openedBySilentReader: true,
+        returnTo: '/ai-chat',
+        silentAction: action,
+        fromAiChat: true,
+        aiDraft: uiAction.draft || null
+      };
+
+      if (action === 'baja') {
+        state.motivo = dischargeReason(uiAction.draft?.motivo);
+      }
+
+      if (firstCode) {
+        try {
+          const animal = await findAnimalByCode(firstCode);
+          if (animal?.id) {
+            navigate(routeForSilentAction(action, animal.id), { state });
+            return;
+          }
+        } catch {
+          // Si la busqueda directa falla, dejamos el lector preparado igualmente.
+        }
+      }
+
+      window.dispatchEvent(new CustomEvent(SILENT_READER_EVENT, {
+        detail: {
+          action,
+          state
+        }
+      }));
+    }
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -141,16 +390,9 @@ export default function AiChatPage() {
         }
       });
 
-      const nextReaderRequest = readerRequestFromToolCalls(data.tool_calls || []);
-      if (nextReaderRequest) {
-        startOperation({
-          operationType: operationFromActionType(nextReaderRequest.actionType),
-          mode: initialModeForReader(nextReaderRequest),
-          source: 'ai_chat',
-          status: 'reading',
-          operationData: operationDataFromReaderRequest(nextReaderRequest)
-        });
-      }
+      const uiAction = uiActionFromToolCalls(data.tool_calls || [])
+        || fallbackUiActionFromMessage(trimmed, recentMessages);
+      if (uiAction) await handleUiAction(uiAction);
 
       setConversationId(data.conversation_id);
       setMessages((current) => [
@@ -177,17 +419,6 @@ export default function AiChatPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function appendAssistantMessage(content) {
-    setMessages((current) => [
-      ...current,
-      {
-        id: `operation-${Date.now()}`,
-        role: 'assistant',
-        content
-      }
-    ]);
   }
 
   function fillPrompt(prompt) {
@@ -256,12 +487,6 @@ export default function AiChatPage() {
         </section>
 
         <aside className="chat-side-panel">
-          <OperationSessionPanel
-            onPrepared={appendAssistantMessage}
-            onExecuted={appendAssistantMessage}
-            onCancelled={appendAssistantMessage}
-          />
-
           <h3>Consultas rapidas</h3>
           <div className="quick-prompts">
             {QUICK_PROMPTS.map((prompt) => (

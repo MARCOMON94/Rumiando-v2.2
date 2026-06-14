@@ -66,7 +66,8 @@ export default function MovementsPage() {
     <p>{movements.length} movimientos registrados</p>
   </div>
 
-  <Link className="button" to="/movements/new">
+  {/* CLEANUP-CANDIDATE: /movements/new legacy form is disabled; new flow is reader-based. */}
+  <Link className="button" to="/operations/movement">
     Registrar movimiento
   </Link>
 </header>

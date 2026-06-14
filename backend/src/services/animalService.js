@@ -213,6 +213,9 @@ async function createAnimal(data, cuentaGanaderaId) {
       especieId: Number(data.especieId),
       razaId: data.razaId ? Number(data.razaId) : null,
       corralActualId: data.corralActualId ? Number(data.corralActualId) : null,
+      fechaEntradaCorralActual: data.fechaEntradaCorralActual
+        ? new Date(data.fechaEntradaCorralActual)
+        : data.corralActualId ? new Date() : null,
       estadoReproductivoId: data.estadoReproductivoId
         ? Number(data.estadoReproductivoId)
         : null,

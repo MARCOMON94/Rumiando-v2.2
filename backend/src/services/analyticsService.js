@@ -9,6 +9,56 @@ const DATASET_LABELS = {
   health: 'Eventos sanitarios'
 };
 
+const EXPORT_COLUMNS = {
+  animals: [
+    ['crotal', 'Crotal'],
+    ['unidadRega', 'REGA'],
+    ['codigoRega', 'Número REGA'],
+    ['corral', 'Corral'],
+    ['estadoReproductivo', 'Estado reproductivo'],
+    ['especie', 'Especie'],
+    ['raza', 'Raza'],
+    ['sexo', 'Sexo'],
+    ['estadoRegistro', 'Estado registro'],
+    ['fechaEntrada', 'Fecha entrada']
+  ],
+  discharges: [
+    ['crotal', 'Crotal'],
+    ['unidadRega', 'REGA'],
+    ['codigoRega', 'Número REGA'],
+    ['corral', 'Último corral'],
+    ['especie', 'Especie'],
+    ['raza', 'Raza'],
+    ['sexo', 'Sexo'],
+    ['fechaSalida', 'Fecha baja'],
+    ['destinoSalida', 'Causa/destino baja']
+  ],
+  reproductive: [
+    ['fecha', 'Fecha'],
+    ['crotal', 'Crotal'],
+    ['unidadRega', 'REGA'],
+    ['corral', 'Corral'],
+    ['tipoEvento', 'Evento'],
+    ['resultado', 'Resultado'],
+    ['estadoReproductivo', 'Estado reproductivo'],
+    ['especie', 'Especie'],
+    ['raza', 'Raza'],
+    ['sexo', 'Sexo']
+  ],
+  health: [
+    ['fecha', 'Fecha'],
+    ['crotal', 'Crotal'],
+    ['unidadRega', 'REGA'],
+    ['corral', 'Corral'],
+    ['evento', 'Evento sanitario'],
+    ['estado', 'Estado'],
+    ['gravedad', 'Gravedad'],
+    ['especie', 'Especie'],
+    ['raza', 'Raza'],
+    ['sexo', 'Sexo']
+  ]
+};
+
 function asDate(value, endOfDay = false) {
   if (!value) return null;
   const date = new Date(value);
@@ -54,6 +104,24 @@ function chartTypeFor(rows, groupBy) {
   if (!groupBy) return 'bar';
   if (groupBy === 'period') return 'line';
   return rows.length <= 7 ? 'pie' : 'bar';
+}
+
+function getView(body = {}, grouped = [], groupBy = '') {
+  const view = ['pie', 'bar', 'line', 'list'].includes(body.view) ? body.view : '';
+  if (view && view !== 'list') return view;
+  if (view === 'list') return 'list';
+  return chartTypeFor(grouped, groupBy);
+}
+
+function buildExport(dataset, rows) {
+  const columns = (EXPORT_COLUMNS[dataset] || EXPORT_COLUMNS.animals).map(([field, label]) => ({ field, label }));
+  return {
+    exportColumns: columns,
+    exportRows: rows.map((row) => Object.fromEntries(columns.map((column) => [
+      column.field,
+      row[column.field] ?? ''
+    ])))
+  };
 }
 
 async function getOptions(cuentaGanaderaId) {
@@ -153,6 +221,7 @@ function animalRow(animal) {
     estadoRegistro: animal.estadoRegistro,
     fechaEntrada: formatDate(animal.fechaEntrada),
     fechaSalida: formatDate(animal.fechaSalida),
+    destinoSalida: animal.destinoSalida || '',
     period: periodLabel(animal.fechaSalida || animal.fechaEntrada)
   };
 }
@@ -354,16 +423,21 @@ async function query(cuentaGanaderaId, body = {}) {
   const groupBy = body.groupBy || 'corral';
   const rows = await getRows(cuentaGanaderaId, body);
   const grouped = groupRows(rows, groupBy);
+  const { exportColumns, exportRows } = buildExport(dataset, rows);
+  const view = getView(body, grouped, groupBy);
 
   return {
     title: DATASET_LABELS[dataset],
     dataset,
     groupBy,
+    view,
     total: rows.length,
     summary: grouped,
     rows,
+    exportColumns,
+    exportRows,
     chart: {
-      type: chartTypeFor(grouped, groupBy),
+      type: view === 'list' ? 'table' : view,
       xField: 'label',
       yField: 'value'
     }
@@ -383,13 +457,12 @@ function rowsForExcel(result, body = {}) {
     ...result.summary.map((row) => [row.label, row.value, row.percent])
   ];
 
-  const keys = [...new Set(result.rows.flatMap((row) => Object.keys(row)))];
   const dataRows = [
-    keys,
-    ...result.rows.map((row) => keys.map((key) => row[key] ?? ''))
+    result.exportColumns.map((column) => column.label),
+    ...result.exportRows.map((row) => result.exportColumns.map((column) => row[column.field] ?? ''))
   ];
 
-  return { summaryRows, dataRows };
+  return { summaryRows: null, dataRows };
 }
 
 async function buildExcel(cuentaGanaderaId, body = {}) {

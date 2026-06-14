@@ -165,6 +165,7 @@ model CuentaGanadera {
   telefono      String?
   emailContacto String?
   direccion     String?
+  livestockImportPromptSeenAt DateTime?
 
   usuarios      User[]
   invitaciones  Invitation[]
@@ -179,6 +180,7 @@ model CuentaGanadera {
   exportaciones ExportacionRegistro[]
   animalWatchlistItems AnimalWatchlistItem[]
   managementRules ManagementRule[]
+  alertSettings AlertSettings[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -209,11 +211,32 @@ model UnidadRega {
   desparasitaciones Desparasitacion[]
   exportaciones     ExportacionRegistro[]
   managementRules   ManagementRule[]
+  alertSettings      AlertSettings[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([cuentaGanaderaId, codigoRega])
+}
+
+model AlertSettings {
+  id Int @id @default(autoincrement())
+
+  preset   String @default("ovino")
+  values   Json
+  scopeKey String @default("default")
+
+  cuentaGanaderaId Int
+  cuentaGanadera   CuentaGanadera @relation(fields: [cuentaGanaderaId], references: [id])
+
+  unidadRegaId Int?
+  unidadRega   UnidadRega? @relation(fields: [unidadRegaId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cuentaGanaderaId, scopeKey])
+  @@index([unidadRegaId])
 }
 
 model CatalogoEspecie {

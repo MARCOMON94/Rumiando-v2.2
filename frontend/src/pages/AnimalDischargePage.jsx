@@ -25,8 +25,15 @@ export default function AnimalDischargePage() {
 
   const [animal, setAnimal] = useState(null);
   const [fechaSalida] = useState(todayInput());
-  const [motivo, setMotivo] = useState('Muerte');
-  const [motivoOtro, setMotivoOtro] = useState('');
+  const [motivo, setMotivo] = useState(() => {
+    if (!location.state?.motivo) return 'Muerte';
+    return DISCHARGE_REASONS.includes(location.state.motivo) ? location.state.motivo : 'Otro';
+  });
+  const [motivoOtro, setMotivoOtro] = useState(() => (
+    location.state?.motivo && !DISCHARGE_REASONS.includes(location.state.motivo)
+      ? String(location.state.motivo)
+      : ''
+  ));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');

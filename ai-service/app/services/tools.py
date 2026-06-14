@@ -175,6 +175,14 @@ ACTION_ENDPOINTS = {
         "optional": ["fechaSalida", "destinoSalida", "observaciones"],
         "notes": "La app no borra animales: marca la salida/baja conservando historial.",
     },
+    "birth": {
+        "label": "Parto / nacimiento",
+        "method": "UI",
+        "path": "/birth/new/:motherId",
+        "required": ["madre localizada por lector"],
+        "optional": ["numero de crias", "sexo", "padre"],
+        "notes": "Abre el formulario de parto tras leer la madre; no registra nada desde el chat.",
+    },
     "create_pen": {
         "label": "Alta de corral",
         "method": "POST",
@@ -426,22 +434,53 @@ def _relative_date_from_message(normalized):
     return match.group(0) if match else None
 
 
+MOVEMENT_PLACE_ALIASES = [
+    ("secado", "secado"),
+    ("secas", "secado"),
+    ("seca", "secado"),
+    ("cebo", "cebo"),
+    ("produccion", "produccion"),
+    ("productoras", "produccion"),
+    ("lactacion", "lactacion"),
+    ("lactancia", "lactancia"),
+    ("ordeno", "produccion"),
+    ("paridas", "paridas"),
+    ("parida", "paridas"),
+    ("paridera", "paridas"),
+    ("gestantes", "gestantes"),
+    ("gestante", "gestantes"),
+    ("prenadas", "gestantes"),
+    ("prenada", "gestantes"),
+    ("reposicion", "reposicion"),
+    ("recria", "reposicion"),
+    ("lazareto", "lazareto"),
+    ("enfermeria", "lazareto"),
+]
+
+
+def _known_movement_place_pattern():
+    return "|".join(re.escape(term) for term, _label in MOVEMENT_PLACE_ALIASES)
+
+
+def _has_origin_destination_movement(normalized):
+    places = _known_movement_place_pattern()
+    return re.search(rf"\b(?:de|desde)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?:{places})\s+(?:a|al|hacia|para)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?:{places})\b", normalized) is not None
+
+
 def _movement_destination_from_message(normalized):
-    aliases = [
-        ("secado", "secado"),
-        ("cebo", "cebo"),
-        ("produccion", "produccion"),
-        ("lactacion", "lactacion"),
-        ("lactancia", "lactancia"),
-        ("paridas", "paridas"),
-        ("parida", "paridas"),
-        ("gestantes", "gestantes"),
-        ("gestante", "gestantes"),
-        ("prenadas", "gestantes"),
-        ("reposicion", "reposicion"),
-        ("lazareto", "lazareto"),
-        ("enfermeria", "lazareto"),
-    ]
+    places = _known_movement_place_pattern()
+    origin_destination = re.search(
+        rf"\b(?:de|desde)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?:{places})\s+(?:a|al|hacia|para)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?P<dest>{places})\b",
+        normalized,
+    )
+    if origin_destination:
+        destination = origin_destination.group("dest")
+        for term, label in MOVEMENT_PLACE_ALIASES:
+            if term == destination:
+                return label
+        return destination
+
+    aliases = MOVEMENT_PLACE_ALIASES
     for term, label in aliases:
         if term in normalized:
             return label
@@ -458,6 +497,106 @@ def _movement_destination_from_message(normalized):
     if stop:
         candidate = candidate[:stop.start()].strip(" .,:;")
     return candidate or None
+
+
+NUMBER_WORDS = {
+    "un": 1,
+    "una": 1,
+    "uno": 1,
+    "dos": 2,
+    "tres": 3,
+    "cuatro": 4,
+    "cinco": 5,
+    "seis": 6,
+    "siete": 7,
+    "ocho": 8,
+    "nueve": 9,
+    "diez": 10,
+}
+
+
+SPECIES_ALIASES = [
+    ("cabras", "cabras"),
+    ("cabra", "cabras"),
+    ("caprino", "cabras"),
+    ("caprinas", "cabras"),
+    ("ovejas", "ovejas"),
+    ("oveja", "ovejas"),
+    ("ovino", "ovejas"),
+    ("ovinas", "ovejas"),
+    ("corderos", "corderos"),
+    ("cordero", "corderos"),
+    ("cabritos", "cabritos"),
+    ("cabrito", "cabritos"),
+    ("vacas", "vacas"),
+    ("vaca", "vacas"),
+    ("vacuno", "vacas"),
+    ("terneros", "terneros"),
+    ("ternero", "terneros"),
+    ("cerdos", "cerdos"),
+    ("cerdo", "cerdos"),
+    ("porcino", "cerdos"),
+    ("caballos", "caballos"),
+    ("caballo", "caballos"),
+    ("equino", "caballos"),
+]
+
+
+def _expected_count_from_message(normalized):
+    match = re.search(r"\b(\d{1,3})\s+(?:animales?|cabras?|ovejas?|corderos?|cabritos?|vacas?|terneros?|cerdos?|caballos?)\b", normalized)
+    if match:
+        return int(match.group(1))
+
+    for word, value in NUMBER_WORDS.items():
+        if re.search(rf"\b{word}\s+(?:animales?|cabras?|ovejas?|corderos?|cabritos?|vacas?|terneros?|cerdos?|caballos?)\b", normalized):
+            return value
+
+    return None
+
+
+def _expected_species_from_message(normalized):
+    for term, label in SPECIES_ALIASES:
+        if re.search(rf"\b{re.escape(term)}\b", normalized):
+            return label
+    return None
+
+
+def _weeks_from_message(normalized):
+    match = re.search(r"\b(\d{1,2})\s*(?:semanas?|sem)\b", normalized)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _text_after_any(normalized, markers):
+    for marker in markers:
+        index = normalized.find(marker)
+        if index >= 0:
+            text = normalized[index + len(marker):].strip(" .,:;-")
+            text = re.split(r"\b(?:para|con|en|a|al|hoy|ayer|manana|y|pero)\b", text, maxsplit=1)[0]
+            return text.strip(" .,:;-") or None
+    return None
+
+
+def _has_birth_intent(normalized):
+    return any(term in normalized for term in [
+        "ha parido", "pario", "parida", "parto", "ha tenido cria",
+        "ha tenido crias", "nacimiento", "nacio", "cria nueva"
+    ])
+
+
+def _has_death_intent(normalized):
+    return any(term in normalized for term in [
+        "se ha muerto", "se murio", "ha muerto", "esta muerto", "esta muerta",
+        "muerto", "muerta", "fallecio", "fallecida", "fallecido",
+    ])
+
+
+def _is_watchlist_request(normalized):
+    return any(term in normalized for term in [
+        "busqueda inteligente", "busqueda viva", "watchlist", "lista de busqueda",
+        "abre la lista", "buscar la lista", "animales marcados"
+    ])
 
 
 def _discharge_reason_from_message(normalized):
@@ -672,6 +811,204 @@ def _prepare_reader_action_summary(action_key, endpoint, message):
     }
 
 
+def _health_type_for_action(action_key):
+    if action_key == "create_vaccination":
+        return "vaccination"
+    if action_key == "create_deworming":
+        return "deworming"
+    if action_key == "create_health_case":
+        return "disease"
+    return "other"
+
+
+def _build_health_draft(action_key, normalized):
+    health_type = _health_type_for_action(action_key)
+    draft = {
+        "operationType": "health",
+        "healthType": health_type,
+        "expectedCount": _expected_count_from_message(normalized),
+        "expectedSpecies": _expected_species_from_message(normalized),
+        "fullPen": any(term in normalized for term in ["corral completo", "todo el corral", "por corral"]),
+    }
+
+    if health_type == "vaccination":
+        match = re.search(r"\bvacun\w*\s+(?:estas?|estos?|el lote|lote)?\s*(?:de|contra)\s+([a-z0-9 _/-]{2,50})", normalized)
+        text = match.group(1).strip(" .,:;-") if match else _text_after_any(normalized, ["vacuna de", "vacunar de", "vacuna contra", "vacunar contra", "vacuna"])
+        if text:
+            draft["vacunaTexto"] = text
+    elif health_type == "deworming":
+        match = re.search(r"\bdesparasit\w*\s+(?:estas?|estos?|el lote|lote)?\s*(?:con|de)?\s*([a-z0-9 _/-]{2,50})", normalized)
+        text = match.group(1).strip(" .,:;-") if match else _text_after_any(normalized, ["desparasita con", "desparasitar con", "desparasita", "desparasitar"])
+        if text in {"el lote", "lote", "estas", "estos", "esta", "este"}:
+            text = None
+        if text:
+            draft["desparasitanteTexto"] = text
+    elif health_type == "disease":
+        text = _text_after_any(normalized, ["enfermedad de", "caso de", "diagnostico de", "abrir caso de"])
+        if text:
+            draft["enfermedadTexto"] = text
+    else:
+        text = _text_after_any(normalized, ["tratamiento con", "tratar con", "medicar con"])
+        if text:
+            draft["otroSanitarioTexto"] = text
+
+    return draft
+
+
+def _build_reproductive_draft(normalized):
+    draft = {
+        "operationType": "reproductive",
+        "expectedCount": _expected_count_from_message(normalized),
+        "expectedSpecies": _expected_species_from_message(normalized),
+    }
+
+    weeks = _weeks_from_message(normalized)
+    if weeks:
+        draft["semanasGestacion"] = str(weeks)
+
+    if any(term in normalized for term in ["gestante", "gestantes", "prenada", "prenadas", "preñada", "preñadas", "gestacion positiva"]):
+        draft.update({
+            "tipoEvento": "DIAGNOSTICO_GESTACION",
+            "resultado": "POSITIVO",
+            "estadoResultanteAlias": "gestante",
+        })
+    elif any(term in normalized for term in ["diagnostico", "ecografia", "eco"]):
+        draft.update({
+            "tipoEvento": "DIAGNOSTICO_GESTACION",
+            "resultado": "POSITIVO" if any(term in normalized for term in ["positivo", "prenada", "preñada", "gestante"]) else "NO_APLICA",
+        })
+    elif "aborto" in normalized:
+        draft.update({"tipoEvento": "ABORTO", "resultado": "NO_APLICA"})
+    elif any(term in normalized for term in ["secado", "seca", "secar"]):
+        draft.update({"tipoEvento": "SECADO", "estadoResultanteAlias": "seca"})
+    elif any(term in normalized for term in ["cubricion", "cubrir", "cubierta", "cubiertas"]):
+        draft.update({"tipoEvento": "CUBRICION"})
+    elif any(term in normalized for term in ["inseminacion", "inseminar", "inseminada"]):
+        draft.update({"tipoEvento": "INSEMINACION"})
+    elif any(term in normalized for term in ["parto", "parido", "parida"]):
+        draft.update({"tipoEvento": "PARTO"})
+
+    return draft
+
+
+def _ui_action_for_action(action_key, message, draft):
+    normalized = _normalize(message)
+    ear_tags = _ear_tags_from_message(message)
+
+    if action_key == "change_pen":
+        destination = draft.get("destino_solicitado") or _movement_destination_from_message(normalized)
+        operation_draft = {
+            "operationType": "movement",
+            "targetPenName": destination,
+            "corralDestinoAlias": destination,
+            "motivo": "Preparado desde el chat IA",
+            "expectedCount": _expected_count_from_message(normalized),
+            "expectedSpecies": _expected_species_from_message(normalized),
+            "crotales": ear_tags,
+        }
+        return {
+            "kind": "operation_flow",
+            "operationType": "movement",
+            "route": "/operations/movement",
+            "draft": operation_draft,
+        }
+
+    if action_key in {"create_health_case", "create_treatment", "create_vaccination", "create_deworming"}:
+        operation_draft = _build_health_draft(action_key, normalized)
+        operation_draft["crotales"] = ear_tags
+        return {
+            "kind": "operation_flow",
+            "operationType": "health",
+            "route": "/operations/health",
+            "draft": operation_draft,
+        }
+
+    if action_key == "create_reproductive_event":
+        operation_draft = _build_reproductive_draft(normalized)
+        operation_draft["crotales"] = ear_tags
+        return {
+            "kind": "operation_flow",
+            "operationType": "reproductive",
+            "route": "/operations/reproductive",
+            "draft": operation_draft,
+        }
+
+    if action_key == "animal_discharge":
+        return {
+            "kind": "silent_reader",
+            "action": "baja",
+            "route": "/animals/:id/discharge",
+            "crotales": ear_tags,
+            "draft": {
+                "motivo": draft.get("motivo") or _discharge_reason_from_message(normalized) or "Muerte",
+                "fecha": draft.get("fecha") or "hoy",
+                "observaciones": draft.get("observaciones") or "",
+            },
+        }
+
+    if action_key == "birth":
+        return {
+            "kind": "silent_reader",
+            "action": "parto",
+            "route": "/birth/new/:motherId",
+            "crotales": ear_tags,
+            "draft": {
+                "expectedSpecies": _expected_species_from_message(normalized),
+            },
+        }
+
+    if action_key == "create_reminder":
+        return {
+            "kind": "manual_reminder",
+            "route": "/reminders",
+            "draft": {
+                "text": message,
+                "crotales": ear_tags,
+            },
+        }
+
+    return None
+
+
+def _prepared_ui_summary(action_key, ui_action, fallback_summary):
+    if not ui_action:
+        return fallback_summary
+
+    if ui_action["kind"] == "operation_flow":
+        labels = {
+            "movement": "movimiento de corral",
+            "reproductive": "estado reproductivo",
+            "health": "evento sanitario",
+        }
+        operation = ui_action.get("operationType")
+        draft = ui_action.get("draft") or {}
+        bits = [f"He preparado el flujo de {labels.get(operation, 'trabajo')}."]
+        if draft.get("targetPenName"):
+            bits.append(f"Destino: {draft['targetPenName']}.")
+        if draft.get("expectedCount") and draft.get("expectedSpecies"):
+            bits.append(f"Objetivo orientativo: {draft['expectedCount']} {draft['expectedSpecies']}.")
+        elif draft.get("expectedCount"):
+            bits.append(f"Objetivo orientativo: {draft['expectedCount']} animales.")
+        bits.append("Se abrira la pantalla para pasar el lector, revisar la lista y pulsar Finalizar.")
+        return " ".join(bits)
+
+    if ui_action["kind"] == "silent_reader":
+        action = ui_action.get("action")
+        if action == "parto":
+            return "Activo el lector para localizar la madre y abrir el formulario de parto."
+        if action == "baja":
+            return "Activo el lector para localizar el animal y abrir la pantalla de baja."
+        return "Activo el lector para abrir la ficha del animal."
+
+    if ui_action["kind"] == "open_route":
+        return "Abro esa pantalla en la app para que puedas continuar."
+
+    if ui_action["kind"] == "manual_reminder":
+        return "Preparo la pantalla de avisos para crear la alerta manual con ese motivo."
+
+    return fallback_summary
+
+
 def _looks_like_advice_not_action(normalized):
     advice_terms = [
         "que vacuna", "que tratamiento", "que medicamento", "que antibiotico",
@@ -684,6 +1021,9 @@ def _looks_like_advice_not_action(normalized):
 def _has_movement_intent(normalized):
     if any(phrase in normalized for phrase in ["pasa algo", "que pasa si", "puede pasar algo"]):
         return False
+
+    if _has_origin_destination_movement(normalized):
+        return True
 
     action_words = [
         "mover", "mueve", "movimiento", "trasladar", "traslada",
@@ -736,6 +1076,12 @@ def _action_key_from_message(normalized):
     if _looks_like_advice_not_action(normalized):
         return None
 
+    if _has_death_intent(normalized):
+        return "animal_discharge"
+
+    if _has_birth_intent(normalized):
+        return "birth"
+
     if not _has_create_or_update_word(normalized) and not _has_movement_intent(normalized):
         return None
 
@@ -766,7 +1112,12 @@ def _action_key_from_message(normalized):
     if any(term in normalized for term in ["caso sanitario", "incidencia sanitaria", "enfermedad", "diagnostico", "diagnostico"]):
         return "update_health_case" if any(term in normalized for term in ["actualiza", "modifica", "cierra", "cerrar"]) else "create_health_case"
 
-    if any(term in normalized for term in ["gestacion", "gestacional", "reproductivo", "reproductiva", "celo", "cubricion", "ecografia", "parto", "aborto", "prenada", "preñada"]):
+    if any(term in normalized for term in [
+        "gestacion", "gestacional", "gestante", "gestantes",
+        "reproductivo", "reproductiva", "celo", "cubricion",
+        "ecografia", "parto", "aborto", "prenada", "prenadas",
+        "preñada", "preñadas"
+    ]):
         return "update_reproductive_event" if any(term in normalized for term in ["actualiza", "modifica", "cambia"]) else "create_reproductive_event"
 
     if any(term in normalized for term in ["aviso", "recordatorio"]):
@@ -1107,10 +1458,21 @@ def _prepare_action_tool(action_key, message):
         output_summary, draft = _prepare_change_pen_summary(message, endpoint)
     elif action_key == "animal_discharge":
         output_summary, draft = _prepare_discharge_summary(message, endpoint)
+    elif action_key == "birth":
+        normalized = _normalize(message)
+        draft = {
+            "crotales": _ear_tags_from_message(message),
+            "expectedSpecies": _expected_species_from_message(normalized),
+            "technical_contract": endpoint,
+        }
+        output_summary = "Preparo el lector para localizar la madre y abrir el formulario de parto."
     elif action_key in READER_ACTION_DRAFTS:
         output_summary, draft = _prepare_reader_action_summary(action_key, endpoint, message)
     else:
         output_summary, draft = _prepare_generic_action_summary(action_key, endpoint)
+
+    ui_action = _ui_action_for_action(action_key, message, draft)
+    output_summary = _prepared_ui_summary(action_key, ui_action, output_summary)
 
     return ToolCall(
         name=f"preparar_{action_key}",
@@ -1118,10 +1480,11 @@ def _prepare_action_tool(action_key, message):
         input={"message": message},
         output_summary=output_summary,
         data={
-            "requires_confirmation": True,
+            "requires_confirmation": False,
             "action_type": action_key.upper(),
             "endpoint": endpoint,
             "draft": draft,
+            "ui_action": ui_action,
             "original_message": message,
         },
     )
@@ -1215,6 +1578,24 @@ def run_app_tools(message, authorization=None):
             data={
                 "read_endpoints": READ_ENDPOINTS,
                 "action_endpoints": ACTION_ENDPOINTS,
+            },
+        ))
+        return calls
+
+    if _is_watchlist_request(normalized):
+        calls.append(ToolCall(
+            name="abrir_busqueda_inteligente",
+            status="ok",
+            input={"message": message},
+            output_summary="Abro Busqueda inteligente para que puedas revisar o buscar animales marcados.",
+            data={
+                "requires_confirmation": False,
+                "action_type": "OPEN_ROUTE",
+                "ui_action": {
+                    "kind": "open_route",
+                    "route": "/animal-watchlist",
+                },
+                "original_message": message,
             },
         ))
         return calls

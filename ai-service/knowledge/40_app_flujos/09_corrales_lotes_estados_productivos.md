@@ -183,6 +183,6 @@ Si el corral tiene automatico activado, la casilla aparece marcada por defecto. 
 - No convertir una ubicacion en estado reproductivo sin confirmacion. Mover a paridera no confirma parto.
 - Si una accion afecta a estado, corral, tratamiento, baja o retirada, debe pedir confirmacion.
 - Si el usuario pregunta por nombres, proponer alternativas y marcar que el catalogo es revisable.
-- Para lector RFID, usar el texto pegado como identificadores dentro de una OperationSession comun.
-- Modos de operacion: Unitario, Lote y Corral completo.
+- Para lector RFID, usar el texto pegado como identificadores dentro de las pantallas `/operations/movement`, `/operations/reproductive` y `/operations/health`.
+- Movimiento y estado reproductivo trabajan por lista de crotales; evento sanitario permite lista o corral completo.
 - Finalizar lectura solo prepara resumen; Confirmar registra el endpoint real.

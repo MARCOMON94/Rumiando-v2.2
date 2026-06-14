@@ -5,6 +5,7 @@ import AppModal from '../components/ui/AppModal';
 const DEFAULT_QUERY = {
   dataset: 'animals',
   groupBy: 'corral',
+  view: 'bar',
   filters: {
     unidadRegaId: '',
     corralId: '',
@@ -36,6 +37,12 @@ const REPRODUCTIVE_EVENTS = [
   'REVISION_REPRODUCTIVA'
 ];
 const EVENT_RESULTS = ['POSITIVO', 'NEGATIVO', 'DUDOSO', 'NO_APLICA'];
+const VIEW_OPTIONS = [
+  ['bar', 'Barras'],
+  ['pie', 'Circular'],
+  ['line', 'Línea'],
+  ['list', 'Listado']
+];
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -287,11 +294,40 @@ export default function DashboardPage() {
       </div>
 
       <div className="filters-card analytics-filter-card">
+        <div className="analytics-date-row">
+          <label>
+            Desde
+            <input
+              type="date"
+              value={query.filters.fechaDesde}
+              onChange={(event) => setFilter('fechaDesde', event.target.value)}
+            />
+          </label>
+
+          <label>
+            Hasta
+            <input
+              type="date"
+              value={query.filters.fechaHasta}
+              onChange={(event) => setFilter('fechaHasta', event.target.value)}
+            />
+          </label>
+        </div>
+
         <label>
           Datos
           <select value={query.dataset} onChange={(event) => setQueryField('dataset', event.target.value)}>
             {(options?.datasets || []).map((item) => (
               <option key={item.value} value={item.value}>{item.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Vista
+          <select value={query.view} onChange={(event) => setQueryField('view', event.target.value)}>
+            {VIEW_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </label>
@@ -417,24 +453,6 @@ export default function DashboardPage() {
           </>
         )}
 
-        <label>
-          Desde
-          <input
-            type="date"
-            value={query.filters.fechaDesde}
-            onChange={(event) => setFilter('fechaDesde', event.target.value)}
-          />
-        </label>
-
-        <label>
-          Hasta
-          <input
-            type="date"
-            value={query.filters.fechaHasta}
-            onChange={(event) => setFilter('fechaHasta', event.target.value)}
-          />
-        </label>
-
         <button type="button" onClick={() => runQuery()} disabled={loading}>
           {loading ? 'Calculando...' : 'Aplicar'}
         </button>
@@ -456,36 +474,59 @@ export default function DashboardPage() {
             </article>
             <article className="metric-card">
               <span>Vista</span>
-              <strong>{result.chart?.type || 'tabla'}</strong>
+              <strong>{result.view || result.chart?.type || 'tabla'}</strong>
             </article>
           </div>
 
-          <article className="panel analytics-chart-card">
-            <h3>{result.title}</h3>
-            <AnalyticsChart result={result} />
-          </article>
+          {result.view !== 'list' && (
+            <article className="panel analytics-chart-card">
+              <h3>{result.title}</h3>
+              <AnalyticsChart result={result} />
+            </article>
+          )}
 
           <article className="panel analytics-table-card">
-            <h3>Datos</h3>
+            <h3>{result.view === 'list' ? 'Listado' : 'Resumen'}</h3>
             <div className="analytics-table-wrap">
-              <table className="analytics-table">
-                <thead>
-                  <tr>
-                    <th>Grupo</th>
-                    <th>Cantidad</th>
-                    <th>%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(result.summary || []).map((row) => (
-                    <tr key={row.label}>
-                      <td>{row.label}</td>
-                      <td>{row.value}</td>
-                      <td>{row.percent}</td>
+              {result.view === 'list' ? (
+                <table className="analytics-table">
+                  <thead>
+                    <tr>
+                      {(result.exportColumns || []).map((column) => (
+                        <th key={column.field}>{column.label}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(result.exportRows || []).map((row, index) => (
+                      <tr key={`${row.crotal || row.fecha || 'row'}-${index}`}>
+                        {(result.exportColumns || []).map((column) => (
+                          <td key={column.field}>{row[column.field] || ''}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="analytics-table">
+                  <thead>
+                    <tr>
+                      <th>Grupo</th>
+                      <th>Cantidad</th>
+                      <th>%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(result.summary || []).map((row) => (
+                      <tr key={row.label}>
+                        <td>{row.label}</td>
+                        <td>{row.value}</td>
+                        <td>{row.percent}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </article>
         </>

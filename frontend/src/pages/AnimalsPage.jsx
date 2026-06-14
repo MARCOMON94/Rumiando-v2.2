@@ -7,15 +7,18 @@ import AppModal from '../components/ui/AppModal';
 const FILTER_TYPES = [
   ['pen', 'Corral'],
   ['reproductiveStatus', 'Estado reproductivo'],
-  ['reproductiveDuration', 'Tiempo en estado reproductivo'],
-  ['penDuration', 'Tiempo en corral'],
   ['sex', 'Sexo'],
   ['births', 'Número de partos'],
   ['abortions', 'Abortos'],
-  ['health', 'Evento sanitario'],
-  ['vaccination', 'Vacuna'],
-  ['deworming', 'Desparasitación'],
+  ['healthEvent', 'Evento sanitario'],
   ['registryStatus', 'Estado de registro']
+];
+
+const HEALTH_EVENT_TYPES = [
+  ['all', 'Todos'],
+  ['health', 'Enfermedad'],
+  ['vaccination', 'Vacuna'],
+  ['deworming', 'Desparasitación']
 ];
 
 const TIME_UNITS = [
@@ -104,8 +107,9 @@ export default function AnimalsPage() {
   const [dewormings, setDewormings] = useState([]);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterSubtype, setFilterSubtype] = useState('all');
   const [filterValue, setFilterValue] = useState('');
-  const [filterAmount, setFilterAmount] = useState('30');
+  const [filterAmount, setFilterAmount] = useState('');
   const [filterUnit, setFilterUnit] = useState('days');
   const [alertAnimal, setAlertAnimal] = useState(null);
   const [alertForm, setAlertForm] = useState({
@@ -163,7 +167,12 @@ export default function AnimalsPage() {
     registryStatus: buildOptions(animals, (animal) => animal.estadoRegistro),
     health: buildOptions(healthCases, (item) => item.enfermedad?.nombre || item.diagnosticoPresuntivo),
     vaccination: buildOptions(vaccinations, (item) => item.vacuna),
-    deworming: buildOptions(dewormings, (item) => item.producto)
+    deworming: buildOptions(dewormings, (item) => item.producto),
+    healthEvent: buildOptions([
+      ...healthCases.map((item) => item.enfermedad?.nombre || item.diagnosticoPresuntivo),
+      ...vaccinations.map((item) => item.vacuna),
+      ...dewormings.map((item) => item.producto)
+    ].filter(Boolean), (item) => item)
   }), [animals, dewormings, healthCases, vaccinations]);
 
   const filteredAnimals = useMemo(() => {
@@ -182,35 +191,35 @@ export default function AnimalsPage() {
 
       if (searchValue && !text.includes(searchValue)) return false;
 
-      if (filterType === 'pen') return animal.corralActual?.nombre === filterValue;
-      if (filterType === 'reproductiveStatus') return animal.estadoReproductivo?.nombre === filterValue;
+      if (filterType === 'pen') {
+        if (filterValue && animal.corralActual?.nombre !== filterValue) return false;
+        if (filterAmount) return daysSince(animal.fechaEntradaCorralActual) >= thresholdDays;
+        return true;
+      }
+      if (filterType === 'reproductiveStatus') {
+        if (filterValue && animal.estadoReproductivo?.nombre !== filterValue) return false;
+        if (filterAmount) return daysSince(animal.fechaEstadoReproductivoActual) >= thresholdDays;
+        return true;
+      }
       if (filterType === 'sex') return animal.sexo === filterValue;
       if (filterType === 'registryStatus') return animal.estadoRegistro === filterValue;
       if (filterType === 'births') return (birthCounts.get(Number(animal.id)) || 0) >= Number(filterValue || 0);
       if (filterType === 'abortions') return (abortionCounts.get(Number(animal.id)) || 0) >= Number(filterValue || 0);
-      if (filterType === 'reproductiveDuration') {
-        return daysSince(animal.fechaEstadoReproductivoActual) >= thresholdDays;
-      }
-      if (filterType === 'penDuration') {
-        return daysSince(animal.fechaEntradaCorralActual) >= thresholdDays;
-      }
-      if (filterType === 'health') {
-        return healthCases.some((item) => (
+      if (filterType === 'healthEvent') {
+        const matchesHealth = ['all', 'health'].includes(filterSubtype) && healthCases.some((item) => (
           Number(item.animalId || item.animal?.id) === Number(animal.id)
-          && (item.enfermedad?.nombre === filterValue || item.diagnosticoPresuntivo === filterValue)
+          && (!filterValue || item.enfermedad?.nombre === filterValue || item.diagnosticoPresuntivo === filterValue)
         ));
-      }
-      if (filterType === 'vaccination') {
-        return vaccinations.some((item) => (
+        const matchesVaccination = ['all', 'vaccination'].includes(filterSubtype) && vaccinations.some((item) => (
           Number(item.animalId || item.animal?.id) === Number(animal.id)
-          && item.vacuna === filterValue
+          && (!filterValue || item.vacuna === filterValue)
         ));
-      }
-      if (filterType === 'deworming') {
-        return dewormings.some((item) => (
+        const matchesDeworming = ['all', 'deworming'].includes(filterSubtype) && dewormings.some((item) => (
           Number(item.animalId || item.animal?.id) === Number(animal.id)
-          && item.producto === filterValue
+          && (!filterValue || item.producto === filterValue)
         ));
+
+        return matchesHealth || matchesVaccination || matchesDeworming;
       }
 
       return searchValue || filterType ? true : animal.estadoRegistro !== 'BAJA';
@@ -221,6 +230,7 @@ export default function AnimalsPage() {
     birthCounts,
     dewormings,
     filterAmount,
+    filterSubtype,
     filterType,
     filterUnit,
     filterValue,
@@ -232,8 +242,9 @@ export default function AnimalsPage() {
   function clearFilters() {
     setSearch('');
     setFilterType('');
+    setFilterSubtype('all');
     setFilterValue('');
-    setFilterAmount('30');
+    setFilterAmount('');
     setFilterUnit('days');
   }
 
@@ -294,27 +305,71 @@ export default function AnimalsPage() {
       );
     }
 
-    if (['reproductiveDuration', 'penDuration'].includes(filterType)) {
+    if (['pen', 'reproductiveStatus'].includes(filterType)) {
+      const values = options[filterType] || [];
       return (
-        <div className="census-inline-filter">
+        <>
           <label>
-            Lleva al menos
-            <input
-              type="number"
-              min="1"
-              value={filterAmount}
-              onChange={(event) => setFilterAmount(event.target.value)}
-            />
+            Opción
+            <select value={filterValue} onChange={(event) => setFilterValue(event.target.value)}>
+              <option value="">Todas</option>
+              {values.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
           </label>
+          <div className="census-inline-filter">
+            <label>
+              Lleva al menos
+              <input
+                type="number"
+                min="1"
+                value={filterAmount}
+                onChange={(event) => setFilterAmount(event.target.value)}
+                placeholder="Opcional"
+              />
+            </label>
+            <label>
+              Tiempo
+              <select value={filterUnit} onChange={(event) => setFilterUnit(event.target.value)}>
+                {TIME_UNITS.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </>
+      );
+    }
+
+    if (filterType === 'healthEvent') {
+      const values = options[filterSubtype === 'all' ? 'healthEvent' : filterSubtype] || [];
+      return (
+        <>
           <label>
-            Tiempo
-            <select value={filterUnit} onChange={(event) => setFilterUnit(event.target.value)}>
-              {TIME_UNITS.map(([value, label]) => (
+            Tipo
+            <select
+              value={filterSubtype}
+              onChange={(event) => {
+                setFilterSubtype(event.target.value);
+                setFilterValue('');
+              }}
+            >
+              {HEALTH_EVENT_TYPES.map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
           </label>
-        </div>
+          <label>
+            Opción
+            <select value={filterValue} onChange={(event) => setFilterValue(event.target.value)}>
+              <option value="">Cualquiera</option>
+              {values.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+        </>
       );
     }
 
@@ -360,6 +415,8 @@ export default function AnimalsPage() {
             onChange={(event) => {
               setFilterType(event.target.value);
               setFilterValue('');
+              setFilterSubtype('all');
+              setFilterAmount('');
             }}
           >
             <option value="">Sin filtro extra</option>
@@ -384,7 +441,6 @@ export default function AnimalsPage() {
         {filteredAnimals.map((animal) => (
           <article className="census-row" key={animal.id}>
             <div className="census-ear-tag">
-              <span>Últimos 4</span>
               <strong>{lastFour(animal.crotal)}</strong>
             </div>
 

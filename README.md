@@ -1,567 +1,630 @@
 # RumiAndo v2
 
-Aplicación web full-stack para la gestión ganadera de explotaciones ovinas y caprinas. El proyecto permite consultar animales, registrar altas, revisar fichas individuales, controlar corrales, sanidad, movimientos, avisos automáticos y datos operativos desde un panel web conectado a un backend real.
+RumiAndo v2 es una aplicacion web full-stack para gestion ganadera. Esta pensada para trabajo real en explotaciones: consultar censo, abrir fichas por crotal, mover animales, registrar estados reproductivos, crear eventos sanitarios, revisar avisos, generar estadisticas/exportaciones y usar un chat IA que prepara flujos de la app sin ejecutar cambios a ciegas.
+
+El proyecto esta organizado como monorepo con tres servicios:
+
+- `frontend`: React + Vite.
+- `backend`: Node.js + Express + Prisma + PostgreSQL.
+- `ai-service`: FastAPI + RAG local/Chroma + herramientas de app.
+
+## Estado Actual
+
+La app esta en fase activa de evolucion. Los flujos vigentes son:
+
+- Home como menu principal de trabajo.
+- Lector silencioso global desde la lupa inferior o el boton "Buscar crotal".
+- Busqueda inteligente en `/animal-watchlist`.
+- Operaciones nuevas con lector y lista en `/operations/movement`, `/operations/reproductive` y `/operations/health`.
+- Parto en `/birth/new/:motherId`.
+- Baja en `/animals/:id/discharge`.
+- Censo, ficha animal, avisos, estadisticas, configuracion y chat IA actualizados.
+
+Hay piezas legacy conservadas temporalmente para limpieza segura. Estan documentadas en `docs/cleanup-inventario-frontend.md`.
 
 ## Despliegue
 
-* Frontend: `https://rumiando.netlify.app`
-* Backend API: `https://rumiando-v2-production.up.railway.app`
-* Health check API: `https://rumiando-v2-production.up.railway.app/api/health`
+- Frontend: `https://rumiando.netlify.app`
+- Backend API: `https://rumiando-v2-production.up.railway.app`
+- Health check API: `https://rumiando-v2-production.up.railway.app/api/health`
 
-> Las credenciales de demostración no se incluyen en este README por seguridad. Se facilitarán durante la presentación o evaluación.
+Las credenciales, tokens y claves privadas no deben documentarse en este README.
 
-## Objetivo del proyecto
+## Funcionalidades Principales
 
-RumiAndo v2 adapta el patrón de los laboratorios de clase a un dominio ganadero real. En lugar de gestionar películas, eventos o productos genéricos, la aplicación trabaja con animales identificados por crotal, unidades REGA, corrales, registros sanitarios, movimientos, reproducción y avisos automáticos.
+### Autenticacion y cuentas
 
-El objetivo principal es ofrecer una herramienta sencilla y trazable para que una explotación pueda localizar animales, consultar su historial, registrar movimientos y recibir avisos operativos calculados desde el backend.
+- Acceso con Google.
+- Sesion protegida con JWT/cookie.
+- Roles `ADMIN` y `OPERARIO`.
+- Invitaciones por cuenta ganadera.
+- Configuracion compartida por cuenta ganadera para corrales, REGA, avisos, automatizaciones y usuarios.
+- Preferencias visuales como modo claro/oscuro mantenidas como preferencia de usuario/dispositivo.
 
-## Funcionalidades principales
+### Home y navegacion movil
 
-### Autenticación
+- Home es el menu principal de trabajo.
+- Barra inferior movil fija tipo app.
+- Lupa central para lector silencioso.
+- Badge de avisos en el cencerro.
+- Boton `+` con accesos rapidos a Parto, Baja, Movimiento de corral, Estado reproductivo y Evento sanitario.
 
-* Inicio de sesión con JWT.
-* Persistencia de sesión en `localStorage`.
-* Rutas protegidas en frontend.
-* Middleware de autenticación en backend.
-* Roles de usuario: `ADMIN` y `OPERARIO`.
+### Lector silencioso
 
-### Animales
+El lector silencioso global permite leer un crotal desde casi cualquier pantalla.
 
-* Listado y búsqueda de animales.
-* Búsqueda en tiempo real por crotal, número interno, raza, corral o estado reproductivo.
-* Apertura automática de ficha cuando el valor introducido coincide exactamente con un crotal.
-* Alta de animales mediante formulario controlado.
-* Ficha individual con datos organizados por bloques:
+- `lookup`: abre ficha animal en segundo plano y se apaga al encontrar animal.
+- `parto`: al leer madre abre el flujo de parto.
+- `baja`: al leer animal abre el flujo de baja.
 
-  * Identificación.
-  * Manejo actual.
-  * Reproducción.
-  * Genealogía.
-  * Eventos reproductivos.
-  * Movimientos.
-  * Casos sanitarios.
-  * Tratamientos.
-  * Vacunaciones.
-  * Desparasitaciones.
-  * Recordatorios.
-  * Descendencia.
-* Navegación interna entre animales relacionados, por ejemplo madre, padre o descendencia.
+Si se activa desde una operacion con lista, debe volver a la operacion sin perder la lista.
 
-### Animal Watchlist
+### Censo y ficha animal
 
-* Lista privada y persistente por usuario para marcar animales que se quieren localizar con lector.
-* Acceso desde avisos automaticos, ficha de animal, censo y Home.
-* Pantalla `/animal-watchlist` con lector activo por defecto, animal, ubicacion actual y motivo.
-* Al leer un crotal incluido en la lista, la app emite aviso sonoro, doble parpadeo naranja y tarjeta flotante con animal y motivo.
-* El animal queda marcado como visto con `seenAt`, `seenCount` y `lastReadAt`, pero no se elimina hasta que el usuario lo borre.
-* La tarjeta permite registrar una accion posterior y guarda el cambio solo al pulsar `Finalizar`.
-* La API devuelve `total`, `seenTotal` y `pendingTotal` para alimentar contadores en frontend.
+- Censo con busqueda y filtros progresivos.
+- Tarjetas compactas con ultimos digitos del crotal, Busqueda inteligente, Alerta y Ficha.
+- Ficha individual con datos resumidos y accesos a:
+  - Busqueda inteligente.
+  - Alerta manual.
+  - Parto.
+  - Baja.
+  - Salud, alertas, estadisticas, genealogia, estado reproductivo y corral.
 
-### Corrales
+### Busqueda inteligente
 
-* Consulta de corrales registrados.
-* Visualización de unidad REGA asociada, tipo funcional, capacidad, estado reproductivo sugerido y estado activo/inactivo.
+Ruta: `/animal-watchlist`.
 
-### Sanidad
+Busqueda inteligente es una lista privada por usuario para localizar animales fisicamente con el lector.
 
-* Consulta de casos sanitarios.
-* Visualización de casos abiertos/cerrados.
-* Identificación de casos asociados a enfermedades de declaración obligatoria.
-* Relación con animales, corrales, tratamientos y enfermedades.
+- Se puede anadir desde avisos, ficha y censo.
+- El motivo puede venir de un aviso o ser manual/opcional.
+- La pantalla tiene lector activo por defecto.
+- Al leer un crotal incluido, avisa, parpadea en naranja y muestra tarjeta flotante.
+- El animal queda visto/tachado, pero no desaparece hasta que el usuario lo quite.
+- La API prepara contadores `total`, `seenTotal` y `pendingTotal`.
 
-### Movimientos
+Internamente puede aparecer como `animal-watchlist`, pero el nombre visible para el ganadero es Busqueda inteligente.
 
-* Listado de movimientos registrados.
-* Alta de movimientos individuales o en lote.
-* Introducción de crotales por línea, coma o punto y coma.
-* Actualización del corral actual del animal desde backend.
-* Registro de detalles por crotal: procesado, no encontrado o ya en destino.
+### Operaciones por lector
 
-### Avisos automáticos
+Las operaciones actuales no usan el panel antiguo. Funcionan como pantallas reales:
 
-* Consulta de avisos calculados por backend.
-* Avisos basados en estado reproductivo, tiempo transcurrido y sanidad.
-* Priorización visual de avisos.
-* Acceso directo desde cada aviso a la ficha del animal asociado.
-* Los avisos desaparecen cuando deja de cumplirse la condición que los genera, por ejemplo tras registrar el movimiento o cambio correspondiente.
+- `/operations/movement`: Movimiento de corral.
+- `/operations/reproductive`: Estado/evento reproductivo.
+- `/operations/health`: Evento sanitario.
 
-### Dashboard
+Patron comun:
 
-* Resumen general de explotación.
-* Métricas principales:
+1. El ganadero elige/configura la accion.
+2. Pasa crotales con el lector.
+3. La pantalla crea una lista editable sin duplicados.
+4. Puede quitar animales de la lista con confirmacion.
+5. Al pulsar `Finalizar`, se registran acciones individuales.
+6. Se muestra resumen de procesados y fallidos.
 
-  * Total de animales.
-  * Animales activos.
-  * Hembras.
-  * Machos.
-  * Casos sanitarios abiertos.
-  * Recordatorios pendientes.
-  * Movimientos registrados.
-  * Corrales.
-* Gráficas simples realizadas con CSS para:
+El lector de estas pantallas debe capturar pegado/lectura aunque haya foco en controles, salvo campos manuales marcados explicitamente.
 
-  * Animales por especie.
-  * Animales por corral.
-  * Estados reproductivos.
-  * Casos sanitarios por corral.
+### Movimiento de corral
 
-### Asistente IA
+- Seleccion de corral destino.
+- Motivo opcional.
+- Lista de animales por crotal.
+- Si existe regla de automatizacion asociada al corral, se pregunta al finalizar si se aplica tambien el cambio reproductivo.
 
-* Pantalla protegida `/ai-chat`.
-* Proxy backend `/api/ai` hacia un servicio FastAPI independiente.
-* Endpoints de IA: health, chat e historial de conversación.
-* RAG preparado para documentos locales en `ai-service/knowledge/`.
-* Tools iniciales para buscar animales, listar avisos, consultar dashboard y preparar movimientos con confirmación del usuario.
+### Estado reproductivo
 
-## Tecnologías utilizadas
+- Seleccion de estado/evento destino.
+- Diagnostico de gestacion con resultado y semanas estimadas.
+- Si existe regla de automatizacion asociada al estado/evento, se pregunta al finalizar si tambien se mueve al corral configurado.
+
+### Evento sanitario
+
+Nombre visible: Evento sanitario. Nombres internos/API pueden seguir usando `health`.
+
+Tipos previstos:
+
+- Vacunacion.
+- Desparasitacion.
+- Enfermedad.
+- Otro.
+
+Solo en Evento sanitario existe la opcion de corral completo. Si se usa, se expande a registros individuales por animal para que cada ficha conserve historial.
+
+La normalizacion sanitaria usa catalogos/alias/RAG y, si procede, confirmacion antes de guardar un nombre nuevo.
+
+### Parto
+
+Ruta: `/birth/new/:motherId`.
+
+- Se abre desde lector silencioso en modo parto o desde ficha.
+- Permite crear una o varias crias.
+- Prepara crotal provisional editable.
+- Padre opcional.
+- Hereda REGA, especie y raza cuando corresponde.
+- Crea evento reproductivo `PARTO`.
+- Pregunta destino de crias/madre si existen corrales como Paridera o Produccion.
+
+### Baja
+
+Ruta: `/animals/:id/discharge`.
+
+- Se abre desde lector silencioso en modo baja o desde ficha.
+- Permite seleccionar causa.
+- Marca `estadoRegistro=BAJA`.
+- Debe bloquear nuevas acciones operativas sobre ese animal.
+- Al dar de baja, se deben limpiar Busqueda inteligente y recordatorios pendientes asociados.
+
+### Avisos y recordatorios
+
+- Avisos automaticos calculados por backend.
+- Recordatorios manuales creados por el usuario.
+- Configuracion de avisos por cuenta ganadera/REGA.
+- Badge movil con avisos pendientes.
+- Desde avisos se puede abrir ficha o anadir a Busqueda inteligente.
+
+Los avisos automaticos no se borran manualmente como si fueran tareas aisladas: desaparecen al resolver la condicion que los genera.
+
+### Configuracion
+
+Configuracion se abre como modal propio desde Home.
+
+Orden actual recomendado:
+
+1. Cuenta ganadera.
+2. Usuario.
+3. Invitaciones.
+4. Corrales.
+5. Avisos.
+6. Automatizacion.
+7. Anadir animales.
+8. Modo de color.
+9. Cerrar sesion.
+
+Solo admin puede modificar ajustes de explotacion. Operarios pueden recibir el efecto de esos ajustes.
+
+### Corrales y automatizaciones
+
+- Corrales persistentes por cuenta/REGA.
+- Evitar nombres duplicados normalizando mayusculas, espacios y variantes.
+- Eliminacion segura de corral con traslado obligatorio si tiene animales.
+- Reglas de manejo:
+  - Corral -> reproduccion.
+  - Reproduccion -> corral.
+- Las reglas preguntan al finalizar; no deben aplicar cambios silenciosos sin confirmacion.
+
+### Anadir animales e importacion
+
+Configuracion incluye `Anadir animales` con dos modos:
+
+- Lista por lectura: se pasan crotales y se dan de alta en REGA/corral inicial.
+- Importar Excel/CSV: se carga archivo, se mapean columnas y se limpian datos antes de crear animales.
+
+La primera vez que entra un admin puede aparecer el aviso para importar ganado actual. Debe mostrarse una sola vez por cuenta (`livestockImportPromptSeenAt`).
+
+Para animales importados de golpe, se puede meter todo en un corral inicial como Produccion y explicar que luego se deben mover desde la interfaz si hace falta.
+
+### Estadisticas y Excel
+
+- Panel de estadisticas con filtros progresivos.
+- Vistas como circular, barras, linea y listado.
+- El listado es la base exacta de exportacion.
+- Exportacion Excel real con columnas utiles para el ganadero, evitando IDs internos.
+- Envio por email si Brevo/email esta configurado.
+
+### Chat IA
+
+Ruta: `/ai-chat`.
+
+El chat IA no debe ejecutar cambios directamente. Interpreta lenguaje natural y devuelve acciones UI:
+
+- `operation_flow`: abre `/operations/movement`, `/operations/reproductive` o `/operations/health`.
+- `silent_reader`: activa lector para `lookup`, `parto` o `baja`.
+- `open_route`: abre rutas como `/animal-watchlist`, ficha o estadisticas.
+- `manual_reminder`: prepara una alerta manual.
+
+Ejemplos:
+
+- "Quiero pasar 3 cabras a produccion" -> abre Movimiento de corral con destino Produccion y objetivo visual 3.
+- "Vacuna estas de lengua azul" -> abre Evento sanitario tipo Vacunacion.
+- "Desparasita el lote" -> abre Evento sanitario tipo Desparasitacion.
+- "Pon estas como gestantes de 8 semanas" -> abre Estado reproductivo con diagnostico positivo y semanas.
+- "Se ha muerto esta cabra" -> activa lector de baja.
+- "Ha parido esta oveja" -> activa lector de parto.
+- "Busca la lista" -> abre Busqueda inteligente.
+
+## Arquitectura
+
+```txt
+Rumiando v2/
+|-- backend/
+|   |-- prisma/
+|   |   |-- schema.prisma
+|   |   |-- migrations/
+|   |   `-- seed.js
+|   |-- src/
+|   |   |-- app.js
+|   |   |-- server.js
+|   |   |-- config/
+|   |   |-- controllers/
+|   |   |-- middlewares/
+|   |   |-- routes/
+|   |   |-- services/
+|   |   |-- tests/
+|   |   `-- utils/
+|   `-- package.json
+|
+|-- frontend/
+|   |-- public/
+|   |-- src/
+|   |   |-- api/
+|   |   |-- components/
+|   |   |-- context/
+|   |   |-- hooks/
+|   |   |-- pages/
+|   |   |-- routes/
+|   |   |-- styles/
+|   |   |-- App.jsx
+|   |   `-- main.jsx
+|   `-- package.json
+|
+|-- ai-service/
+|   |-- app/
+|   |-- knowledge/
+|   |-- storage/
+|   |-- tests/
+|   `-- README.md
+|
+|-- docs/
+|   `-- cleanup-inventario-frontend.md
+|
+`-- README.md
+```
+
+## Stack
 
 ### Frontend
 
-* React.
-* Vite.
-* React Router.
-* Context API.
-* CSS puro con Grid, Flexbox y media queries.
-* Fetch API centralizada en `apiClient`.
+- React.
+- Vite.
+- React Router.
+- Context API.
+- CSS propio.
+- `xlsx` para importaciones de Excel.
 
 ### Backend
 
-* Node.js.
-* Express.
-* PostgreSQL.
-* Prisma ORM.
-* JWT.
-* bcrypt.
-* CORS.
-* dotenv.
+- Node.js.
+- Express.
+- PostgreSQL.
+- Prisma ORM.
+- JWT.
+- Google Auth.
+- Brevo/email opcional.
+- Jest + Supertest.
 
-### Servicio IA
+### IA
 
-* FastAPI.
-* Pydantic v2.
-* Memoria conversacional de sesion y almacenamiento opcional para desarrollo.
-* RAG local sobre documentos Markdown o TXT.
-* ChromaDB para vector store local.
-* LangGraph como orquestador del flujo IA, con fallback secuencial si la dependencia no esta disponible en local.
+- FastAPI.
+- Pydantic.
+- RAG sobre Markdown/TXT.
+- ChromaDB local si esta disponible.
+- Fallback lexical.
+- OpenAI opcional como fallback si se configura.
 
-### Testing y herramientas
+## Rutas Frontend Vigentes
 
-* Jest.
-* Supertest.
-* Nodemon.
-* Prisma CLI.
-* Thunder Client / Postman para pruebas manuales de endpoints.
+- `/login`
+- `/invite/:token`
+- `/home`
+- `/dashboard`
+- `/animals`
+- `/animals/new`
+- `/animals/:id`
+- `/animals/:id/discharge`
+- `/birth/new/:motherId`
+- `/operations/:type`
+- `/animal-watchlist`
+- `/reminders`
+- `/ai-chat`
+- `/admin/invitations`
+- `/pens`
+- `/health`
+- `/movements`
 
-### Despliegue
+Rutas alias:
 
-* Frontend desplegado en Netlify.
-* Backend desplegado en Railway.
-* Base de datos PostgreSQL en Railway.
+- `/ai-vet` -> `/ai-chat`
+- `/ai-manager` -> `/ai-chat`
+- `/movements/new` -> `/operations/movement` como compatibilidad legacy.
 
-## Arquitectura general
+## Endpoints Backend
 
-El proyecto usa una estructura de monorepo con dos carpetas principales:
+Base local habitual: `http://localhost:3000/api`.
 
-```txt
-Rumiando-v2/
-├── backend/
-│   ├── prisma/
-│   │   ├── schema.prisma
-│   │   └── seed.js
-│   ├── src/
-│   │   ├── app.js
-│   │   ├── server.js
-│   │   ├── config/
-│   │   ├── controllers/
-│   │   ├── middlewares/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   └── utils/
-│   └── package.json
-│
-├── frontend/
-│   ├── public/
-│   │   └── _redirects
-│   ├── src/
-│   │   ├── api/
-│   │   ├── components/
-│   │   ├── context/
-│   │   ├── pages/
-│   │   ├── routes/
-│   │   ├── styles/
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   └── package.json
-```
+Principales grupos:
 
-## Estructura del backend
+- `/api/auth`
+- `/api/invitations`
+- `/api/animals`
+- `/api/catalogs`
+- `/api/pens`
+- `/api/farm-units`
+- `/api/movements`
+- `/api/health-cases`
+- `/api/treatments`
+- `/api/vaccinations`
+- `/api/dewormings`
+- `/api/reproductive-events`
+- `/api/reminders`
+- `/api/exports`
+- `/api/dashboard`
+- `/api/ai`
+- `/api/animal-watchlist`
+- `/api/management-rules`
+- `/api/account-settings`
+- `/api/analytics`
+- `/api/alert-settings`
+- `/api/automation`
+- `/api/health`
 
-El backend sigue el patrón trabajado en los laboratorios:
+## Modelo de Datos Principal
 
-```txt
-routes -> middlewares -> controllers -> services -> Prisma -> PostgreSQL
-```
+Entidades destacadas:
 
-### Rutas principales
+- `User`
+- `Invitation`
+- `CuentaGanadera`
+- `UnidadRega`
+- `AlertSettings`
+- `CatalogoEspecie`
+- `CatalogoRaza`
+- `CatalogoEnfermedad`
+- `CatalogoVacuna`
+- `CatalogoDesparasitante`
+- `CatalogoEstadoReproductivo`
+- `Corral`
+- `Animal`
+- `AnimalWatchlistItem`
+- `ManagementRule`
+- `MovimientoTransaccion`
+- `MovimientoAnimalDetalle`
+- `CasoSanitario`
+- `TratamientoVeterinario`
+- `Vacunacion`
+- `Desparasitacion`
+- `EventoReproductivo`
+- `Recordatorio`
+- `ExportacionRegistro`
 
-* `/api/auth`
-* `/api/animals`
-* `/api/catalogs`
-* `/api/pens`
-* `/api/farm-units`
-* `/api/movements`
-* `/api/health-cases`
-* `/api/treatments`
-* `/api/vaccinations`
-* `/api/dewormings`
-* `/api/reproductive-events`
-* `/api/reminders`
-* `/api/animal-watchlist`
-* `/api/exports`
-* `/api/dashboard`
-* `/api/ai`
-* `/api/automation`
+## Persistencia: Usuario, Cuenta y Local
 
-### Middlewares principales
+- Busqueda inteligente: privada por usuario.
+- Corrales, REGA, catalogos, reglas, avisos, usuarios y cuenta ganadera: compartidos por cuenta ganadera.
+- Modo de color: preferencia visual local/de usuario.
+- Sesion: gestionada por autenticacion.
+- Importacion inicial vista: `livestockImportPromptSeenAt` en cuenta ganadera.
 
-* Autenticación JWT.
-* Control de roles.
-* Manejo centralizado de errores.
-* Manejo de rutas no encontradas.
-* Validación de clave para integraciones externas.
+## Desarrollo Local
 
-## Estructura del frontend
+### Requisitos
 
-El frontend sigue el patrón trabajado en los laboratorios de React:
-
-```txt
-pages -> components -> context -> api -> routes -> styles
-```
-
-### Rutas principales
-
-* `/login`
-* `/animals`
-* `/animals/new`
-* `/animals/:id`
-* `/dashboard`
-* `/reminders`
-* `/animal-watchlist`
-* `/pens`
-* `/health`
-* `/movements`
-* `/movements/new`
-* `/ai-chat`
-
-La ruta raíz `/` redirige a `/animals`, porque la pantalla principal de trabajo es el censo animal.
-
-## Variables de entorno
+- Node.js compatible con el proyecto.
+- npm.
+- Python 3.11+ recomendado para `ai-service`.
+- PostgreSQL local o una `DATABASE_URL` accesible.
 
 ### Backend
-
-Archivo `backend/.env`:
-
-```env
-DATABASE_URL="postgresql://usuario:password@host:puerto/base_de_datos"
-JWT_SECRET="clave_secreta"
-JWT_EXPIRES_IN="7d"
-FRONTEND_URL="https://rumiando.netlify.app"
-FRONTEND_URLS="https://rumiando.netlify.app,http://localhost:5173"
-N8N_API_KEY="clave_para_integraciones"
-AI_SERVICE_URL="http://localhost:8000"
-LEARNING_QUEUE_TOKEN="mismo_token_que_ai_service_si_se_usan_endpoints_learning"
-NODE_ENV="development"
-PORT=3000
-```
-
-### Frontend local
-
-Archivo `frontend/.env`:
-
-```env
-VITE_API_URL=http://localhost:3000/api
-```
-
-### Frontend producción en Netlify
-
-Variable configurada en Netlify:
-
-```env
-VITE_API_URL=https://rumiando-v2-production.up.railway.app/api
-```
-
-### Servicio IA local
-
-Archivo `ai-service/.env`:
-
-```env
-AI_SERVICE_NAME="RumiAndo AI Service"
-RUMIANDO_API_URL="http://localhost:3000/api"
-ALLOWED_ORIGINS="http://localhost:5173,http://localhost:3000"
-CHAT_HISTORY_MODE=none
-MAX_HISTORY_MESSAGES=20
-SAVE_UNRESOLVED_QUESTIONS=true
-ANONYMIZE_UNRESOLVED_QUESTIONS=true
-LEARNING_USE_OPENAI_REFORMULATION=false
-LEARNING_QUEUE_TOKEN="token_largo_para_n8n_o_admin"
-USE_LLM=false
-OPENAI_FALLBACK_ON_UNKNOWN=true
-OPENAI_STORE=false
-```
-
-## Instalación local
-
-### 1. Clonar repositorio
-
-```bash
-git clone https://github.com/MARCOMON94/Rumiando-v2.git
-cd Rumiando-v2
-```
-
-### 2. Instalar backend
 
 ```bash
 cd backend
 npm install
-```
-
-### 3. Configurar variables de entorno backend
-
-Crear `backend/.env` con las variables necesarias.
-
-### 4. Preparar Prisma
-
-```bash
-npx prisma generate
-npx prisma migrate dev
+npm run prisma:generate
+npm run prisma:migrate
 npm run prisma:seed
-```
-
-Para aplicar migraciones pendientes sin crear una nueva migracion, por ejemplo en una base ya existente:
-
-```bash
-npm run prisma:migrate:deploy
-```
-
-### 5. Arrancar backend
-
-```bash
 npm run dev
 ```
 
-El backend local queda disponible en:
+Backend local:
 
 ```txt
 http://localhost:3000
 ```
 
-### 6. Instalar frontend
-
-En otra terminal:
+### Frontend
 
 ```bash
 cd frontend
 npm install
-```
-
-### 7. Configurar variables frontend
-
-Crear `frontend/.env`:
-
-```env
-VITE_API_URL=http://localhost:3000/api
-```
-
-### 8. Arrancar frontend
-
-```bash
 npm run dev
 ```
 
-El frontend local queda disponible en:
+Frontend local:
 
 ```txt
 http://localhost:5173
 ```
 
-### 9. Instalar y arrancar servicio IA
-
-En otra terminal:
+### Servicio IA
 
 ```bash
 cd ai-service
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-# Crear ai-service/.env con las variables necesarias
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Los documentos RAG se colocan en `ai-service/knowledge/`. El servicio IA carga los
-archivos `.md` y `.txt` de esa carpeta.
+IA local:
 
-## Scripts disponibles
+```txt
+http://localhost:8000
+```
+
+Reindexar RAG:
+
+```bash
+cd ai-service
+python -m app.scripts.index_knowledge
+```
+
+## Variables de Entorno
+
+### Frontend: `frontend/.env`
+
+```env
+VITE_API_URL=http://localhost:3000/api
+VITE_GOOGLE_CLIENT_ID=tu_google_client_id
+```
+
+### Backend: `backend/.env`
+
+```env
+DATABASE_URL=postgresql://...
+JWT_SECRET=secreto_largo
+JWT_EXPIRES_IN=7d
+GOOGLE_CLIENT_ID=tu_google_client_id
+FRONTEND_URL=http://localhost:5173
+FRONTEND_URLS=http://localhost:5173,http://127.0.0.1:5173
+AI_SERVICE_URL=http://localhost:8000
+AI_SERVICE_TIMEOUT_MS=20000
+N8N_API_KEY=clave_integraciones
+DEMO_CUENTA_GANADERA_ID=1
+EMAIL_ENABLED=false
+BREVO_API_KEY=
+EMAIL_FROM_ADDRESS=
+EMAIL_FROM_NAME=RumiAndo
+LEARNING_QUEUE_TOKEN=
+```
+
+### AI service: `ai-service/.env`
+
+```env
+AI_SERVICE_ENV=development
+RUMIANDO_API_URL=http://localhost:3000/api
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+USE_CHROMA=true
+CHAT_HISTORY_MODE=none
+MAX_HISTORY_MESSAGES=20
+USE_LLM=false
+OPENAI_FALLBACK_ON_UNKNOWN=false
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.4-mini
+OPENAI_STORE=false
+SAVE_UNRESOLVED_QUESTIONS=true
+ANONYMIZE_UNRESOLVED_QUESTIONS=true
+LEARNING_USE_OPENAI_REFORMULATION=false
+LEARNING_QUEUE_TOKEN=
+```
+
+## Base de Datos Local y Railway
+
+La app puede trabajar con base local y con PostgreSQL en Railway. La regla para no romper nada:
+
+1. Todo cambio de modelo se hace en `backend/prisma/schema.prisma`.
+2. En local se crea/aplica migracion con:
+
+```bash
+cd backend
+npm run prisma:migrate
+```
+
+3. En Railway se aplican migraciones pendientes con:
+
+```bash
+cd backend
+npm run prisma:migrate:deploy
+```
+
+4. El script `npm start` del backend ya ejecuta:
+
+```bash
+prisma migrate deploy && node src/server.js
+```
+
+Por eso, al desplegar backend en Railway, las migraciones versionadas se aplican sobre la base remota.
+
+No editar manualmente tablas en una base y olvidar la otra salvo casos controlados. Si se hace una carga manual inicial, debe documentarse o repetirse con seed/importacion.
+
+## Scripts
 
 ### Backend
 
 ```bash
-npm run dev              # Ejecutar backend en desarrollo con nodemon
-npm start                # Ejecutar backend en producción
-npm run prisma:generate  # Generar cliente Prisma
-npm run prisma:migrate   # Ejecutar migraciones en desarrollo
-npm run prisma:migrate:deploy # Aplicar migraciones pendientes en una base existente
-npm run prisma:studio    # Abrir Prisma Studio
-npm run prisma:seed      # Insertar datos de demostración
-npm test                 # Ejecutar tests
+npm run dev
+npm start
+npm run seed
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:migrate:deploy
+npm run prisma:studio
+npm run prisma:seed
+npm test
 ```
 
 ### Frontend
 
 ```bash
-npm run dev      # Ejecutar frontend en desarrollo
-npm run build    # Generar build de producción
-npm run preview  # Previsualizar build
-npm run lint     # Ejecutar ESLint
+npm run dev
+npm run build
+npm run preview
+npm run lint
 ```
 
-## Modelo de datos principal
+### AI service
 
-El modelo se centra en una cuenta ganadera que contiene usuarios, unidades REGA, animales, corrales, catálogos, registros sanitarios, movimientos y recordatorios.
-
-Entidades principales:
-
-* `User`
-* `CuentaGanadera`
-* `UnidadRega`
-* `Animal`
-* `AnimalWatchlistItem`
-* `Corral`
-* `CatalogoEspecie`
-* `CatalogoRaza`
-* `CatalogoEstadoReproductivo`
-* `CatalogoEnfermedad`
-* `MovimientoTransaccion`
-* `MovimientoAnimalDetalle`
-* `CasoSanitario`
-* `TratamientoVeterinario`
-* `Vacunacion`
-* `Desparasitacion`
-* `EventoReproductivo`
-* `Recordatorio`
-* `ExportacionRegistro`
-
-## Adaptación de los laboratorios
-
-El proyecto reutiliza patrones trabajados en los laboratorios del bootcamp:
-
-### Backend
-
-* Servidor Express.
-* Separación de responsabilidades en rutas, controladores y servicios.
-* Prisma ORM para acceso a PostgreSQL.
-* Relaciones entre tablas.
-* Autenticación JWT.
-* Middleware de roles.
-* Manejo centralizado de errores.
-* Variables de entorno.
-* Integración externa mediante endpoint de automatización.
-
-### Frontend
-
-* React con Vite.
-* React Router.
-* Rutas dinámicas como `/animals/:id`.
-* Context API para sesión y catálogos.
-* Formularios controlados.
-* Estados de carga, error y vacío.
-* Consumo de API con token.
-* Renderizado condicional.
-* Búsquedas y filtros con arrays.
-* Navegación programática con `useNavigate`.
-* Responsive con CSS puro.
-
-## Funcionalidades destacadas de React
-
-### Buscador por crotal exacto
-
-La página de animales permite escribir o pegar un crotal. Si el valor coincide exactamente con un animal cargado desde la API, se redirige automáticamente a la ficha mediante `useNavigate`.
-
-Esto simula un uso real con lector de crotales: el ganadero puede leer un crotal y abrir directamente la ficha del animal.
-
-### Menú responsive
-
-En escritorio se utiliza un menú lateral fijo. En dispositivos pequeños se transforma en menú hamburguesa mediante `useState`, renderizado condicional y clases CSS.
-
-### Dashboard visual sin librerías externas
-
-El dashboard representa datos mediante cards y barras CSS sencillas, sin depender de librerías de gráficos. Esto mantiene el proyecto más ligero y se ajusta al alcance del MVP.
-
-## Integración externa
-
-El backend expone endpoints bajo `/api/automation` para que una herramienta externa como n8n pueda consultar resúmenes operativos o sanitarios.
-
-Ejemplo:
-
-```txt
-GET /api/automation/daily-operational-summary?cuentaGanaderaId=1
+```bash
+python -m compileall app
+python -m unittest discover -s tests
+python -m app.scripts.index_knowledge
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Header requerido:
+## Validacion Recomendada
 
-```txt
-x-api-key: clave_configurada
+Antes de cerrar una tanda:
+
+```bash
+npm --prefix frontend run lint -- --quiet
+cd frontend
+npm run build
 ```
 
-Estos endpoints permiten crear automatizaciones externas, por ejemplo correos periódicos con avisos calculados por el backend.
+```bash
+cd backend
+npx prisma validate
+npm test -- --runInBand
+```
 
-## Cumplimiento de requisitos del proyecto
+```bash
+cd ai-service
+python -m compileall app
+python -m unittest discover -s tests
+python -m app.scripts.index_knowledge
+```
 
-| Requisito                          | Implementación en RumiAndo v2                                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| API REST con al menos 4 recursos   | Animales, corrales, movimientos, sanidad, recordatorios, catálogos, dashboard                                 |
-| Autenticación JWT                  | Login, token, `/auth/me`, rutas protegidas                                                                    |
-| Roles de usuario                   | `ADMIN`, `OPERARIO`                                                                                           |
-| PostgreSQL con tablas relacionadas | Modelo Prisma con relaciones entre cuenta, usuarios, animales, corrales, sanidad, movimientos y recordatorios |
-| Prisma ORM                         | Acceso a datos mediante Prisma Client                                                                         |
-| Validaciones                       | Validaciones en servicios antes de crear o actualizar recursos                                                |
-| Manejo centralizado de errores     | Middleware de errores y clase `AppError`                                                                      |
-| Variables de entorno               | `.env` en backend y `VITE_API_URL` en frontend                                                                |
-| Migraciones en despliegue           | `npm start` ejecuta `prisma migrate deploy` antes de arrancar el servidor                                     |
-| Integración externa                | Endpoints `/api/automation` preparados para n8n                                                               |
-| React + Vite                       | Frontend con Vite                                                                                             |
-| React Router                       | Rutas públicas, protegidas y dinámicas                                                                        |
-| Conexión API real                  | `apiClient` con fetch y JWT                                                                                   |
-| Context API                        | `AuthContext` y `CatalogsContext`                                                                             |
-| Formularios controlados            | Login, alta animal y alta movimiento                                                                          |
-| Loading/error/empty states         | Implementados en páginas principales                                                                          |
-| Deploy frontend                    | Netlify                                                                                                       |
-| Deploy backend                     | Railway                                                                                                       |
-| Base de datos en nube              | PostgreSQL en Railway                                                                                         |
+Prueba manual minima:
 
-## Pruebas manuales reaslizadas
-
-1. Iniciar sesión.
-2. Abrir `/animals`.
-3. Buscar un animal por crotal.
-4. Confirmar que la ficha se abre automáticamente si el crotal coincide exactamente.
-5. Registrar un animal nuevo.
-6. Consultar corrales.
-7. Consultar casos sanitarios.
-8. Registrar un movimiento con uno o varios crotales.
-9. Verificar que el movimiento aparece en el listado.
-10. Consultar avisos automáticos.
-11. Abrir la ficha del animal desde un aviso.
-12. Añadir animales a Animal Watchlist desde aviso, ficha o censo.
-13. Abrir `/animal-watchlist`, leer un crotal marcado y comprobar aviso sonoro, parpadeo naranja, tarjeta flotante y tachado persistente.
-14. Finalizar una accion posterior desde la tarjeta y verificar que se registra solo al pulsar `Finalizar`.
-15. Comprobar dashboard y métricas.
+1. Login.
+2. Home.
+3. Lector silencioso normal.
+4. Busqueda inteligente.
+5. Movimiento de corral.
+6. Estado reproductivo.
+7. Evento sanitario.
+8. Parto.
+9. Baja.
+10. Censo.
+11. Ficha animal.
+12. Avisos.
+13. Configuracion.
+14. Estadisticas/exportacion.
+15. Chat IA abriendo flujos.
 
 ## Despliegue
 
 ### Netlify
 
-Configuración del frontend:
+Configuracion del frontend:
 
 ```txt
 Base directory: frontend
@@ -569,21 +632,22 @@ Build command: npm run build
 Publish directory: dist
 ```
 
-Variable:
+Variables:
 
 ```env
 VITE_API_URL=https://rumiando-v2-production.up.railway.app/api
+VITE_GOOGLE_CLIENT_ID=tu_google_client_id
 ```
 
-El archivo `frontend/public/_redirects` permite que las rutas de React Router funcionen al refrescar:
+El archivo `frontend/public/_redirects` debe conservar:
 
 ```txt
 /* /index.html 200
 ```
 
-### Railway
+### Railway Backend
 
-Configuración del backend:
+Configuracion:
 
 ```txt
 Root directory: backend
@@ -591,33 +655,108 @@ Build command: npm install && npx prisma generate
 Start command: npm start
 ```
 
-El script `npm start` del backend ejecuta `prisma migrate deploy && node src/server.js`. En Railway esto aplica las migraciones pendientes sobre la PostgreSQL configurada en `DATABASE_URL` antes de levantar la API.
-
 Variables principales:
 
 ```env
 DATABASE_URL=...
 JWT_SECRET=...
 JWT_EXPIRES_IN=7d
+GOOGLE_CLIENT_ID=...
 FRONTEND_URL=https://rumiando.netlify.app
 FRONTEND_URLS=https://rumiando.netlify.app,http://localhost:5173,http://127.0.0.1:5173
+AI_SERVICE_URL=https://url-del-ai-service.up.railway.app
 N8N_API_KEY=...
+EMAIL_ENABLED=false
+BREVO_API_KEY=
+EMAIL_FROM_ADDRESS=
+EMAIL_FROM_NAME=RumiAndo
+LEARNING_QUEUE_TOKEN=...
 NODE_ENV=production
 ```
 
-Para verificar manualmente la base de Railway, ejecutar el deploy y revisar logs de Railway buscando `prisma migrate deploy`, o lanzar `npm run prisma:migrate:deploy` con el `DATABASE_URL` de Railway cargado en el entorno.
+### Railway AI Service
 
-## Mejoras futuras
+Configuracion:
 
-* Integrar recordatorios pospuestos con el cálculo de avisos automáticos.
-* Añadir formularios completos de sanidad, vacunaciones y reproducción.
-* Añadir exportaciones descargables en frontend.
-* Mejorar roles y permisos por explotación.
-* Añadir paginación y búsqueda backend para censos grandes.
-* Mejorar visualización de genealogía.
-* Añadir pruebas automatizadas más completas.
-* Integrar n8n Cloud o n8n desplegado para envío periódico de correos.
+```txt
+Root directory: ai-service
+Start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
 
-## Estado del proyecto
+Variables principales:
 
-RumiAndo v2 funciona como MVP full-stack desplegado. El frontend se comunica con el backend en producción, el backend persiste datos en PostgreSQL mediante Prisma y la aplicación incluye autenticación, rutas protegidas, CRUD principal, formularios, dashboard, avisos automáticos y despliegue en la nube.
+```env
+AI_SERVICE_ENV=production
+RUMIANDO_API_URL=https://rumiando-v2-production.up.railway.app/api
+ALLOWED_ORIGINS=https://rumiando.netlify.app,https://rumiando-v2-production.up.railway.app
+USE_CHROMA=true
+CHAT_HISTORY_MODE=none
+USE_LLM=false
+OPENAI_FALLBACK_ON_UNKNOWN=true
+OPENAI_API_KEY=
+OPENAI_STORE=false
+SAVE_UNRESOLVED_QUESTIONS=true
+ANONYMIZE_UNRESOLVED_QUESTIONS=true
+LEARNING_USE_OPENAI_REFORMULATION=false
+LEARNING_QUEUE_TOKEN=...
+```
+
+## RAG y Conocimiento IA
+
+Los documentos de conocimiento estan en:
+
+```txt
+ai-service/knowledge/
+```
+
+Bloques principales:
+
+- `00_triaje`: urgencias y signos rojos.
+- `10_sanidad`: sintomas, enfermedades, tratamientos, nombres populares.
+- `20_manejo`: bioseguridad y manejo general.
+- `30_reproduccion`: gestacion, partos, abortos, neonatos.
+- `40_app_flujos`: funcionamiento de la app y acciones IA.
+
+Reglas:
+
+- No inventar dosis ni tratamientos cerrados.
+- Priorizar fuentes oficiales o marcar pendiente de validacion veterinaria.
+- La IA orienta y abre pantallas; no sustituye al veterinario.
+- El chat no debe decir "registrado" hasta que la pantalla real confirme guardado.
+
+## Limpieza Legacy
+
+No borrar archivos legacy sin pasar por inventario y pruebas.
+
+Actualmente son candidatos o legacy:
+
+- `OperationSessionProvider`
+- `OperationSessionPanel`
+- `operationConfig`
+- `AnimalReaderPanel`
+- `CreateMovementPage`
+- ruta `/movements/new`
+
+El detalle esta en:
+
+```txt
+docs/cleanup-inventario-frontend.md
+```
+
+## Notas de Seguridad y Criterio Veterinario
+
+RumiAndo ayuda a registrar y ordenar informacion, pero no sustituye criterio veterinario ni normativa oficial.
+
+La app/IA debe recomendar veterinario si hay:
+
+- Animal caido o no se levanta.
+- Fiebre alta.
+- Dificultad respiratoria.
+- Sangre, aborto, mortalidad o varios afectados.
+- Dolor intenso.
+- Sospecha zoonotica.
+- Sospecha de enfermedad de declaracion obligatoria.
+
+## Estado del Proyecto
+
+RumiAndo v2 funciona como MVP avanzado en evolucion. La prioridad actual es mantener los flujos nuevos estables, limpiar legacy con cuidado, alinear el RAG de IA con la app real y asegurar que los cambios de datos se aplican tanto en local como en Railway mediante migraciones Prisma.

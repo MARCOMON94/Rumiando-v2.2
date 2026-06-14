@@ -1,36 +1,41 @@
 # Enfermedades importantes en ovino y caprino
 
 ## Resumen
-Este documento da a la IA una base para hablar de enfermedades relevantes en ovejas y cabras: lengua azul, brucelosis, paratuberculosis, scrapie, ectima, mamitis, neumonias, clostridiosis, coccidiosis, pedero, sarna y parasitosis internas o externas. Debe ofrecer sintomas orientativos, nivel de urgencia, aislamiento y comunicacion veterinaria. No debe confirmar diagnosticos por chat.
+Base prudente para orientar al ganadero ante signos frecuentes en ovejas y cabras. La IA no diagnostica ni prescribe: orienta, pregunta lo minimo, recomienda aislar si procede, registrar en Evento sanitario y avisar al veterinario ante signos rojos.
 
-## Reglas operativas
-- Lengua azul: considerar ante fiebre, apatia, lesiones orales, edema de cara o labios, secrecion nasal, cojera, dolor en rodetes coronarios, caida productiva o mortalidad. Requiere veterinario y verificacion MAPA/CCAA por posibles restricciones.
-- Brucelosis: importante por abortos, infertilidad, crias debiles y riesgo zoonotico. Usar guantes, aislar hembra, no manipular restos sin proteccion y avisar al veterinario.
-- Paratuberculosis: sospechar en adelgazamiento progresivo, mala condicion corporal y curso cronico. Requiere diagnostico y manejo de rebaño; no es caso de improvisar tratamiento casero.
-- Scrapie o tembladera: signos neurologicos progresivos, incoordinacion, temblores, rascado, cambios de comportamiento o postracion. Es grave y regulado; requiere veterinario y autoridad competente si procede.
-- Ectima contagioso u orf: costras y lesiones en labios, boca, nariz, pezones o coronas. Puede impedir mamar o comer y puede afectar a personas por contacto. Recomendar guantes, separacion e higiene.
-- Mamitis: ubre caliente, dolor, dureza, asimetria, leche con grumos, sangre, mal olor, fiebre o decaimiento. No mezclar leche sospechosa con consumo y consultar veterinario.
-- Neumonias: tos, fiebre, mocos, respiracion rapida, orejas caidas, apatia o brotes tras frio, humedad, transporte o hacinamiento. Separar y mejorar ambiente.
-- Clostridiosis: cuadros rapidos, muerte subita, diarrea grave, toxemia o signos neurologicos. Basquilla puede referirse popularmente a enterotoxemia u otros cuadros subitos; tratar como urgencia.
-- Coccidiosis: frecuente en crias con diarrea, sangre, retraso de crecimiento, apatia y ambientes sucios o hacinados. Requiere manejo higienico y plan veterinario.
-- Pedero: cojera, mal olor interdigital, lesiones de pezuña y humedad. Sarna: picor, costras y perdida de lana o pelo. Parasitos internos: adelgazamiento, diarrea, anemia, edema submandibular o baja produccion.
+## Signos rojos siempre urgentes
+- Animal caido, no se levanta, convulsiones, cuello torcido, ceguera repentina o incoordinacion.
+- Fiebre alta, dificultad respiratoria, espuma, lengua/labios hinchados, salivacion intensa o lesiones en boca y pezuñas.
+- Aborto, varios abortos, placenta/feto retenido, crias debiles en lote o muerte perinatal repetida.
+- Muerte subita, varios animales afectados, diarrea con sangre, timpanismo fuerte, sospecha de intoxicacion o carbunco.
+- Sospecha zoonotica: abortos con fiebre en personas, brucelosis, fiebre Q, ectima/orf en contacto con heridas humanas.
 
-## Casos frecuentes
-- Costras en boca de corderos: puede ser ectima, pero hay diferenciales; guantes, separacion y veterinario si es grave.
-- Varias ovejas cojas con mal olor: sospecha de problema podal contagioso; revisar cama y consultar plan.
-- Cabra adelgaza durante meses: valorar paratuberculosis, parasitos, dientes u otros cronicos; requiere diagnostico.
-- Muerte subita tras cambio de pienso: posible clostridiosis, acidosis, timpanismo u otra causa; veterinario urgente.
+## Enfermedades y pistas practicas
+- Lengua azul: rumiantes; en ovejas puede dar fiebre, apatia, edema de cara/labios/lengua, lesiones orales/nasales, salivacion, secrecion nasal, cojera por rodetes coronarios, aborto o muerte. En cabras suele ser mas leve o inaparante. No se transmite por contacto directo ni por leche; la transmite Culicoides. Requiere veterinario, control de vector, vigilancia y revisar normativa/CCAA.
+- Fiebre aftosa/glosopeda: enfermedad vesicular grave y de declaracion. Sospechar con fiebre, ampollas o ulceras en boca, lengua, morro, ubres o pezuñas, salivacion, cojera intensa, rechazo a comer, caida de leche. Afecta bovino, porcino, ovino, caprino y otros biungulados. No mover animales y avisar veterinario/autoridad.
+- Brucelosis: abortos, retencion de placenta, infertilidad, crias debiles, orquitis/epididimitis. Zoonosis importante; usar guantes, no consumir leche cruda, aislar hembra/restos y avisar al veterinario.
+- Peste de pequeños rumiantes: fiebre, descarga ocular/nasal, lesiones orales, diarrea, tos/neumonia y mortalidad. Es enfermedad listada; ante sospecha, no mover y llamar al veterinario.
+- Ectima contagioso/orf/boquera: costras en labios, boca, nariz, pezones o coronas. Puede afectar a personas por contacto; usar guantes, separar afectados y revisar mamadas.
+- Mamitis/agalaxia: ubre caliente, dura, dolorosa, asimetrica, leche con grumos/sangre/mal olor, fiebre o cria que no mama. No mezclar leche sospechosa para consumo.
+- Neumonia: tos, fiebre, mocos, respiracion rapida, orejas caidas, decaimiento; empeora con frio, humedad, transporte, polvo o hacinamiento.
+- Clostridiosis/enterotoxemia/basquilla: muerte subita, diarrea fuerte, timpanismo, signos neurologicos o toxemia tras cambios de pienso/pasto. Urgencia veterinaria.
+- Coccidiosis: crias con diarrea, a veces sangre, retraso de crecimiento, apatia y ambientes humedos/sucios o sobrecargados.
+- Pedero/problema podal: cojera, mal olor interdigital, lesiones de pezuña, humedad y varios afectados. Revisar cama, corrales y plan veterinario.
+- Paratuberculosis: adelgazamiento cronico, mala condicion, caida productiva y curso largo. Requiere diagnostico de rebaño.
+- Scrapie/tembladera: rascado, cambios de comportamiento, incoordinacion, temblores o signos neurologicos progresivos. Es regulado y requiere veterinario.
 
-## Limites y cautelas
-La IA no sustituye diagnostico veterinario. Si hay postracion, fiebre alta, dificultad respiratoria, sangre, aborto, mortalidad, dolor intenso, sospecha zoonotica o varios animales afectados, debe recomendar contactar con veterinario. Si una norma depende de MAPA, CCAA o criterio veterinario, debe verificarse antes de aplicarla en produccion.
+## Como debe responder la IA
+- Primero preguntar especie, edad, numero de afectados, evolucion, fiebre, apetito, respiracion, diarrea, abortos, cojera y cambios recientes de alimentacion/corral/transporte.
+- Si hay signos rojos, respuesta corta: aislar, no mover, higiene/proteccion, llamar veterinario y registrar Evento sanitario.
+- Si el usuario quiere registrar: abrir `/operations/health` con tipo probable, pero dejar confirmacion al ganadero.
+- No dar dosis, antibioticos, vacunas ni tiempos de retirada sin veterinario o ficha del producto.
 
-## Fuentes internas
-- Requisitos RumiAndo sobre enfermedades importantes en ovino/caprino.
-- Decision de producto: sintomas orientativos, urgencia, aislamiento y comunicacion veterinaria.
-- Fuentes tecnicas a verificar: MAPA, manuales veterinarios y protocolos del veterinario de explotacion.
+## Fuentes externas de referencia
+- WOAH Bluetongue: https://www.woah.org/en/disease/bluetongue/
+- WOAH Brucellosis: https://www.woah.org/en/disease/brucellosis/
+- WOAH Foot and mouth disease: https://www.woah.org/en/disease/foot-and-mouth-disease/
+- WOAH Contagious caprine pleuropneumonia: https://www.woah.org/en/disease/contagious-caprine-pleuropneumonia/
+- WOAH Peste des petits ruminants: https://www.woah.org/en/disease/peste-des-petits-ruminants/
 
 ## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
-
-## Nota de uso para el RAG
-Este documento debe recuperarse cuando la pregunta del ganadero use lenguaje cotidiano y necesite una respuesta operativa. La IA debe responder con pasos concretos, prudentes y verificables, evitando tecnicismos innecesarios. Si faltan datos, debe pedir el minimo imprescindible o dejar claro que la respuesta es orientativa. En todos los casos debe conservar el tono de ayuda practica: que revisar primero, que registrar en la app, que no hacer y cuando elevar el caso a veterinario o administracion. La precision del RAG depende de que este documento no se mezcle con temas no relacionados.
+Recuperar este documento ante sintomas, nombres de enfermedades, brotes, abortos, muerte subita, lesiones de boca/pezuna, respiratorio, diarrea, mamitis o dudas sanitarias. Responder siempre como orientacion y con umbral bajo de veterinario.

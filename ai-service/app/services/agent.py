@@ -1245,9 +1245,16 @@ def _build_pending_discharge_tool(message, history):
         input={"message": message, "from_context": True},
         output_summary=summary,
         data={
-            "requires_confirmation": True,
+            "requires_confirmation": False,
             "action_type": "ANIMAL_DISCHARGE",
             "draft": details,
+            "ui_action": {
+                "kind": "silent_reader",
+                "action": "baja",
+                "route": "/animals/:id/discharge",
+                "crotales": [crotal] if crotal else [],
+                "draft": details,
+            },
             "original_message": message,
         },
     )
@@ -1323,11 +1330,11 @@ def _build_death_discharge_tool(message, history, context=None):
 
     if crotal:
         summary = (
-            f"He detectado muerte y tengo preparada la baja de {crotal}.\n\n"
+            f"He detectado muerte y preparo la pantalla de baja de {crotal}.\n\n"
             f"Motivo: muerte.\n"
             f"Fecha: {when}.\n"
             f"Observaciones: {notes}.\n\n"
-            "Confirma si quieres registrarla. No ejecuto la baja sin confirmacion final."
+            "Se abrira la ficha de baja para que revises y registres desde la app."
         )
     else:
         summary = (
@@ -1336,8 +1343,7 @@ def _build_death_discharge_tool(message, history, context=None):
             f"Fecha provisional: {when}.\n"
             f"Observaciones: {notes}.\n\n"
             "Pasa el lector o dime el crotal/RFID del animal. "
-            "La causa queda opcional: si quieres anadirla, dimela; si no, con la lectura basta. "
-            "No registro nada sin confirmacion final."
+            "La app abrira la pantalla de baja cuando lo localice."
         )
 
     return ToolCall(
@@ -1346,9 +1352,16 @@ def _build_death_discharge_tool(message, history, context=None):
         input={"message": message, "from_context": True},
         output_summary=summary,
         data={
-            "requires_confirmation": True,
+            "requires_confirmation": False,
             "action_type": "ANIMAL_DISCHARGE",
             "draft": details,
+            "ui_action": {
+                "kind": "silent_reader",
+                "action": "baja",
+                "route": "/animals/:id/discharge",
+                "crotales": [crotal] if crotal else [],
+                "draft": details,
+            },
             "original_message": message,
         },
     )
@@ -1485,14 +1498,14 @@ def _graph_analyze(state: AgentGraphState):
         intent = IntentResult(
             kind="app_action",
             reason="muerte detectada; preparar baja de animal",
-            requires_confirmation=True,
+            requires_confirmation=False,
             search_query="baja animal por muerte accidente cadaver"
         )
     elif _build_pending_discharge_tool(request.message, previous_history):
         intent = IntentResult(
             kind="app_action",
             reason="seguimiento de baja de animal",
-            requires_confirmation=True,
+            requires_confirmation=False,
             search_query="baja animal confirmacion app"
         )
     elif _looks_like_case_memory_question(request.message):

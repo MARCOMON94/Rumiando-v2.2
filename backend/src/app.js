@@ -23,6 +23,7 @@ const animalWatchlistRoutes = require('./routes/animalWatchlistRoutes');
 const managementRuleRoutes = require('./routes/managementRuleRoutes');
 const accountSettingsRoutes = require('./routes/accountSettingsRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const alertSettingsRoutes = require('./routes/alertSettingsRoutes');
 
 const automationRoutes = require('./routes/automationRoutes');
 
@@ -98,6 +99,7 @@ app.use('/api/animal-watchlist', animalWatchlistRoutes);
 app.use('/api/management-rules', managementRuleRoutes);
 app.use('/api/account-settings', accountSettingsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/alert-settings', alertSettingsRoutes);
 
 app.use('/api/automation', automationRoutes);
 
@@ -195,6 +197,9 @@ app.get('/', (req, res) => {
 'POST /api/analytics/query',
 'POST /api/analytics/export/excel',
 'POST /api/analytics/export/email',
+
+'GET /api/alert-settings',
+'PUT /api/alert-settings/:unidadRegaId',
 
 'GET /api/ai/health',
 'POST /api/ai/chat',

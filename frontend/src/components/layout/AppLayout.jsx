@@ -63,6 +63,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
 
   const silentReaderRef = useRef(INITIAL_SILENT_READER);
+  const silentReaderStateRef = useRef(null);
   const silentReaderBufferRef = useRef('');
   const silentReaderTimerRef = useRef(null);
 
@@ -70,6 +71,7 @@ export default function AppLayout() {
   const [automaticAlertsTotal, setAutomaticAlertsTotal] = useState(0);
   const [silentReaderAnimals, setSilentReaderAnimals] = useState([]);
   const [silentReader, setSilentReader] = useState(INITIAL_SILENT_READER);
+  const [silentReaderContext, setSilentReaderContext] = useState(null);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
   const isAdmin = user?.rol === 'ADMIN';
@@ -167,11 +169,13 @@ export default function AppLayout() {
   const deactivateSilentReader = useCallback(function deactivateSilentReader() {
     window.clearTimeout(silentReaderTimerRef.current);
     silentReaderBufferRef.current = '';
+    silentReaderStateRef.current = null;
     silentReaderRef.current = INITIAL_SILENT_READER;
     setSilentReader(INITIAL_SILENT_READER);
+    setSilentReaderContext(null);
   }, []);
 
-  const activateSilentReader = useCallback(function activateSilentReader(action = 'lookup') {
+  const activateSilentReader = useCallback(function activateSilentReader(action = 'lookup', state = null) {
     const nextAction = VALID_SILENT_ACTIONS.has(action) ? action : 'lookup';
 
     if (silentReaderRef.current.active && silentReaderRef.current.action === nextAction) {
@@ -187,6 +191,8 @@ export default function AppLayout() {
 
     window.clearTimeout(silentReaderTimerRef.current);
     silentReaderBufferRef.current = '';
+    silentReaderStateRef.current = state || null;
+    setSilentReaderContext(state || null);
     silentReaderRef.current = nextReader;
     setSilentReader(nextReader);
 
@@ -223,9 +229,10 @@ export default function AppLayout() {
       returnTo,
       silentAction: action
     };
+    const extraState = silentReaderStateRef.current || {};
 
     deactivateSilentReader();
-    navigate(routeForSilentAction(action, animal.id), { state });
+    navigate(routeForSilentAction(action, animal.id), { state: { ...state, ...extraState } });
     return true;
   }, [
     deactivateSilentReader,
@@ -254,7 +261,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     function handleActivateSilentReader(event) {
-      activateSilentReader(event.detail?.action || 'lookup');
+      activateSilentReader(event.detail?.action || 'lookup', event.detail?.state || null);
     }
 
     function handleDeactivateSilentReader() {
@@ -342,6 +349,24 @@ export default function AppLayout() {
       window.clearTimeout(silentReaderTimerRef.current);
     };
   }, [deactivateSilentReader, location.pathname, processSilentReaderCodes]);
+
+  function silentReaderModalTitle() {
+    if (silentReader.action === 'baja') return 'Lector activo para baja';
+    if (silentReader.action === 'parto') return 'Lector activo para parto';
+    return 'Lector activo';
+  }
+
+  function silentReaderModalDescription() {
+    if (silentReader.action === 'baja') {
+      return 'Pasa el crotal del animal. Se abrira la pantalla de baja para revisar y finalizar.';
+    }
+
+    if (silentReader.action === 'parto') {
+      return 'Pasa el crotal de la madre. Se abrira el formulario de parto para revisar y finalizar.';
+    }
+
+    return 'Pasa el crotal del animal. Se abrira su ficha y el lector se apagara.';
+  }
 
   return (
     <div className="app-shell clean-app-shell">
@@ -531,6 +556,20 @@ export default function AppLayout() {
           >
             Evento sanitario
           </button>
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={silentReader.active && silentReaderContext?.fromAiChat}
+        title={silentReaderModalTitle()}
+        description={silentReaderModalDescription()}
+        onClose={deactivateSilentReader}
+        modalClassName="silent-reader-modal"
+      >
+        <div className="batch-reader-status">
+          <span className="batch-reader-dot" aria-hidden="true" />
+          <strong>Esperando lectura</strong>
+          <p>Pega o pasa el lector. Si quieres cancelar, toca la x.</p>
         </div>
       </AppModal>
     </div>

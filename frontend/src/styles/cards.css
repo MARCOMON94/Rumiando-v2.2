@@ -204,6 +204,7 @@
   min-height: 58px;
   display: grid;
   align-content: center;
+  justify-items: center;
   padding: 0.55rem 0.8rem;
   border: 1px solid rgba(63, 107, 75, 0.18);
   border-radius: var(--radius-pill);
@@ -410,6 +411,13 @@
   align-items: end;
 }
 
+.analytics-date-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
 .analytics-chart-card,
 .analytics-table-card {
   display: grid;
@@ -491,6 +499,10 @@
 }
 
 @media (max-width: 650px) {
+  .analytics-date-row {
+    grid-template-columns: 1fr;
+  }
+
   .animals-grid,
   .cards-list,
   .detail-grid {

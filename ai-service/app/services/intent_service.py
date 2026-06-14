@@ -75,6 +75,13 @@ APP_QUERY_TERMS = [
     "herramientas", "acciones disponibles"
 ]
 
+MOVEMENT_PLACE_TERMS = [
+    "produccion", "productoras", "lactacion", "lactancia", "ordeno",
+    "secado", "secas", "seca", "gestantes", "gestante", "prenadas",
+    "prenada", "paridera", "paridas", "parida", "cebo", "reposicion",
+    "recria", "lazareto", "enfermeria"
+]
+
 
 def normalize_text(text):
     text = unicodedata.normalize("NFKD", text)
@@ -132,6 +139,13 @@ def _is_app_action_request(normalized):
         return False
 
     if _contains_any(normalized, ["dar de baja", "da de baja", "baja a", "baja el", "baja la"]):
+        return True
+
+    place_pattern = "|".join(re.escape(term) for term in MOVEMENT_PLACE_TERMS)
+    if re.search(
+        rf"\b(?:de|desde)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?:{place_pattern})\s+(?:a|al|hacia|para)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?:{place_pattern})\b",
+        normalized
+    ):
         return True
 
     movement_words = [

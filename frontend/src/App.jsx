@@ -13,7 +13,8 @@ import AutomationPage from './pages/AutomationPage';
 import PensPage from './pages/PensPage';
 import HealthPage from './pages/HealthPage';
 import MovementsPage from './pages/MovementsPage';
-import CreateMovementPage from './pages/CreateMovementPage';
+// CLEANUP-CANDIDATE: /movements/new is replaced by /operations/movement.
+// import CreateMovementPage from './pages/CreateMovementPage';
 import RemindersPage from './pages/RemindersPage';
 import AiChatPage from './pages/AiChatPage';
 import HomePage from './pages/HomePage';
@@ -55,7 +56,8 @@ export default function App() {
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/pens" element={<PensPage />} />
         <Route path="/health" element={<HealthPage />} />
-        <Route path="/movements/new" element={<CreateMovementPage />} />
+        {/* CLEANUP-CANDIDATE: legacy movement form disabled; use /operations/movement. */}
+        <Route path="/movements/new" element={<Navigate to="/operations/movement" replace />} />
         <Route path="/movements" element={<MovementsPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/animal-watchlist" element={<AnimalWatchlistPage />} />

@@ -36,4 +36,11 @@ router.put(
 
 router.put('/me', authMiddleware, accountSettingsController.updateCurrentUser);
 
+router.put(
+  '/onboarding/livestock-import-seen',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  accountSettingsController.markLivestockImportPromptSeen
+);
+
 module.exports = router;

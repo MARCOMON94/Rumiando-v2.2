@@ -299,10 +299,22 @@ async function updateCurrentUser(id, data) {
   return safeUser;
 }
 
+async function markLivestockImportPromptSeen(cuentaGanaderaId) {
+  return prisma.cuentaGanadera.update({
+    where: {
+      id: cuentaGanaderaId
+    },
+    data: {
+      livestockImportPromptSeenAt: new Date()
+    }
+  });
+}
+
 module.exports = {
   getAccountSettings,
   updateAccount,
   updateFarmUnit,
   updateManagedUser,
-  updateCurrentUser
+  updateCurrentUser,
+  markLivestockImportPromptSeen
 };

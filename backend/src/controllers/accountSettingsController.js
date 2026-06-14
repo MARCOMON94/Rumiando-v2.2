@@ -59,10 +59,24 @@ async function updateCurrentUser(req, res, next) {
   }
 }
 
+async function markLivestockImportPromptSeen(req, res, next) {
+  try {
+    const account = await accountSettingsService.markLivestockImportPromptSeen(
+      req.user.cuentaGanaderaId
+    );
+    res.json({
+      livestockImportPromptSeenAt: account.livestockImportPromptSeenAt
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getAccountSettings,
   updateAccount,
   updateFarmUnit,
   updateManagedUser,
-  updateCurrentUser
+  updateCurrentUser,
+  markLivestockImportPromptSeen
 };
