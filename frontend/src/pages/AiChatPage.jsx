@@ -11,7 +11,7 @@ const QUICK_PROMPTS = [
 
 const AI_DRAFT_STORAGE_PREFIX = 'rumiando-ai-draft:';
 const SILENT_READER_EVENT = 'rumiando:silent-reader:activate';
-const VOICE_MAX_RECORDING_MS = 20000;
+const VOICE_MAX_RECORDING_MS = 15000;
 
 function ChatMessage({ message }) {
   const isAssistant = message.role === 'assistant';
@@ -438,8 +438,6 @@ export default function AiChatPage() {
   const voiceFinalRef = useRef('');
   const voiceInterimRef = useRef('');
   const voiceSendOnEndRef = useRef(false);
-  const voicePointerHeldRef = useRef(false);
-  const voiceReleaseShouldSendRef = useRef(false);
   const voiceStopTimerRef = useRef(null);
 
   async function findAnimalByCode(code) {
@@ -670,7 +668,6 @@ export default function AiChatPage() {
   function stopMediaRecorderWithoutSend(updateState = true) {
     clearVoiceStopTimer();
     voiceSendOnEndRef.current = false;
-    voiceReleaseShouldSendRef.current = false;
     const recorder = mediaRecorderRef.current;
     mediaRecorderRef.current = null;
 
@@ -692,7 +689,6 @@ export default function AiChatPage() {
   function stopRecognitionWithoutSend(updateState = true) {
     clearVoiceStopTimer();
     voiceSendOnEndRef.current = false;
-    voiceReleaseShouldSendRef.current = false;
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     if (recognition) {
@@ -745,9 +741,9 @@ export default function AiChatPage() {
     recognition.onerror = (errorEvent) => {
       if (errorEvent.error === 'aborted') return;
       voiceSendOnEndRef.current = false;
-      voiceReleaseShouldSendRef.current = false;
       setVoiceState('idle');
-      setVoiceError('No he podido escuchar bien. Mantén pulsado y prueba otra vez.');
+      setVoiceTranscript('');
+      setVoiceError('No he podido escuchar bien. Pulsa otra vez y habla cerca del móvil.');
     };
 
     recognition.onend = () => {
@@ -756,18 +752,16 @@ export default function AiChatPage() {
       recognitionRef.current = null;
 
       if (!voiceSendOnEndRef.current) {
-        voiceReleaseShouldSendRef.current = false;
         setVoiceState('idle');
         return;
       }
 
       voiceSendOnEndRef.current = false;
-      voiceReleaseShouldSendRef.current = false;
       setVoiceTranscript('');
 
       if (!text) {
         setVoiceState('idle');
-        setVoiceError('No he entendido nada. Mantén pulsado y habla un poco más cerca.');
+        setVoiceError('No he entendido nada. Pulsa otra vez y habla un poco más cerca.');
         return;
       }
 
@@ -781,10 +775,9 @@ export default function AiChatPage() {
       recognitionRef.current = recognition;
       recognition.start();
       setVoiceState('listening');
+      setVoiceTranscript('Escuchando... pulsa de nuevo para terminar.');
       clearVoiceStopTimer();
       voiceStopTimerRef.current = window.setTimeout(() => {
-        voicePointerHeldRef.current = false;
-        voiceReleaseShouldSendRef.current = true;
         voiceSendOnEndRef.current = true;
         try {
           recognition.stop();
@@ -792,14 +785,10 @@ export default function AiChatPage() {
           stopRecognitionWithoutSend();
         }
       }, VOICE_MAX_RECORDING_MS);
-      if (!voicePointerHeldRef.current) {
-        voiceSendOnEndRef.current = voiceReleaseShouldSendRef.current;
-        recognition.stop();
-      }
     } catch {
       recognitionRef.current = null;
-      voiceReleaseShouldSendRef.current = false;
       setVoiceState('idle');
+      setVoiceTranscript('');
       setVoiceError('No se pudo activar el micrófono.');
     }
   }
@@ -828,15 +817,16 @@ export default function AiChatPage() {
     event.preventDefault();
     if (loading || voiceState === 'listening' || voiceState === 'processing') return;
 
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-
     blurActiveElement();
     setVoiceError('');
     setVoiceTranscript('');
-    voicePointerHeldRef.current = true;
-    voiceReleaseShouldSendRef.current = false;
     voiceSendOnEndRef.current = false;
     mediaChunksRef.current = [];
+
+    if (speechRecognitionClass()) {
+      startSpeechRecognitionFallback();
+      return;
+    }
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       startSpeechRecognitionFallback();
@@ -861,11 +851,11 @@ export default function AiChatPage() {
       recorder.onerror = () => {
         clearVoiceStopTimer();
         voiceSendOnEndRef.current = false;
-        voiceReleaseShouldSendRef.current = false;
         mediaRecorderRef.current = null;
         stopMediaStream();
         setVoiceState('idle');
-        setVoiceError('No he podido grabar bien. Mantén pulsado y prueba otra vez.');
+        setVoiceTranscript('');
+        setVoiceError('No he podido grabar bien. Pulsa otra vez y prueba de nuevo.');
       };
 
       recorder.onstop = async () => {
@@ -875,7 +865,6 @@ export default function AiChatPage() {
         const finalMimeType = recorder.mimeType || mimeType || 'audio/webm';
 
         voiceSendOnEndRef.current = false;
-        voiceReleaseShouldSendRef.current = false;
         mediaRecorderRef.current = null;
         mediaChunksRef.current = [];
         stopMediaStream();
@@ -887,7 +876,8 @@ export default function AiChatPage() {
 
         if (!chunks.length) {
           setVoiceState('idle');
-          setVoiceError('No se grabó audio. Mantén pulsado un poco más.');
+          setVoiceTranscript('');
+          setVoiceError('No se grabó audio. Pulsa para empezar, habla y vuelve a pulsar para terminar.');
           return;
         }
 
@@ -903,6 +893,7 @@ export default function AiChatPage() {
           setVoiceTranscript('');
           await sendChatText(text);
         } catch (err) {
+          setVoiceTranscript('');
           setVoiceError(err.message || 'No se pudo transcribir el audio.');
         } finally {
           setVoiceState('idle');
@@ -911,13 +902,11 @@ export default function AiChatPage() {
 
       recorder.start();
       setVoiceState('listening');
-      setVoiceTranscript('Grabando audio... máximo 20 s.');
+      setVoiceTranscript('Escuchando... pulsa de nuevo para terminar.');
       clearVoiceStopTimer();
       voiceStopTimerRef.current = window.setTimeout(() => {
         const activeRecorder = mediaRecorderRef.current;
         if (!activeRecorder || activeRecorder.state === 'inactive') return;
-        voicePointerHeldRef.current = false;
-        voiceReleaseShouldSendRef.current = true;
         voiceSendOnEndRef.current = true;
         try {
           activeRecorder.stop();
@@ -925,10 +914,6 @@ export default function AiChatPage() {
           stopMediaRecorderWithoutSend();
         }
       }, VOICE_MAX_RECORDING_MS);
-      if (!voicePointerHeldRef.current) {
-        voiceSendOnEndRef.current = voiceReleaseShouldSendRef.current;
-        recorder.stop();
-      }
     } catch {
       stopMediaStream();
       startSpeechRecognitionFallback();
@@ -938,8 +923,6 @@ export default function AiChatPage() {
   function finishVoiceInput(event) {
     event.preventDefault();
     clearVoiceStopTimer();
-    voicePointerHeldRef.current = false;
-    voiceReleaseShouldSendRef.current = true;
     if (voiceState !== 'listening') return;
 
     voiceSendOnEndRef.current = true;
@@ -967,8 +950,6 @@ export default function AiChatPage() {
   function cancelVoiceInput(event) {
     event.preventDefault();
     clearVoiceStopTimer();
-    voicePointerHeldRef.current = false;
-    voiceReleaseShouldSendRef.current = false;
     if (mediaRecorderRef.current) {
       stopMediaRecorderWithoutSend();
       return;
@@ -978,8 +959,6 @@ export default function AiChatPage() {
 
   useEffect(() => {
     return () => {
-      voicePointerHeldRef.current = false;
-      voiceReleaseShouldSendRef.current = false;
       clearVoiceStopTimer();
       stopMediaRecorderWithoutSend(false);
       stopRecognitionWithoutSend(false);
@@ -1050,14 +1029,12 @@ export default function AiChatPage() {
               type="button"
               className={`voice-hold-button ${voiceState === 'listening' ? 'recording' : ''}`}
               disabled={loading || voiceState === 'processing'}
-              onPointerDown={startVoiceInput}
-              onPointerUp={finishVoiceInput}
-              onPointerCancel={cancelVoiceInput}
+              onClick={voiceState === 'listening' ? finishVoiceInput : startVoiceInput}
               onContextMenu={(event) => event.preventDefault()}
-              aria-label="Mantener pulsado para hablar"
+              aria-label={voiceState === 'listening' ? 'Terminar dictado de voz' : 'Empezar dictado de voz'}
             >
               <span aria-hidden="true" />
-              {voiceState === 'listening' ? 'Suelta para enviar' : 'Mantén para hablar'}
+              {voiceState === 'listening' ? 'Pulsa para terminar' : 'Pulsa para hablar'}
             </button>
             <button type="submit" disabled={loading || !input.trim()}>
               Enviar
