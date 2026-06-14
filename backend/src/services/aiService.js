@@ -86,14 +86,85 @@ function audioFilenameForMimeType(mimeType = '') {
   return 'rumiando-voice.webm';
 }
 
+function transcriptionProvider() {
+  const provider = String(process.env.AI_TRANSCRIPTION_PROVIDER || 'local').toLowerCase();
+  return ['local', 'openai', 'auto'].includes(provider) ? provider : 'local';
+}
 
-async function transcribeAudio(audioBuffer, options = {}) {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new AppError('La transcripcion por voz no esta configurada en este entorno', 503);
-  }
-
+function assertAudioBuffer(audioBuffer) {
   if (!audioBuffer?.length) {
     throw new AppError('No se recibio audio para transcribir', 400);
+  }
+}
+
+
+async function transcribeAudioLocally(audioBuffer, options = {}) {
+  assertAudioBuffer(audioBuffer);
+
+  if (typeof fetch !== 'function') {
+    throw new AppError('Fetch no esta disponible en esta version de Node', 500);
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = Number(process.env.AI_TRANSCRIPTION_TIMEOUT_MS || 30000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const mimeType = options.mimeType || 'audio/webm';
+
+  try {
+    const response = await fetch(`${getAiServiceUrl()}/api/transcribe`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': mimeType,
+        'x-audio-filename': options.filename || audioFilenameForMimeType(mimeType),
+        'x-audio-language': options.language || 'es'
+      },
+      body: audioBuffer,
+      signal: controller.signal
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    const data = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+
+    if (!response.ok) {
+      const message = data?.detail || data?.error || data?.message || 'No se pudo transcribir el audio';
+      throw new AppError(message, response.status);
+    }
+
+    const text = String(data?.text || '').trim();
+    if (!text) {
+      throw new AppError('No se entendio ningun texto en el audio', 422);
+    }
+
+    return {
+      text,
+      provider: data?.provider || 'local-whisper',
+      model: data?.model || process.env.LOCAL_WHISPER_MODEL || 'base',
+      language: data?.language || options.language || 'es'
+    };
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    if (err.name === 'AbortError') {
+      throw new AppError('La transcripcion local de voz no respondio a tiempo', 504);
+    }
+
+    throw new AppError(`No se pudo conectar con la transcripcion local: ${err.message}`, 502);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+
+async function transcribeAudioWithOpenAi(audioBuffer, options = {}) {
+  assertAudioBuffer(audioBuffer);
+
+  if (!process.env.OPENAI_API_KEY) {
+    throw new AppError('La transcripcion por OpenAI no esta configurada en este entorno', 503);
   }
 
   if (typeof fetch !== 'function' || typeof FormData !== 'function' || typeof Blob !== 'function') {
@@ -140,6 +211,7 @@ async function transcribeAudio(audioBuffer, options = {}) {
 
     return {
       text,
+      provider: 'openai',
       model: process.env.OPENAI_TRANSCRIPTION_MODEL || 'whisper-1'
     };
   } catch (err) {
@@ -155,6 +227,29 @@ async function transcribeAudio(audioBuffer, options = {}) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+
+async function transcribeAudio(audioBuffer, options = {}) {
+  const provider = transcriptionProvider();
+
+  if (provider === 'openai') {
+    return transcribeAudioWithOpenAi(audioBuffer, options);
+  }
+
+  if (provider === 'auto') {
+    try {
+      return await transcribeAudioLocally(audioBuffer, options);
+    } catch (err) {
+      if (!process.env.OPENAI_API_KEY) {
+        throw err;
+      }
+
+      return transcribeAudioWithOpenAi(audioBuffer, options);
+    }
+  }
+
+  return transcribeAudioLocally(audioBuffer, options);
 }
 
 

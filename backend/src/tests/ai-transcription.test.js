@@ -4,6 +4,8 @@ describe('AI audio transcription service', () => {
   const originalFetch = global.fetch;
   const originalApiKey = process.env.OPENAI_API_KEY;
   const originalModel = process.env.OPENAI_TRANSCRIPTION_MODEL;
+  const originalProvider = process.env.AI_TRANSCRIPTION_PROVIDER;
+  const originalAiServiceUrl = process.env.AI_SERVICE_URL;
 
   afterEach(() => {
     global.fetch = originalFetch;
@@ -19,10 +21,65 @@ describe('AI audio transcription service', () => {
     } else {
       process.env.OPENAI_TRANSCRIPTION_MODEL = originalModel;
     }
+
+    if (originalProvider === undefined) {
+      delete process.env.AI_TRANSCRIPTION_PROVIDER;
+    } else {
+      process.env.AI_TRANSCRIPTION_PROVIDER = originalProvider;
+    }
+
+    if (originalAiServiceUrl === undefined) {
+      delete process.env.AI_SERVICE_URL;
+    } else {
+      process.env.AI_SERVICE_URL = originalAiServiceUrl;
+    }
   });
 
-  test('requiere OPENAI_API_KEY para transcribir', async () => {
+  test('usa Whisper local del ai-service por defecto', async () => {
+    delete process.env.AI_TRANSCRIPTION_PROVIDER;
     delete process.env.OPENAI_API_KEY;
+    process.env.AI_SERVICE_URL = 'http://ai-service.test';
+
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      headers: {
+        get: () => 'application/json'
+      },
+      json: async () => ({
+        text: 'he inseminado una oveja',
+        provider: 'local-whisper',
+        model: 'base',
+        language: 'es'
+      })
+    }));
+
+    const response = await aiService.transcribeAudio(Buffer.from('audio'), {
+      mimeType: 'audio/webm',
+      filename: 'test.webm',
+      language: 'es'
+    });
+
+    expect(response).toEqual({
+      text: 'he inseminado una oveja',
+      provider: 'local-whisper',
+      model: 'base',
+      language: 'es'
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://ai-service.test/api/transcribe',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'audio/webm',
+          'x-audio-language': 'es'
+        })
+      })
+    );
+  });
+
+  test('OpenAI solo se usa si el proveedor esta configurado explicitamente', async () => {
+    delete process.env.OPENAI_API_KEY;
+    process.env.AI_TRANSCRIPTION_PROVIDER = 'openai';
 
     await expect(aiService.transcribeAudio(Buffer.from('audio')))
       .rejects
@@ -32,6 +89,7 @@ describe('AI audio transcription service', () => {
   });
 
   test('envia el audio al endpoint de transcripciones de OpenAI', async () => {
+    process.env.AI_TRANSCRIPTION_PROVIDER = 'openai';
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.OPENAI_TRANSCRIPTION_MODEL = 'whisper-1';
 
@@ -53,6 +111,7 @@ describe('AI audio transcription service', () => {
 
     expect(response).toEqual({
       text: 'he inseminado una oveja',
+      provider: 'openai',
       model: 'whisper-1'
     });
     expect(global.fetch).toHaveBeenCalledWith(

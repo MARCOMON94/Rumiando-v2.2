@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -7,6 +7,7 @@ from app.services.agent import agent_status, build_chat_response
 from app.services.history_store import get_history
 from app.services.learning_queue import build_weekly_summary, list_unresolved_questions
 from app.services.rag_service import count_documents, rag_status
+from app.services.transcription_service import transcribe_audio_bytes
 
 
 
@@ -54,13 +55,32 @@ def health():
         "environment": settings.environment,
         "rag_documents_indexed": count_documents(),
         "rag": rag_status(),
-        "agent": agent_status()
+        "agent": agent_status(),
+        "transcription": {
+            "provider": "local-whisper",
+            "model": settings.local_whisper_model,
+            "device": settings.local_whisper_device,
+            "compute_type": settings.local_whisper_compute_type,
+            "language": settings.local_whisper_language,
+        },
     }
 
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, authorization: str | None = Header(default=None)):
     return build_chat_response(request, authorization)
+
+
+@app.post("/api/transcribe")
+async def transcribe(
+    request: Request,
+    x_audio_language: str | None = Header(default=None),
+):
+    return transcribe_audio_bytes(
+        await request.body(),
+        mime_type=request.headers.get("content-type"),
+        language=x_audio_language,
+    )
 
 
 @app.get("/api/chat/history/{conversation_id}", response_model=ChatHistoryResponse)

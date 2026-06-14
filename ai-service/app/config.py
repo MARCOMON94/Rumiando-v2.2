@@ -48,6 +48,14 @@ class Settings(BaseModel):
     learning_use_openai_reformulation: bool = os.getenv("LEARNING_USE_OPENAI_REFORMULATION", "false").lower() == "true"
     openai_store: bool = os.getenv("OPENAI_STORE", "false").lower() == "true"
     learning_queue_token: str | None = os.getenv("LEARNING_QUEUE_TOKEN")
+    local_whisper_model: str = os.getenv("LOCAL_WHISPER_MODEL", "base")
+    local_whisper_device: str = os.getenv("LOCAL_WHISPER_DEVICE", "cpu")
+    local_whisper_compute_type: str = os.getenv("LOCAL_WHISPER_COMPUTE_TYPE", "int8")
+    local_whisper_language: str = os.getenv("LOCAL_WHISPER_LANGUAGE", "es")
+    local_whisper_beam_size: int = int(os.getenv("LOCAL_WHISPER_BEAM_SIZE", "1"))
+    local_whisper_vad_filter: bool = os.getenv("LOCAL_WHISPER_VAD_FILTER", "true").lower() == "true"
+    local_whisper_max_bytes: int = int(os.getenv("LOCAL_WHISPER_MAX_BYTES", str(15 * 1024 * 1024)))
+    local_whisper_download_root: str | None = os.getenv("LOCAL_WHISPER_DOWNLOAD_ROOT") or None
 
 
 @lru_cache
