@@ -487,6 +487,10 @@ FRONTEND_URL=http://localhost:5173
 FRONTEND_URLS=http://localhost:5173,http://127.0.0.1:5173
 AI_SERVICE_URL=http://localhost:8000
 AI_SERVICE_TIMEOUT_MS=20000
+OPENAI_API_KEY=
+OPENAI_TRANSCRIPTION_MODEL=whisper-1
+OPENAI_TRANSCRIPTION_TIMEOUT_MS=15000
+AI_TRANSCRIPTION_MAX_BYTES=20mb
 N8N_API_KEY=clave_integraciones
 DEMO_CUENTA_GANADERA_ID=1
 EMAIL_ENABLED=false
@@ -495,6 +499,8 @@ EMAIL_FROM_ADDRESS=
 EMAIL_FROM_NAME=RumiAndo
 LEARNING_QUEUE_TOKEN=
 ```
+
+La voz del chat se transcribe de forma temporal: el navegador graba un audio en memoria, el backend lo recibe como binario, lo envía al proveedor de transcripción y descarta el buffer al terminar la petición. RumiAndo no escribe esos audios en disco ni los guarda en base de datos.
 
 ### AI service: `ai-service/.env`
 
@@ -665,6 +671,10 @@ GOOGLE_CLIENT_ID=...
 FRONTEND_URL=https://rumiando.netlify.app
 FRONTEND_URLS=https://rumiando.netlify.app,http://localhost:5173,http://127.0.0.1:5173
 AI_SERVICE_URL=https://url-del-ai-service.up.railway.app
+OPENAI_API_KEY=...
+OPENAI_TRANSCRIPTION_MODEL=whisper-1
+OPENAI_TRANSCRIPTION_TIMEOUT_MS=15000
+AI_TRANSCRIPTION_MAX_BYTES=20mb
 N8N_API_KEY=...
 EMAIL_ENABLED=false
 BREVO_API_KEY=

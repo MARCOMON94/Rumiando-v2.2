@@ -194,6 +194,40 @@ pre {
   gap: 0.35rem;
 }
 
+.sidebar-reader-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.sidebar-reader-actions button {
+  min-height: 40px;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: none;
+  font-size: 0.9rem;
+}
+
+.sidebar-reader-actions button:first-child {
+  grid-column: 1 / -1;
+}
+
+.sidebar-reader-actions button.active {
+  background: #f97316;
+  color: var(--color-white);
+}
+
+.sidebar-reader-actions button.parto.active {
+  background: #ef8f8f;
+}
+
+.sidebar-reader-actions button.baja.active {
+  background: #5b4a3f;
+}
+
 .sidebar-nav a {
   min-height: 44px;
   display: flex;

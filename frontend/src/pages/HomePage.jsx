@@ -22,6 +22,7 @@ const HOME_ICONS = {
   search: '/assets/icon-lupa-white.png',
   census: '/assets/icon-ganado-outline-green.png',
   stats: '/assets/icon-estadisticas-green.png',
+  offspring: '/assets/icon-baifo.png',
   settings: '/assets/icon-settings-green.png'
 };
 
@@ -141,6 +142,12 @@ export default function HomePage() {
   const [searchParams] = useSearchParams();
   const { user, logout, refreshUser } = useAuth();
   const [watchlistTotal, setWatchlistTotal] = useState(0);
+  const [homeSummary, setHomeSummary] = useState({
+    activeAnimals: 0,
+    pendingReminders: 0,
+    automaticAlerts: 0,
+    provisionalOffspring: 0
+  });
   const [silentReader, setSilentReader] = useState(INITIAL_SILENT_READER);
   const [theme, setTheme] = useState(getInitialTheme);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -166,12 +173,11 @@ export default function HomePage() {
 
     rememberLivestockImportPromptLocally(user);
     setLivestockImportPromptSeen(true);
-    setLivestockImportPromptOpen(true);
 
     put('/account-settings/onboarding/livestock-import-seen', {})
       .then(() => refreshUser?.())
       .catch(() => {
-        // El aviso ya se marco localmente para no insistir si la red o la migracion fallan.
+        // El aviso se desactiva igualmente en local para no insistir al entrar en Inicio.
       });
   }, [isAdmin, livestockImportPromptSeen, refreshUser, user]);
 
@@ -187,6 +193,33 @@ export default function HomePage() {
   useEffect(() => {
     loadWatchlistCount();
   }, [loadWatchlistCount]);
+
+  useEffect(() => {
+    async function loadHomeSummary() {
+      try {
+        const [dashboardData, automationData, offspringData] = await Promise.all([
+          get('/dashboard'),
+          get('/automation/daily-operational-summary/app'),
+          get('/animals?estadoRegistro=ACTIVO&crotalDefinitivo=false')
+        ]);
+
+        const automaticAlerts = automationData?.automaticAlerts || {};
+        const automaticItems = Array.isArray(automaticAlerts.items) ? automaticAlerts.items : [];
+        const offspringItems = Array.isArray(offspringData?.data) ? offspringData.data : [];
+
+        setHomeSummary({
+          activeAnimals: Number(dashboardData?.totals?.activeAnimals || 0),
+          pendingReminders: Number(dashboardData?.totals?.pendingReminders || 0),
+          automaticAlerts: Number(automaticAlerts.total ?? automaticItems.length ?? 0),
+          provisionalOffspring: Number(offspringData?.total ?? offspringItems.length ?? 0)
+        });
+      } catch {
+        setHomeSummary((current) => current);
+      }
+    }
+
+    loadHomeSummary();
+  }, []);
 
   useEffect(() => {
     window.addEventListener('animal-watchlist:changed', loadWatchlistCount);
@@ -586,6 +619,41 @@ export default function HomePage() {
 
   return (
     <section className="clean-home-page field-home-page">
+      <div className="desktop-home-summary" aria-label="Resumen de trabajo">
+        <div className="desktop-home-hero panel">
+          <p className="eyebrow">RumiAndo</p>
+          <h2>Trabajo de campo</h2>
+          <p>Usa el menú lateral para abrir operaciones. Aquí tienes lo pendiente de un vistazo.</p>
+        </div>
+
+        <div className="desktop-home-metrics">
+          <button type="button" className="desktop-home-metric" onClick={() => navigate('/animals')}>
+            <span>Censo activo</span>
+            <strong>{homeSummary.activeAnimals}</strong>
+          </button>
+          <button type="button" className="desktop-home-metric" onClick={() => navigate('/reminders')}>
+            <span>Avisos</span>
+            <strong>{homeSummary.automaticAlerts + homeSummary.pendingReminders}</strong>
+          </button>
+          <button type="button" className="desktop-home-metric" onClick={() => navigate('/animal-watchlist')}>
+            <span>Búsqueda inteligente</span>
+            <strong>{watchlistTotal}</strong>
+          </button>
+          <button type="button" className="desktop-home-metric" onClick={() => navigate('/offspring')}>
+            <span>Crías sin crotal</span>
+            <strong>{homeSummary.provisionalOffspring}</strong>
+          </button>
+        </div>
+
+        <div className="desktop-home-panel panel">
+          <h3>Siguiente paso</h3>
+          <p>Para mover, registrar reproducción o añadir un evento sanitario, abre la acción desde el menú lateral y pasa crotales al lector.</p>
+          <button type="button" onClick={() => navigate('/ai-chat')}>
+            Abrir asistente IA
+          </button>
+        </div>
+      </div>
+
       <div className="field-home-search-row">
         <button
           type="button"
@@ -682,6 +750,15 @@ export default function HomePage() {
         >
           <span>Estadísticas</span>
           <OperationIcon src={HOME_ICONS.stats} />
+        </button>
+
+        <button
+          type="button"
+          className="field-operation-button field-operation-wide field-operation-with-icon"
+          onClick={() => navigate('/offspring')}
+        >
+          <span>Cría</span>
+          <OperationIcon src={HOME_ICONS.offspring} />
         </button>
 
         <button

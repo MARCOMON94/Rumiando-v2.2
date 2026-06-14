@@ -47,7 +47,11 @@ function clearSessionCookie(res) {
 }
 
 function readSessionToken(req) {
+  const authorization = req.headers?.authorization || '';
+  const bearerMatch = authorization.match(/^Bearer\s+(.+)$/i);
+
   return (
+    bearerMatch?.[1] ||
     req.cookies?.[getSessionCookieName()] ||
     req.cookies?.rumiando_session ||
     req.cookies?.['__Host-rumiando_session'] ||

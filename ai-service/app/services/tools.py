@@ -4,6 +4,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import date, timedelta
 
 from app.config import get_settings
 from app.schemas import ToolCall
@@ -12,7 +13,20 @@ from app.schemas import ToolCall
 def _normalize(text):
     text = unicodedata.normalize("NFKD", text or "")
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    return text.lower()
+    text = text.lower()
+    replacements = [
+        ("bacun", "vacun"),
+        ("vacnu", "vacun"),
+        ("vacn", "vacun"),
+        ("vacunacin", "vacunacion"),
+        ("desparacit", "desparasit"),
+        ("inseminao", "inseminado"),
+        ("a parido", "ha parido"),
+        ("ha pario", "ha parido"),
+    ]
+    for before, after in replacements:
+        text = text.replace(before, after)
+    return text
 
 
 def _api_get(path, authorization=None):
@@ -27,6 +41,26 @@ def _api_get(path, authorization=None):
     request = urllib.request.Request(url, headers=headers, method="GET")
 
     with urllib.request.urlopen(request, timeout=8) as response:
+        raw = response.read().decode("utf-8")
+        return json.loads(raw) if raw else {}
+
+
+def _api_post(path, payload=None, authorization=None):
+    settings = get_settings()
+    base_url = settings.rumiando_api_url.rstrip("/")
+    url = f"{base_url}{path}"
+    body = json.dumps(payload or {}).encode("utf-8")
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+    if authorization:
+        headers["Authorization"] = authorization
+
+    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+
+    with urllib.request.urlopen(request, timeout=12) as response:
         raw = response.read().decode("utf-8")
         return json.loads(raw) if raw else {}
 
@@ -579,9 +613,14 @@ def _text_after_any(normalized, markers):
 
 
 def _has_birth_intent(normalized):
+    if re.search(r"\b(?:nacio|nacieron)\b", normalized):
+        return True
+
     return any(term in normalized for term in [
-        "ha parido", "pario", "parida", "parto", "ha tenido cria",
-        "ha tenido crias", "nacimiento", "nacio", "cria nueva"
+        "acaba de parir", "acabo de parir", "ha parido", "pario",
+        "ha pario", "a parido", "parida", "recien parida", "parto", "parir", "parido",
+        "ha tenido cria", "ha tenido crias", "nacimiento",
+        "cria nueva"
     ])
 
 
@@ -589,6 +628,7 @@ def _has_death_intent(normalized):
     return any(term in normalized for term in [
         "se ha muerto", "se murio", "ha muerto", "esta muerto", "esta muerta",
         "muerto", "muerta", "fallecio", "fallecida", "fallecido",
+        "murio", "muerte", "dar de baja", "baja animal", "baja un animal",
     ])
 
 
@@ -828,7 +868,7 @@ def _build_health_draft(action_key, normalized):
         "healthType": health_type,
         "expectedCount": _expected_count_from_message(normalized),
         "expectedSpecies": _expected_species_from_message(normalized),
-        "fullPen": any(term in normalized for term in ["corral completo", "todo el corral", "por corral"]),
+        "fullPen": any(term in normalized for term in ["corral completo", "todo el corral", "todo un corral", "todo corral", "por corral"]),
     }
 
     if health_type == "vaccination":
@@ -881,9 +921,9 @@ def _build_reproductive_draft(normalized):
         draft.update({"tipoEvento": "ABORTO", "resultado": "NO_APLICA"})
     elif any(term in normalized for term in ["secado", "seca", "secar"]):
         draft.update({"tipoEvento": "SECADO", "estadoResultanteAlias": "seca"})
-    elif any(term in normalized for term in ["cubricion", "cubrir", "cubierta", "cubiertas"]):
+    elif any(term in normalized for term in ["cubricion", "cubrir", "cubri", "cubierto", "cubierta", "cubiertas", "echar macho"]):
         draft.update({"tipoEvento": "CUBRICION"})
-    elif any(term in normalized for term in ["inseminacion", "inseminar", "inseminada"]):
+    elif any(term in normalized for term in ["inseminacion", "inseminar", "inseminado", "inseminada", "insemine"]):
         draft.update({"tipoEvento": "INSEMINACION"})
     elif any(term in normalized for term in ["parto", "parido", "parida"]):
         draft.update({"tipoEvento": "PARTO"})
@@ -1028,9 +1068,9 @@ def _has_movement_intent(normalized):
     action_words = [
         "mover", "mueve", "movimiento", "trasladar", "traslada",
         "pasar", "pasa", "meter", "mete", "apartar", "aparta",
-        "cambiar", "cambia",
+        "cambiar", "cambia", "cambias", "cambiamos",
         "cambio de corral", "cambiar de corral", "cambiar de sitio",
-        "cambia de sitio", "cambio de sitio",
+        "cambia de sitio", "cambias de sitio", "cambio de sitio",
     ]
     context_words = [
         "corral", "lote", "crotales", "rfid", "lector", "paridas",
@@ -1067,7 +1107,8 @@ def _has_create_or_update_word(normalized):
             "vacunar", "vacuna este", "vacuna esta", "vacuna estos", "vacuna estas",
             "vacune", "he vacunado", "medicar", "medica", "he medicado",
             "tratar", "trata", "he tratado", "desparasitar", "desparasita",
-            "he desparasitado",
+            "he desparasitado", "inseminar", "inseminado", "he inseminado",
+            "insemine", "cubrir", "cubri", "he cubierto", "echar macho",
         ]
     )
 
@@ -1115,6 +1156,8 @@ def _action_key_from_message(normalized):
     if any(term in normalized for term in [
         "gestacion", "gestacional", "gestante", "gestantes",
         "reproductivo", "reproductiva", "celo", "cubricion",
+        "cubrir", "cubri", "cubierto", "echar macho",
+        "inseminacion", "inseminar", "inseminado", "insemine",
         "ecografia", "parto", "aborto", "prenada", "prenadas",
         "preñada", "preñadas"
     ]):
@@ -1520,6 +1563,113 @@ def _add_get_call(calls, name, input_data, summary_builder, path, authorization)
     calls.append(_safe_call(name, input_data, summary_builder, lambda: _api_get(path, authorization)))
 
 
+def _last_month_range():
+    today = date.today()
+    start = today - timedelta(days=30)
+    return start.isoformat(), today.isoformat()
+
+
+def _wants_excel_export(normalized):
+    return any(term in normalized for term in ["excel", "xlsx", "exportar", "exporta", "descargar"]) \
+        and any(term in normalized for term in ["baja", "bajas", "muertes", "salidas"])
+
+
+def _excel_export_tool(message, normalized):
+    fecha_desde, fecha_hasta = _last_month_range()
+    if not any(term in normalized for term in ["ultimo mes", "ultimos 30 dias", "ultimas 4 semanas"]):
+        fecha_desde = ""
+        fecha_hasta = ""
+
+    query = {
+        "dataset": "discharges",
+        "view": "list",
+        "groupBy": "period",
+        "filters": {
+            "fechaDesde": fecha_desde,
+            "fechaHasta": fecha_hasta,
+        },
+    }
+
+    return ToolCall(
+        name="preparar_excel_bajas",
+        status="ok",
+        input={"message": message},
+        output_summary="Preparo un Excel de bajas con el listado filtrado. Si la descarga no se completa, abro Estadisticas con ese filtro.",
+        data={
+            "requires_confirmation": False,
+            "action_type": "ANALYTICS_EXPORT",
+            "ui_action": {
+                "kind": "analytics_export",
+                "query": query,
+                "fallbackRoute": "/dashboard",
+            },
+            "original_message": message,
+        },
+    )
+
+
+def _breed_query_name(normalized):
+    if "majorer" in normalized:
+        return "majorera"
+
+    match = re.search(r"\bcuant[ao]s?\s+([a-z0-9 _-]{3,35})\s+tengo\b", normalized)
+    if match:
+        candidate = match.group(1).strip()
+        if candidate not in {"animales", "ovejas", "cabras", "ganado"}:
+            return candidate.rstrip("s")
+
+    return None
+
+
+def _analytics_breed_count_tool(message, normalized, authorization):
+    breed_name = _breed_query_name(normalized)
+    if not breed_name or not authorization:
+        return None
+
+    def build():
+        options = _api_get("/analytics/options", authorization)
+        breeds = options.get("breeds") or []
+        wanted = _normalize(breed_name)
+        match = next((
+            breed for breed in breeds
+            if wanted in _normalize(breed.get("nombre") or breed.get("name") or "")
+            or _normalize(breed.get("nombre") or breed.get("name") or "") in wanted
+        ), None)
+
+        if not match:
+            return {
+                "total": None,
+                "breedName": breed_name,
+                "notFound": True,
+            }
+
+        query = {
+            "dataset": "animals",
+            "view": "list",
+            "groupBy": "raza",
+            "filters": {
+                "razaId": match.get("id"),
+                "estadoRegistro": "ACTIVO",
+            },
+        }
+        result = _api_post("/analytics/query", query, authorization)
+        result["breedName"] = match.get("nombre") or match.get("name") or breed_name
+        result["query"] = query
+        return result
+
+    def summarize(data):
+        if data.get("notFound"):
+            return f"No encuentro una raza registrada como {data.get('breedName')}. Puedes revisarlo en Censo o Configuracion."
+        return f"Tienes {data.get('total', 0)} animales activos de raza {data.get('breedName', breed_name)}."
+
+    return _safe_call(
+        "consultar_animales_por_raza",
+        {"breed": breed_name},
+        summarize,
+        build,
+    )
+
+
 def _wants_dashboard(normalized):
     return any(
         term in normalized
@@ -1600,6 +1750,10 @@ def run_app_tools(message, authorization=None):
         ))
         return calls
 
+    if _wants_excel_export(normalized):
+        calls.append(_excel_export_tool(message, normalized))
+        return calls
+
     action_key = _action_key_from_message(normalized)
     if action_key:
         calls.append(_prepare_action_tool(action_key, message))
@@ -1609,6 +1763,11 @@ def run_app_tools(message, authorization=None):
     if animal_query:
         query = urllib.parse.urlencode({"search": animal_query})
         _add_get_call(calls, "buscar_animal_por_crotal", {"query": animal_query}, _summarize_animals, f"/animals?{query}", authorization)
+
+    breed_query = _analytics_breed_count_tool(message, normalized, authorization)
+    if breed_query:
+        calls.append(breed_query)
+        return calls
 
     if _wants_dashboard(normalized):
         _add_get_call(calls, "consultar_dashboard", {"reason": "consulta_resumen"}, lambda data: _summarize_dashboard(data, message), "/dashboard", authorization)

@@ -41,12 +41,78 @@ async function checkFarmUnit(unidadRegaId, cuentaGanaderaId) {
   return unidadRega;
 }
 
+function parseBoolean(value) {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).toLowerCase();
+  return normalized === 'true' || normalized === '1';
+}
+
+function wantsDefinitiveEarTagFilter(filters) {
+  if (filters.crotalDefinitivo === undefined) return null;
+  const rawValue = String(filters.crotalDefinitivo).toLowerCase();
+  if (rawValue === 'true' || rawValue === '1') return true;
+  if (rawValue === 'false' || rawValue === '0') return false;
+  return null;
+}
+
+function isLikelyProvisionalOffspring(animal) {
+  const status = String(animal.estadoReproductivo?.nombre || '').toLowerCase();
+  const origin = String(animal.origen || '').toLowerCase();
+  const observations = String(animal.observaciones || '').toLowerCase();
+
+  return status === 'lactante'
+    && (
+      origin.includes('nacimiento')
+      || observations.includes('parto')
+      || observations.includes('alta creada desde flujo')
+    );
+}
+
+async function definitiveEarTagAnimalIds(cuentaGanaderaId, definitive) {
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT a."id"
+      FROM "Animal" a
+      INNER JOIN "UnidadRega" u ON u."id" = a."unidadRegaId"
+      WHERE u."cuentaGanaderaId" = ${cuentaGanaderaId}
+        AND a."crotalDefinitivo" = ${definitive}
+    `;
+
+    return rows.map((row) => Number(row.id)).filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+async function setDefinitiveEarTagRaw(animalId, definitive) {
+  try {
+    await prisma.$executeRaw`
+      UPDATE "Animal"
+      SET "crotalDefinitivo" = ${definitive}
+      WHERE "id" = ${Number(animalId)}
+    `;
+  } catch {
+    // La migracion puede no estar aplicada aun en un entorno temporal.
+  }
+}
+
 async function listAnimals(cuentaGanaderaId, filters = {}) {
   const where = {
     unidadRega: {
       cuentaGanaderaId
     }
   };
+
+  const definitiveFilter = wantsDefinitiveEarTagFilter(filters);
+  const definitiveIds = definitiveFilter === null
+    ? null
+    : await definitiveEarTagAnimalIds(cuentaGanaderaId, definitiveFilter);
+
+  if (definitiveIds) {
+    where.id = {
+      in: definitiveIds
+    };
+  }
 
   if (filters.search) {
     const search = String(filters.search).trim();
@@ -87,13 +153,21 @@ async function listAnimals(cuentaGanaderaId, filters = {}) {
     where.estadoRegistro = filters.estadoRegistro;
   }
 
-  return prisma.animal.findMany({
+  const animals = await prisma.animal.findMany({
     where,
     include: getAnimalInclude(),
     orderBy: {
       crotal: 'asc'
     }
   });
+
+  if (definitiveFilter !== null && !definitiveIds) {
+    return animals.filter((animal) => (
+      definitiveFilter ? !isLikelyProvisionalOffspring(animal) : isLikelyProvisionalOffspring(animal)
+    ));
+  }
+
+  return animals;
 }
 
 async function getAnimalById(id, cuentaGanaderaId) {
@@ -110,6 +184,7 @@ async function getAnimalById(id, cuentaGanaderaId) {
         select: {
           id: true,
           crotal: true,
+          crotalDefinitivo: true,
           numeroInterno: true,
           sexo: true,
           fechaNacimiento: true
@@ -119,6 +194,7 @@ async function getAnimalById(id, cuentaGanaderaId) {
         select: {
           id: true,
           crotal: true,
+          crotalDefinitivo: true,
           numeroInterno: true,
           sexo: true,
           fechaNacimiento: true
@@ -196,7 +272,7 @@ async function createAnimal(data, cuentaGanaderaId) {
     throw new AppError('Ya existe un animal con ese crotal en esta unidad REGA', 409);
   }
 
-  return prisma.animal.create({
+  const animal = await prisma.animal.create({
     data: {
       crotal,
       numeroInterno: data.numeroInterno || null,
@@ -224,6 +300,13 @@ async function createAnimal(data, cuentaGanaderaId) {
     },
     include: getAnimalInclude()
   });
+
+  if (data.crotalDefinitivo !== undefined) {
+    await setDefinitiveEarTagRaw(animal.id, parseBoolean(data.crotalDefinitivo));
+    return getAnimalById(animal.id, cuentaGanaderaId);
+  }
+
+  return animal;
 }
 
 async function updateAnimal(id, data, cuentaGanaderaId) {
@@ -339,7 +422,7 @@ async function updateAnimal(id, data, cuentaGanaderaId) {
   }
 
   if (updateData.estadoRegistro === 'BAJA') {
-    return prisma.$transaction(async (tx) => {
+    const dischargedAnimal = await prisma.$transaction(async (tx) => {
       const animal = await tx.animal.update({
         where: {
           id
@@ -371,15 +454,29 @@ async function updateAnimal(id, data, cuentaGanaderaId) {
 
       return animal;
     });
+
+    if (data.crotalDefinitivo !== undefined) {
+      await setDefinitiveEarTagRaw(id, parseBoolean(data.crotalDefinitivo));
+      return getAnimalById(id, cuentaGanaderaId);
+    }
+
+    return dischargedAnimal;
   }
 
-  return prisma.animal.update({
+  const updatedAnimal = await prisma.animal.update({
     where: {
       id
     },
     data: updateData,
     include: getAnimalInclude()
   });
+
+  if (data.crotalDefinitivo !== undefined) {
+    await setDefinitiveEarTagRaw(updatedAnimal.id, parseBoolean(data.crotalDefinitivo));
+    return getAnimalById(updatedAnimal.id, cuentaGanaderaId);
+  }
+
+  return updatedAnimal;
 }
 
 module.exports = {

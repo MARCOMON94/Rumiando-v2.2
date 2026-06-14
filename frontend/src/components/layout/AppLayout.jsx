@@ -379,9 +379,38 @@ export default function AppLayout() {
           </div>
         </div>
 
+        <div className="sidebar-reader-actions" aria-label="Acciones rápidas con lector">
+          <button
+            type="button"
+            className={silentReader.active && silentReader.action === 'lookup' ? 'active' : ''}
+            onClick={() => activateSilentReader('lookup')}
+          >
+            Buscar crotal
+          </button>
+          <button
+            type="button"
+            className={silentReader.active && silentReader.action === 'parto' ? 'active parto' : 'parto'}
+            onClick={() => activateSilentReader('parto')}
+          >
+            Parto
+          </button>
+          <button
+            type="button"
+            className={silentReader.active && silentReader.action === 'baja' ? 'active baja' : 'baja'}
+            onClick={() => activateSilentReader('baja')}
+          >
+            Baja
+          </button>
+        </div>
+
         <nav className="sidebar-nav">
-          <NavLink to="/dashboard" onClick={guardedNavClick('/dashboard')}>Dashboard</NavLink>
+          <NavLink to="/home" onClick={guardedNavClick('/home')}>Inicio</NavLink>
+          <NavLink to="/dashboard" onClick={guardedNavClick('/dashboard')}>Estadisticas</NavLink>
+          <NavLink to="/offspring" onClick={guardedNavClick('/offspring')}>Cria</NavLink>
           <NavLink to="/animals" onClick={guardedNavClick('/animals')}>Animales</NavLink>
+          <NavLink to="/operations/movement" onClick={guardedNavClick('/operations/movement')}>Movimiento de corral</NavLink>
+          <NavLink to="/operations/reproductive" onClick={guardedNavClick('/operations/reproductive')}>Estado reproductivo</NavLink>
+          <NavLink to="/operations/health" onClick={guardedNavClick('/operations/health')}>Evento sanitario</NavLink>
           <NavLink to="/reminders" onClick={guardedNavClick('/reminders')}>Avisos</NavLink>
 
           <NavLink
@@ -394,7 +423,6 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink to="/pens" onClick={guardedNavClick('/pens')}>Corrales</NavLink>
-          <NavLink to="/health" onClick={guardedNavClick('/health')}>Sanidad</NavLink>
           <NavLink to="/movements" onClick={guardedNavClick('/movements')}>Movimientos</NavLink>
           <NavLink to="/ai-chat" onClick={guardedNavClick('/ai-chat')}>Asistente IA</NavLink>
 

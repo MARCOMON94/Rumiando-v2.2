@@ -8,7 +8,13 @@ function defaultExtractCodes(raw) {
 }
 
 function defaultShouldIgnoreTarget(target) {
-  return Boolean(target?.closest?.('[data-reader-manual="true"], [data-reader-ignore="true"]'));
+  const element = target?.closest?.(
+    '[data-reader-manual="true"], [data-reader-ignore="true"], input, textarea, select, [contenteditable="true"]'
+  );
+
+  if (!element) return false;
+
+  return element.getAttribute?.('data-reader-capture') !== 'true';
 }
 
 export default function useReaderCapture({
@@ -17,6 +23,7 @@ export default function useReaderCapture({
   extractCodes = defaultExtractCodes,
   onCodes,
   onEscape,
+  shouldCaptureIgnoredPaste,
   shouldIgnoreTarget = defaultShouldIgnoreTarget,
   shouldPause
 }) {
@@ -26,6 +33,7 @@ export default function useReaderCapture({
     extractCodes,
     onCodes,
     onEscape,
+    shouldCaptureIgnoredPaste,
     shouldIgnoreTarget,
     shouldPause
   });
@@ -35,10 +43,11 @@ export default function useReaderCapture({
       extractCodes,
       onCodes,
       onEscape,
+      shouldCaptureIgnoredPaste,
       shouldIgnoreTarget,
       shouldPause
     };
-  }, [extractCodes, onCodes, onEscape, shouldIgnoreTarget, shouldPause]);
+  }, [extractCodes, onCodes, onEscape, shouldCaptureIgnoredPaste, shouldIgnoreTarget, shouldPause]);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -111,10 +120,16 @@ export default function useReaderCapture({
 
     function handleCapturePaste(event) {
       if (isPaused()) return;
-      if (callbacksRef.current.shouldIgnoreTarget?.(event.target)) return;
 
       const pasted = event.clipboardData?.getData('text');
       if (!pasted) return;
+
+      if (
+        callbacksRef.current.shouldIgnoreTarget?.(event.target)
+        && !callbacksRef.current.shouldCaptureIgnoredPaste?.(pasted, event)
+      ) {
+        return;
+      }
 
       stopReaderEvent(event);
       resetBuffer();

@@ -115,7 +115,7 @@
 
 .chat-composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.75rem;
   align-items: end;
   padding: 1rem;
@@ -133,6 +133,63 @@
 .chat-composer button {
   min-width: 112px;
   min-height: 44px;
+}
+
+.voice-hold-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 150px;
+  border: 1px solid rgba(63, 107, 75, 0.18);
+  background: var(--color-secondary);
+  color: var(--color-primary-dark);
+  box-shadow: none;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.voice-hold-button span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.75;
+}
+
+.voice-hold-button.recording {
+  background: #f97316;
+  color: var(--color-white);
+  box-shadow: 0 14px 30px rgba(249, 115, 22, 0.25);
+}
+
+.voice-hold-button.recording span {
+  animation: voicePulse 0.85s ease-in-out infinite;
+}
+
+.voice-transcript {
+  margin: 0 1rem 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  border-radius: var(--radius-md);
+  background: rgba(249, 115, 22, 0.09);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+@keyframes voicePulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 1;
+  }
 }
 
 .chat-side-panel {
@@ -184,6 +241,46 @@
   line-height: 1.5;
 }
 
+.app-modal.ai-action-modal {
+  width: min(94vw, 520px);
+  max-height: min(92vh, 900px);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.app-modal.ai-action-modal .app-modal-header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 4;
+  display: block;
+  padding: 0;
+}
+
+.app-modal.ai-action-modal .app-modal-header > div {
+  display: none;
+}
+
+.app-modal.ai-action-modal .app-modal-close {
+  top: 0.55rem;
+  right: 0.55rem;
+}
+
+.app-modal.ai-action-modal .app-modal-body {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ai-action-frame {
+  display: block;
+  width: 100%;
+  height: min(72vh, 720px);
+  border: 0;
+  border-radius: inherit;
+  background: var(--color-bg);
+}
+
 @media (max-width: 980px) {
   .chat-layout {
     grid-template-columns: 1fr;
@@ -210,5 +307,13 @@
 
   .chat-composer button {
     width: 100%;
+  }
+
+  .app-modal.ai-action-modal {
+    width: min(96vw, 430px);
+  }
+
+  .ai-action-frame {
+    height: 68vh;
   }
 }

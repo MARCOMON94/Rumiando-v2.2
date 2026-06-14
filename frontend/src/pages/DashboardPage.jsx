@@ -218,6 +218,7 @@ export default function DashboardPage() {
       filters: {
         ...current.filters,
         [name]: value,
+        ...(name === 'unidadRegaId' ? { especieId: '', razaId: '' } : {}),
         ...(name === 'especieId' ? { razaId: '' } : {})
       }
     }));
@@ -346,7 +347,7 @@ export default function DashboardPage() {
           <select value={query.filters.unidadRegaId} onChange={(event) => setFilter('unidadRegaId', event.target.value)}>
             <option value="">Todas</option>
             {(options?.farmUnits || []).map((unit) => (
-              <option key={unit.id} value={unit.id}>{farmUnitLabel(unit)}</option>
+              <option key={unit.id} value={unit.id}>{unit.nombre || unit.codigoRega || farmUnitLabel(unit)}</option>
             ))}
           </select>
         </label>
@@ -374,25 +375,29 @@ export default function DashboardPage() {
           </select>
         </label>
 
-        <label>
-          Especie
-          <select value={query.filters.especieId} onChange={(event) => setFilter('especieId', event.target.value)}>
-            <option value="">Todas</option>
-            {(options?.species || []).map((species) => (
-              <option key={species.id} value={species.id}>{species.nombre}</option>
-            ))}
-          </select>
-        </label>
+        {!query.filters.unidadRegaId && (
+          <>
+            <label>
+              Especie
+              <select value={query.filters.especieId} onChange={(event) => setFilter('especieId', event.target.value)}>
+                <option value="">Todas</option>
+                {(options?.species || []).map((species) => (
+                  <option key={species.id} value={species.id}>{species.nombre}</option>
+                ))}
+              </select>
+            </label>
 
-        <label>
-          Raza
-          <select value={query.filters.razaId} onChange={(event) => setFilter('razaId', event.target.value)}>
-            <option value="">Todas</option>
-            {availableBreeds.map((breed) => (
-              <option key={breed.id} value={breed.id}>{breed.nombre}</option>
-            ))}
-          </select>
-        </label>
+            <label>
+              Raza
+              <select value={query.filters.razaId} onChange={(event) => setFilter('razaId', event.target.value)}>
+                <option value="">Todas</option>
+                {availableBreeds.map((breed) => (
+                  <option key={breed.id} value={breed.id}>{breed.nombre}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
 
         <label>
           Sexo

@@ -406,6 +406,7 @@ model Corral {
 model Animal {
   id              Int                  @id @default(autoincrement())
   crotal          String
+  crotalDefinitivo Boolean             @default(true)
   numeroInterno   String?
   sexo            SexoAnimal
   fechaNacimiento DateTime?

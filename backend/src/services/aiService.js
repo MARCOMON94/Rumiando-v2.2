@@ -77,6 +77,86 @@ async function chat(body, authorization) {
   });
 }
 
+function audioFilenameForMimeType(mimeType = '') {
+  const clean = String(mimeType || '').toLowerCase();
+  if (clean.includes('mp4') || clean.includes('m4a')) return 'rumiando-voice.m4a';
+  if (clean.includes('mpeg') || clean.includes('mp3')) return 'rumiando-voice.mp3';
+  if (clean.includes('wav')) return 'rumiando-voice.wav';
+  if (clean.includes('ogg')) return 'rumiando-voice.ogg';
+  return 'rumiando-voice.webm';
+}
+
+
+async function transcribeAudio(audioBuffer, options = {}) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new AppError('La transcripcion por voz no esta configurada en este entorno', 503);
+  }
+
+  if (!audioBuffer?.length) {
+    throw new AppError('No se recibio audio para transcribir', 400);
+  }
+
+  if (typeof fetch !== 'function' || typeof FormData !== 'function' || typeof Blob !== 'function') {
+    throw new AppError('La transcripcion requiere una version de Node con fetch, FormData y Blob', 500);
+  }
+
+  const mimeType = options.mimeType || 'audio/webm';
+  const formData = new FormData();
+  const blob = new Blob([audioBuffer], { type: mimeType });
+
+  formData.append('file', blob, options.filename || audioFilenameForMimeType(mimeType));
+  formData.append('model', process.env.OPENAI_TRANSCRIPTION_MODEL || 'whisper-1');
+  formData.append('language', options.language || 'es');
+  formData.append('response_format', 'json');
+
+  const controller = new AbortController();
+  const timeoutMs = Number(process.env.OPENAI_TRANSCRIPTION_TIMEOUT_MS || 15000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: formData,
+      signal: controller.signal
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    const data = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+
+    if (!response.ok) {
+      const message = data?.error?.message || data?.message || 'No se pudo transcribir el audio';
+      throw new AppError(message, response.status);
+    }
+
+    const text = String(data?.text || '').trim();
+    if (!text) {
+      throw new AppError('No se entendio ningun texto en el audio', 422);
+    }
+
+    return {
+      text,
+      model: process.env.OPENAI_TRANSCRIPTION_MODEL || 'whisper-1'
+    };
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    if (err.name === 'AbortError') {
+      throw new AppError('La transcripcion de voz no respondio a tiempo', 504);
+    }
+
+    throw new AppError(`No se pudo transcribir el audio: ${err.message}`, 502);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 
 async function getHistory(conversationId, authorization) {
   return requestAi(`/api/chat/history/${encodeURIComponent(conversationId)}`, {
@@ -115,6 +195,7 @@ async function normalizeSanitaryTerm(body, authorization) {
 module.exports = {
   getHealth,
   chat,
+  transcribeAudio,
   getHistory,
   getUnresolvedQuestions,
   getLearningWeeklySummary,

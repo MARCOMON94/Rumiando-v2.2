@@ -13,6 +13,7 @@ function authMiddleware(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
     req.user = payload;
+    req.authToken = token;
 
     next();
   } catch (err) {

@@ -23,6 +23,7 @@ import AnimalWatchlistPage from './pages/AnimalWatchlistPage';
 import BirthNewPage from './pages/BirthNewPage';
 import AnimalDischargePage from './pages/AnimalDischargePage';
 import OperationFlowPage from './pages/OperationFlowPage';
+import OffspringPage from './pages/OffspringPage';
 
 export default function App() {
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/animals/:id" element={<AnimalDetailPage />} />
         <Route path="/animals/:id/discharge" element={<AnimalDischargePage />} />
         <Route path="/birth/new/:motherId" element={<BirthNewPage />} />
+        <Route path="/offspring" element={<OffspringPage />} />
         <Route path="/operations/:type" element={<OperationFlowPage />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/pens" element={<PensPage />} />
@@ -66,6 +68,15 @@ export default function App() {
         <Route path="/ai-vet" element={<Navigate to="/ai-chat" replace />} />
         <Route path="/ai-manager" element={<Navigate to="/ai-chat" replace />} />
       </Route>
+
+      <Route
+        path="/ai-chat/operation/:type"
+        element={(
+          <ProtectedRoute>
+            <OperationFlowPage />
+          </ProtectedRoute>
+        )}
+      />
 
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="*" element={<Navigate to="/home" replace />} />

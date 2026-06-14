@@ -86,7 +86,20 @@ MOVEMENT_PLACE_TERMS = [
 def normalize_text(text):
     text = unicodedata.normalize("NFKD", text)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    return text.lower()
+    text = text.lower()
+    replacements = [
+        ("bacun", "vacun"),
+        ("vacnu", "vacun"),
+        ("vacn", "vacun"),
+        ("vacunacin", "vacunacion"),
+        ("desparacit", "desparasit"),
+        ("inseminao", "inseminado"),
+        ("a parido", "ha parido"),
+        ("ha pario", "ha parido"),
+    ]
+    for before, after in replacements:
+        text = text.replace(before, after)
+    return text
 
 
 def _contains_any(normalized, terms):
@@ -141,6 +154,15 @@ def _is_app_action_request(normalized):
     if _contains_any(normalized, ["dar de baja", "da de baja", "baja a", "baja el", "baja la"]):
         return True
 
+    if _contains_any(normalized, [
+        "acaba de parir", "acabo de parir", "ha parido", "pario",
+        "recien parida", "ha tenido cria", "ha tenido crias",
+        "se ha muerto", "se murio", "ha muerto", "esta muerto",
+        "esta muerta", "murio", "muerte", "fallecio", "fallecido", "fallecida",
+        "he inseminado", "inseminado", "insemine", "cubri", "echar macho"
+    ]):
+        return True
+
     place_pattern = "|".join(re.escape(term) for term in MOVEMENT_PLACE_TERMS)
     if re.search(
         rf"\b(?:de|desde)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?:{place_pattern})\s+(?:a|al|hacia|para)\s+(?:el\s+)?(?:corral\s+|lote\s+)?(?:{place_pattern})\b",
@@ -151,7 +173,7 @@ def _is_app_action_request(normalized):
     movement_words = [
         "mover", "mueve", "muevo", "traslada", "trasladar", "pasar",
         "pasa", "pasa al", "pasa a", "mete", "meter", "aparta", "apartar",
-        "cambiar", "cambia",
+        "cambiar", "cambia", "cambias", "cambiamos",
         "cambiar de sitio", "cambia de sitio", "cambio de sitio",
         "cambiar ovejas de sitio", "cambiar cabras de sitio"
     ]
@@ -165,7 +187,7 @@ def _is_app_action_request(normalized):
         return True
 
     direct_action = re.search(
-        r"\b(crea|crear|borra|borrar|actualiza|actualizar|registra|registrar|anade|anadir|guarda|guardar|alta|nuevo|nueva|modifica|modificar|cambia|cambiar|abre|abrir|cierra|cerrar|completa|completar|pospone|posponer|exporta|exportar|envia|enviar|pon|poner|aplica|aplicar|vacuna|vacunar|vacune|vacunado|medica|medicar|trata|tratar|desparasita|desparasitar)\b",
+        r"\b(crea|crear|borra|borrar|actualiza|actualizar|registra|registrar|anade|anadir|guarda|guardar|alta|nuevo|nueva|modifica|modificar|cambia|cambiar|cambias|abre|abrir|cierra|cerrar|completa|completar|pospone|posponer|exporta|exportar|envia|enviar|pon|poner|aplica|aplicar|vacuna|vacunar|vacune|vacunado|medica|medicar|trata|tratar|desparasita|desparasitar|inseminar|inseminado|insemine|cubrir|cubri)\b",
         normalized
     )
     if direct_action and has_app_context:
@@ -224,7 +246,9 @@ def classify_intent(message, triage=None):
     ):
         return IntentResult(kind="app_action", reason="movimiento de app con contexto de corral", requires_confirmation=True)
 
-    # Sanidad gana prioridad de respuesta; la accion queda solo como confirmacion pendiente.
+    if action:
+        return IntentResult(kind="app_action", reason="accion de app con contexto", requires_confirmation=True)
+
     if _is_health_question(normalized, triage):
         return IntentResult(
             kind="veterinary",
@@ -239,8 +263,5 @@ def classify_intent(message, triage=None):
             reason="manejo o convivencia entre especies",
             search_query="manejo convivencia especies bioseguridad cuarentena aves perros gatos equinos ovino caprino"
         )
-
-    if action:
-        return IntentResult(kind="app_action", reason="accion de app con contexto", requires_confirmation=True)
 
     return IntentResult(kind="general", reason="consulta general")

@@ -133,6 +133,21 @@ function guessField(header) {
   return 'ignore';
 }
 
+function suggestedImportMap(headers) {
+  const next = {};
+  for (const header of headers) {
+    const field = guessField(header);
+    if (field !== 'ignore' && !next[field]) {
+      next[field] = header;
+    }
+  }
+  return next;
+}
+
+function importFieldOptions() {
+  return FIELD_OPTIONS.filter(([value]) => value !== 'ignore');
+}
+
 function normalizeSex(value) {
   const normalized = normalizeHeader(value);
   if (['h', 'hembra', 'f', 'female'].includes(normalized)) return 'HEMBRA';
@@ -177,6 +192,8 @@ export default function AddAnimalsSettingsPanel() {
   const [sex, setSex] = useState('HEMBRA');
   const [birthParts, setBirthParts] = useState(initialBirthParts);
   const [readerItems, setReaderItems] = useState([]);
+  const [flashKey, setFlashKey] = useState(0);
+  const [readerActivationFallback, setReaderActivationFallback] = useState(false);
   const [readerMessage, setReaderMessage] = useState('Pasa crotales y se irán añadiendo a la lista.');
   const [fileRows, setFileRows] = useState([]);
   const [fileHeaders, setFileHeaders] = useState([]);
@@ -189,6 +206,19 @@ export default function AddAnimalsSettingsPanel() {
   const years = Array.from({ length: 11 }, (_, index) => currentYear - index);
   const selectedUnit = catalogs.farmUnits.find((unit) => String(unit.id) === String(unitId));
   const selectedPen = catalogs.pens.find((pen) => String(pen.id) === String(penId));
+
+  const focusReader = useCallback(function focusReader() {
+    if (mode !== 'reader') return;
+    window.setTimeout(() => {
+      const target = readerInputRef.current;
+      if (!target) return;
+
+      target.focus({ preventScroll: true });
+      if (document.activeElement === target) {
+        setReaderActivationFallback(false);
+      }
+    }, 0);
+  }, [mode]);
 
   const pensForUnit = useMemo(() => {
     if (!unitId) return [];
@@ -213,13 +243,25 @@ export default function AddAnimalsSettingsPanel() {
   useEffect(() => {
     if (mode !== 'reader') return undefined;
 
-    function focusReader() {
-      window.setTimeout(() => readerInputRef.current?.focus(), 0);
-    }
-
+    setReaderActivationFallback(false);
     focusReader();
-    return () => window.clearTimeout(readerTimerRef.current);
-  }, [mode]);
+    const timer = window.setTimeout(() => {
+      const target = readerInputRef.current;
+      const activeElement = document.activeElement;
+      const activeIsManualField = activeElement?.closest?.(
+        'input:not([data-reader-capture="true"]), textarea, select, [contenteditable="true"]'
+      );
+
+      if (target && activeElement !== target && !activeIsManualField) {
+        setReaderActivationFallback(true);
+      }
+    }, 650);
+
+    return () => {
+      window.clearTimeout(readerTimerRef.current);
+      window.clearTimeout(timer);
+    };
+  }, [focusReader, mode]);
 
   function setBirthField(name, value) {
     setBirthParts((current) => ({
@@ -251,13 +293,17 @@ export default function AddAnimalsSettingsPanel() {
     setReaderMessage(added
       ? `${added} añadido${added === 1 ? '' : 's'}${repeated ? ` · ${repeated} repetido${repeated === 1 ? '' : 's'}` : ''}`
       : 'Pasa crotales y se irán añadiendo a la lista.');
+    if (added > 0) {
+      setFlashKey((current) => current + 1);
+    }
   }, [sex]);
 
   useReaderCapture({
     active: mode === 'reader',
     delay: 160,
     extractCodes,
-    onCodes: addCodes
+    onCodes: addCodes,
+    shouldCaptureIgnoredPaste: (pasted) => extractCodes(pasted).length > 0
   });
 
   function flushReaderBuffer() {
@@ -402,22 +448,15 @@ export default function AddAnimalsSettingsPanel() {
 
     setFileHeaders(headers);
     setFileRows(parsed);
-    setColumnMap(Object.fromEntries(headers.map((header) => [header, guessField(header)])));
+    setColumnMap(suggestedImportMap(headers));
   }
 
   function mappedFileItems() {
-    const fieldToHeader = {};
-    for (const [header, field] of Object.entries(columnMap)) {
-      if (field !== 'ignore' && !fieldToHeader[field]) {
-        fieldToHeader[field] = header;
-      }
-    }
-
     return fileRows.map((row) => ({
-      crotal: normalizeCode(row[fieldToHeader.crotal]),
-      sexo: normalizeSex(row[fieldToHeader.sexo]),
-      fechaNacimiento: normalizeDate(row[fieldToHeader.fechaNacimiento], buildDate(birthParts)),
-      numeroInterno: fieldToHeader.numeroInterno ? row[fieldToHeader.numeroInterno] : ''
+      crotal: normalizeCode(row[columnMap.crotal]),
+      sexo: columnMap.sexo ? normalizeSex(row[columnMap.sexo]) : sex,
+      fechaNacimiento: normalizeDate(row[columnMap.fechaNacimiento], buildDate(birthParts)),
+      numeroInterno: columnMap.numeroInterno ? row[columnMap.numeroInterno] : ''
     })).filter((row) => row.crotal);
   }
 
@@ -436,6 +475,8 @@ export default function AddAnimalsSettingsPanel() {
 
   return (
     <div className="settings-add-animals-panel">
+      {flashKey > 0 && <span key={flashKey} className="watchlist-screen-flash reader-green-flash" aria-hidden="true" />}
+
       <section className="settings-subform">
         <div className="form-grid">
           <label>
@@ -448,7 +489,14 @@ export default function AddAnimalsSettingsPanel() {
 
           <label>
             REGA
-            <select value={unitId} onChange={(event) => setUnitId(event.target.value)} required>
+            <select
+              value={unitId}
+              onChange={(event) => {
+                setUnitId(event.target.value);
+                focusReader();
+              }}
+              required
+            >
               <option value="">Selecciona REGA</option>
               {catalogs.farmUnits.map((unit) => (
                 <option key={unit.id} value={unit.id}>{farmUnitLabel(unit)}</option>
@@ -458,7 +506,14 @@ export default function AddAnimalsSettingsPanel() {
 
           <label>
             Corral inicial
-            <select value={penId} onChange={(event) => setPenId(event.target.value)} required>
+            <select
+              value={penId}
+              onChange={(event) => {
+                setPenId(event.target.value);
+                focusReader();
+              }}
+              required
+            >
               <option value="">Selecciona corral</option>
               {pensForUnit.map((pen) => (
                 <option key={pen.id} value={pen.id}>{pen.nombre}</option>
@@ -474,7 +529,13 @@ export default function AddAnimalsSettingsPanel() {
         <div className="form-grid">
           <label>
             Día
-            <select value={birthParts.day} onChange={(event) => setBirthField('day', event.target.value)}>
+            <select
+              value={birthParts.day}
+              onChange={(event) => {
+                setBirthField('day', event.target.value);
+                focusReader();
+              }}
+            >
               {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
                 <option key={day} value={day}>{day}</option>
               ))}
@@ -482,7 +543,13 @@ export default function AddAnimalsSettingsPanel() {
           </label>
           <label>
             Mes
-            <select value={birthParts.month} onChange={(event) => setBirthField('month', event.target.value)}>
+            <select
+              value={birthParts.month}
+              onChange={(event) => {
+                setBirthField('month', event.target.value);
+                focusReader();
+              }}
+            >
               {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
                 <option key={month} value={month}>{month}</option>
               ))}
@@ -490,7 +557,13 @@ export default function AddAnimalsSettingsPanel() {
           </label>
           <label>
             Año
-            <select value={birthParts.year} onChange={(event) => setBirthField('year', event.target.value)}>
+            <select
+              value={birthParts.year}
+              onChange={(event) => {
+                setBirthField('year', event.target.value);
+                focusReader();
+              }}
+            >
               {years.map((year) => (
                 <option key={year} value={year}>{year}</option>
               ))}
@@ -504,9 +577,11 @@ export default function AddAnimalsSettingsPanel() {
           <input
             ref={readerInputRef}
             className="batch-reader-input"
+            data-reader-capture="true"
             aria-label="Lector para añadir animales"
             inputMode="none"
             autoComplete="off"
+            onFocus={() => setReaderActivationFallback(false)}
             onKeyDown={handleReaderKeyDown}
             onPaste={(event) => {
               event.preventDefault();
@@ -517,10 +592,25 @@ export default function AddAnimalsSettingsPanel() {
             <span className="batch-reader-dot" aria-hidden="true" />
             <strong>Lector activo</strong>
             <p>{readerMessage}</p>
+            {readerActivationFallback && (
+              <button
+                type="button"
+                className="batch-reader-activate"
+                onClick={focusReader}
+              >
+                Activar lector
+              </button>
+            )}
           </div>
           <label>
             Sexo por defecto
-            <select value={sex} onChange={(event) => setSex(event.target.value)}>
+            <select
+              value={sex}
+              onChange={(event) => {
+                setSex(event.target.value);
+                focusReader();
+              }}
+            >
               {SEX_OPTIONS.map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
@@ -534,7 +624,13 @@ export default function AddAnimalsSettingsPanel() {
                 <article className="batch-animal-row" key={item.crotal}>
                   <div>
                     <strong>{item.crotal}</strong>
-                    <select value={item.sexo} onChange={(event) => updateReaderItem(item.crotal, 'sexo', event.target.value)}>
+                    <select
+                      value={item.sexo}
+                      onChange={(event) => {
+                        updateReaderItem(item.crotal, 'sexo', event.target.value);
+                        focusReader();
+                      }}
+                    >
                       {SEX_OPTIONS.map(([value, label]) => (
                         <option key={value} value={value}>{label}</option>
                       ))}
@@ -562,20 +658,27 @@ export default function AddAnimalsSettingsPanel() {
           </p>
           {fileHeaders.length > 0 && (
             <div className="settings-import-map">
-              {fileHeaders.map((header) => (
-                <label key={header}>
-                  {header}
+              {importFieldOptions().map(([field, label]) => (
+                <label key={field}>
+                  <span>
+                    {label}
+                    {field === 'crotal' && <strong> obligatorio</strong>}
+                  </span>
                   <select
-                    value={columnMap[header] || 'ignore'}
+                    value={columnMap[field] || ''}
                     onChange={(event) => setColumnMap((current) => ({
                       ...current,
-                      [header]: event.target.value
+                      [field]: event.target.value
                     }))}
                   >
-                    {FIELD_OPTIONS.map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+                    <option value="">Sin columna</option>
+                    {fileHeaders.map((header) => (
+                      <option key={header} value={header}>{header}</option>
                     ))}
                   </select>
+                  {field === 'sexo' && <small>Si lo dejas vacío, se usará el sexo por defecto.</small>}
+                  {field === 'fechaNacimiento' && <small>Si lo dejas vacío, se usará la fecha por defecto.</small>}
+                  {field === 'numeroInterno' && <small>Opcional.</small>}
                 </label>
               ))}
             </div>

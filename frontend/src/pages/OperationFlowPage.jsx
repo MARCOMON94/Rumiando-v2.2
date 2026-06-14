@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { get, post } from '../api/apiClient';
 import { useCatalogs } from '../context/CatalogsContext';
 import AppModal from '../components/ui/AppModal';
@@ -242,9 +242,12 @@ function dewormingTypeToBackend(value) {
 
 export default function OperationFlowPage() {
   const { type } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const operationType = OPERATION_META[type] ? type : 'movement';
   const meta = OPERATION_META[operationType];
+  const embedded = searchParams.get('embedded') === '1';
   const { catalogs, loading: loadingCatalogs, error: catalogsError, loadCatalogs } = useCatalogs();
 
   const readerInputRef = useRef(null);
@@ -264,6 +267,8 @@ export default function OperationFlowPage() {
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [pendingNormalization, setPendingNormalization] = useState(null);
   const [result, setResult] = useState(null);
+  const [flashKey, setFlashKey] = useState(0);
+  const [readerActivationFallback, setReaderActivationFallback] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState(createInitialFormData);
@@ -378,9 +383,21 @@ export default function OperationFlowPage() {
 
   const focusReader = useCallback(function focusReader() {
     window.setTimeout(() => {
-      readerInputRef.current?.focus();
+      if (embedded) {
+        window.focus();
+        setReaderActivationFallback(false);
+        return;
+      }
+
+      const target = readerInputRef.current;
+      if (!target) return;
+
+      target.focus({ preventScroll: true });
+      if (document.activeElement === target) {
+        setReaderActivationFallback(false);
+      }
     }, 0);
-  }, []);
+  }, [embedded]);
 
   const resetReaderBuffer = useCallback(function resetReaderBuffer() {
     window.clearTimeout(readerTimerRef.current);
@@ -428,8 +445,7 @@ export default function OperationFlowPage() {
 
       return next;
     });
-    focusReader();
-  }, [catalogs.dewormers, catalogs.diseases, catalogs.pens, focusReader]);
+  }, [catalogs.dewormers, catalogs.diseases, catalogs.pens]);
 
   const addCodes = useCallback(function addCodes(rawCodes) {
     const codes = Array.isArray(rawCodes) ? rawCodes : extractCodes(rawCodes);
@@ -497,6 +513,9 @@ export default function OperationFlowPage() {
     if (wrongUnitCount) parts.push(`${wrongUnitCount} de otra REGA`);
 
     setReaderMessage(parts.length ? parts.join(' · ') : 'Pasa crotales y se irán añadiendo a la lista.');
+    if (addedCount > 0) {
+      setFlashKey((current) => current + 1);
+    }
     focusReader();
   }, [animalsByCode, focusReader, formData.unidadRegaId]);
 
@@ -535,6 +554,7 @@ export default function OperationFlowPage() {
     delay: 160,
     extractCodes,
     onCodes: addCodes,
+    shouldCaptureIgnoredPaste: (pasted) => extractCodes(pasted).length > 0,
     shouldPause: () => silentReaderActiveRef.current
   });
 
@@ -677,18 +697,60 @@ export default function OperationFlowPage() {
       }
 
       window.sessionStorage.removeItem(key);
+      focusReader();
     } catch {
       setAiDraftMeta(null);
+      focusReader();
     }
   }, [
     addCodes,
     catalogs.pens,
     catalogs.reproductiveStatuses,
+    focusReader,
     loadingCatalogs,
     loadingData,
     operationType,
     searchParams
   ]);
+
+  useEffect(() => {
+    if (loadingCatalogs || loadingData) return;
+    focusReader();
+  }, [focusReader, loadingCatalogs, loadingData, operationType]);
+
+  useEffect(() => {
+    if (loadingCatalogs || loadingData) return undefined;
+
+    setReaderActivationFallback(false);
+    focusReader();
+
+    const timer = window.setTimeout(() => {
+      const target = readerInputRef.current;
+      const activeElement = document.activeElement;
+      const activeIsManualField = activeElement?.closest?.(
+        'input:not([data-reader-capture="true"]), textarea, select, [contenteditable="true"]'
+      );
+
+      if (
+        !embedded
+        && target
+        && activeElement !== target
+        && !activeIsManualField
+        && !silentReaderActiveRef.current
+      ) {
+        setReaderActivationFallback(true);
+        return;
+      }
+
+      if (embedded && !document.hasFocus() && !activeIsManualField && !silentReaderActiveRef.current) {
+        setReaderActivationFallback(true);
+      }
+    }, 650);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [embedded, focusReader, loadingCatalogs, loadingData, operationType]);
 
   useEffect(() => {
     if (!restoredDraftRef.current) return;
@@ -788,8 +850,12 @@ export default function OperationFlowPage() {
   }, [shouldBlockNavigation]);
 
   function handleChange(event) {
-    const { name, type: inputType, checked, value } = event.target;
+    const { name, type: inputType, checked, value, tagName } = event.target;
+    const shouldRestoreReaderFocus = tagName === 'SELECT' || inputType === 'checkbox';
     setField(name, inputType === 'checkbox' ? checked : value);
+    if (shouldRestoreReaderFocus) {
+      focusReader();
+    }
   }
 
   function askRemoveAnimal(animal) {
@@ -816,12 +882,38 @@ export default function OperationFlowPage() {
   }
 
   function buildSummary(successCount, failures) {
-    setResult({
+    const summary = {
       successCount,
       failedCount: failures.length,
       failures
-    });
+    };
+
+    setResult(summary);
     window.sessionStorage.removeItem(draftStorageKey(operationType));
+    return summary;
+  }
+
+  function closeOperationAfterSuccess() {
+    setSelectedAnimals([]);
+    setResult(null);
+    setReaderMessage('Pasa crotales y se irán añadiendo a la lista.');
+
+    if (embedded && window.parent && window.parent !== window) {
+      window.setTimeout(() => {
+        window.parent.postMessage({
+          type: 'rumiando:ai-operation-complete',
+          operationType
+        }, window.location.origin);
+      }, 120);
+      return;
+    }
+
+    const target = location.state?.returnTo
+      || (location.state?.fromAiChat ? '/ai-chat' : '/home');
+
+    window.setTimeout(() => {
+      navigate(target, { replace: true });
+    }, 120);
   }
 
   function findById(items, id) {
@@ -996,7 +1088,7 @@ export default function OperationFlowPage() {
       }
     }
 
-    buildSummary(successCount, failures);
+    return buildSummary(successCount, failures);
   }
 
   async function createMovement(applyRule, rule) {
@@ -1044,7 +1136,7 @@ export default function OperationFlowPage() {
       failures.push(`${backendFailures} lectura${backendFailures === 1 ? '' : 's'} no encontrada${backendFailures === 1 ? '' : 's'}.`);
     }
 
-    buildSummary(successCount || selectedAnimals.length - failures.length, failures);
+    return buildSummary(successCount || selectedAnimals.length - failures.length, failures);
   }
 
   async function createHealthRecords(normalizedItem = null) {
@@ -1061,7 +1153,7 @@ export default function OperationFlowPage() {
       }
     }
 
-    buildSummary(successCount, failures);
+    return buildSummary(successCount, failures);
   }
 
   async function runOperation(applyRule = false, rule = null, normalizedItem = null) {
@@ -1069,19 +1161,21 @@ export default function OperationFlowPage() {
     setError('');
     setPendingRule(null);
     setPendingNormalization(null);
+    let shouldCloseAfterSave = false;
 
     try {
       validateCommon();
+      let operationSummary = null;
 
       if (operationType === 'movement') {
-        await createMovement(applyRule, rule);
+        operationSummary = await createMovement(applyRule, rule);
       }
 
       if (operationType === 'reproductive') {
         if (!formData.estadoResultanteId && !formData.tipoEvento) {
           throw new Error('Selecciona un estado o evento reproductivo.');
         }
-        await createReproductiveEvents(applyRule, rule);
+        operationSummary = await createReproductiveEvents(applyRule, rule);
       }
 
       if (operationType === 'health') {
@@ -1094,15 +1188,22 @@ export default function OperationFlowPage() {
         if (formData.healthType === 'disease' && !formData.enfermedadId && !formData.enfermedadTexto) {
           throw new Error('Indica la enfermedad.');
         }
-        await createHealthRecords(normalizedItem);
+        operationSummary = await createHealthRecords(normalizedItem);
       }
 
       await loadCatalogs?.();
+
+      if (operationSummary?.successCount > 0 && operationSummary.failedCount === 0) {
+        shouldCloseAfterSave = true;
+        closeOperationAfterSuccess();
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(false);
-      focusReader();
+      if (!shouldCloseAfterSave) {
+        focusReader();
+      }
     }
   }
 
@@ -1185,6 +1286,8 @@ export default function OperationFlowPage() {
 
   return (
     <section className="page batch-operation-page">
+      {flashKey > 0 && <span key={flashKey} className="watchlist-screen-flash reader-green-flash" aria-hidden="true" />}
+
       <form className="batch-operation-card" onSubmit={handleSubmit}>
         <div className="batch-operation-intro">
           <h2>{meta.title}</h2>
@@ -1194,9 +1297,11 @@ export default function OperationFlowPage() {
         <input
           ref={readerInputRef}
           className="batch-reader-input"
+          data-reader-capture="true"
           aria-label="Lector activo"
           inputMode="none"
           autoComplete="off"
+          onFocus={() => setReaderActivationFallback(false)}
           onKeyDown={(event) => {
             if (silentReaderActiveRef.current) return;
             handleReaderKeyDown(event);
@@ -1212,6 +1317,15 @@ export default function OperationFlowPage() {
           <span className="batch-reader-dot" aria-hidden="true" />
           <strong>Lector activo</strong>
           <p>{readerMessage}</p>
+          {readerActivationFallback && (
+            <button
+              type="button"
+              className="batch-reader-activate"
+              onClick={focusReader}
+            >
+              Activar lector
+            </button>
+          )}
         </div>
 
         {aiDraftTargetText && (

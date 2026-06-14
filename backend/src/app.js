@@ -201,9 +201,10 @@ app.get('/', (req, res) => {
 'GET /api/alert-settings',
 'PUT /api/alert-settings/:unidadRegaId',
 
-'GET /api/ai/health',
-'POST /api/ai/chat',
-'GET /api/ai/chat/history/:conversationId',
+  'GET /api/ai/health',
+  'POST /api/ai/chat',
+  'POST /api/ai/transcribe',
+  'GET /api/ai/chat/history/:conversationId',
 'GET /api/ai/learning/unresolved',
 'GET /api/ai/learning/weekly-summary',
 

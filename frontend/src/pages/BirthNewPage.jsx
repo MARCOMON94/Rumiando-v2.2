@@ -45,7 +45,7 @@ function provisionalTag(mother, birthDate, index) {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const childNumber = (mother?.hijosComoMadre?.length || 0) + index + 1;
-  return `${motherSuffix}${day}${month}${childNumber}`;
+  return `${day}${month}${motherSuffix}${childNumber}`;
 }
 
 function defaultOffspring(mother, birthDate, index) {
@@ -222,6 +222,7 @@ export default function BirthNewPage() {
       for (const child of offspring) {
         const created = await post('/animals', {
           crotal: child.crotal,
+          crotalDefinitivo: false,
           numeroInterno: null,
           sexo: child.sexo,
           fechaNacimiento: birthDate,

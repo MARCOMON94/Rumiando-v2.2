@@ -125,7 +125,20 @@ def _dedupe_sources_by_file(sources):
 def _normalize_message(message):
     text = unicodedata.normalize("NFKD", message)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    return text.lower()
+    text = text.lower()
+    replacements = [
+        ("bacun", "vacun"),
+        ("vacnu", "vacun"),
+        ("vacn", "vacun"),
+        ("vacunacin", "vacunacion"),
+        ("desparacit", "desparasit"),
+        ("inseminao", "inseminado"),
+        ("a parido", "ha parido"),
+        ("ha pario", "ha parido"),
+    ]
+    for before, after in replacements:
+        text = text.replace(before, after)
+    return text
 
 
 def _is_health_or_symptom_query(message):
@@ -753,8 +766,8 @@ def _build_app_query_answer(tool_calls, sources):
 
     if tool_calls:
         return (
-            "He intentado consultar datos vivos de la app, pero la tool no ha devuelto un resultado correcto. "
-            "Te dejo el detalle abajo para que sepamos si falta backend, permisos o ruta."
+            "Ahora mismo no he podido acceder a los datos de la app. Revisa que la sesion siga abierta "
+            "y vuelve a intentarlo en unos segundos. No es un problema del animal ni de tus datos."
         )
 
     if sources:
@@ -820,6 +833,23 @@ def _build_human_exposure_answer():
 def _build_specific_health_answer(message, context=None):
     normalized = _normalize_message(message)
     combined = f"{_normalize_message(context or '')}\n{normalized}"
+
+    if "lengua azul" in combined and any(term in normalized for term in [
+        "como se", "sintoma", "sintomas", "puedo tener", "la tienen",
+        "tienen", "encaja", "mirar", "revisar"
+    ]):
+        return (
+            "Para sospechar lengua azul, mira primero estos signos claros:\n"
+            "- fiebre, apatia y deja de comer\n"
+            "- babas o salivacion\n"
+            "- morro, labios o lengua hinchados; a veces azulados\n"
+            "- heridas o llagas en boca/nariz\n"
+            "- mocos o secrecion nasal\n"
+            "- cojera, dolor en pezunas o se queda echada\n"
+            "- abortos, muertes o varios animales parecidos en el lote\n\n"
+            "Si ves varios de esos signos juntos, separa los sospechosos, revisa todo el lote, no muevas animales y llama al veterinario. "
+            "En cabras puede verse mas discreto, asi que cuenta tambien animales apagados, fiebre, cojeras o abortos."
+        )
 
     if "no respira" in normalized or "ha dejado de respirar" in normalized:
         return (
@@ -1443,12 +1473,12 @@ def _build_local_answer(message, sources, tool_calls, triage, intent, context=No
     if _is_laying_question(message):
         return _build_laying_answer(message)
 
+    if intent.kind == "app_action":
+        return _build_app_action_answer(tool_calls)
+
     specific_health_answer = _build_specific_health_answer(message, context=context)
     if specific_health_answer:
         return specific_health_answer
-
-    if intent.kind == "app_action":
-        return _build_app_action_answer(tool_calls)
 
     if intent.kind == "app_query":
         return _build_app_query_answer(tool_calls, sources)
