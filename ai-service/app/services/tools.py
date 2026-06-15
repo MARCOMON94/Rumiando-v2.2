@@ -613,14 +613,14 @@ def _text_after_any(normalized, markers):
 
 
 def _has_birth_intent(normalized):
-    if re.search(r"\b(?:nacio|nacieron)\b", normalized):
+    if re.search(r"\b(?:nacer|nacio|nacieron|nacido|nacidos|nacida|nacidas)\b", normalized):
         return True
 
     return any(term in normalized for term in [
         "acaba de parir", "acabo de parir", "ha parido", "pario",
         "ha pario", "a parido", "parida", "recien parida", "parto", "parir", "parido",
         "ha tenido cria", "ha tenido crias", "nacimiento",
-        "cria nueva"
+        "cria nueva", "crias nuevas", "acaba de nacer", "acaban de nacer"
     ])
 
 

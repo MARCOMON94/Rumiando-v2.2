@@ -22,6 +22,7 @@ El chat interpreta lenguaje de campo y lo transforma en una pantalla preparada. 
 
 ## Parto y baja
 - "Ha parido esta oveja", "pario esta cabra": activar lector silencioso `parto`. Si hay crotal claro, abrir `/birth/new/:motherId`.
+- "Acaban de nacer tres cabritos", "nacieron dos corderos", "tengo crias nuevas": tambien es intencion de parto/nacimiento. La primera accion debe ser abrir lector silencioso `parto` para localizar la madre; el numero de crias queda como dato orientativo del formulario.
 - "Se ha muerto esta cabra", "da de baja este animal", "vendida", "sacrificio": activar lector silencioso `baja`. Si hay crotal claro, abrir `/animals/:id/discharge` con causa sugerida.
 - Estos flujos son unitarios; no usan lista por lote.
 

@@ -382,22 +382,24 @@ export default function OperationFlowPage() {
 
   const shouldBlockNavigation = selectedAnimals.length > 0 && !result;
 
-  const focusReader = useCallback(function focusReader() {
+  const focusReader = useCallback(function focusReader(attempt = 0) {
     window.setTimeout(() => {
       if (embedded) {
         window.focus();
-        setReaderActivationFallback(false);
-        return;
       }
-
       const target = readerInputRef.current;
       if (!target) return;
 
       target.focus({ preventScroll: true });
       if (document.activeElement === target) {
         setReaderActivationFallback(false);
+        return;
       }
-    }, 0);
+
+      if (attempt < 3) {
+        focusReader(attempt + 1);
+      }
+    }, attempt === 0 ? 0 : 70);
   }, [embedded]);
 
   const resetReaderBuffer = useCallback(function resetReaderBuffer() {
@@ -549,6 +551,18 @@ export default function OperationFlowPage() {
     readerTimerRef.current = window.setTimeout(flushReaderBuffer, 180);
     return true;
   }, [flushReaderBuffer]);
+
+  const handleReaderInput = useCallback(function handleReaderInput(event) {
+    if (silentReaderActiveRef.current) return;
+
+    const value = event.currentTarget.value;
+    event.currentTarget.value = '';
+
+    if (value) {
+      resetReaderBuffer();
+      addCodes(extractCodes(value));
+    }
+  }, [addCodes, resetReaderBuffer]);
 
   useReaderCapture({
     active: true,
@@ -1307,6 +1321,8 @@ export default function OperationFlowPage() {
           inputMode="none"
           autoComplete="off"
           onFocus={() => setReaderActivationFallback(false)}
+          onBlur={focusReader}
+          onInput={handleReaderInput}
           onKeyDown={(event) => {
             if (silentReaderActiveRef.current) return;
             handleReaderKeyDown(event);

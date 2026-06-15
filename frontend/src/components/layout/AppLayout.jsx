@@ -66,6 +66,7 @@ export default function AppLayout() {
   const silentReaderStateRef = useRef(null);
   const silentReaderBufferRef = useRef('');
   const silentReaderTimerRef = useRef(null);
+  const silentReaderInputRef = useRef(null);
 
   const [watchlistTotal, setWatchlistTotal] = useState(0);
   const [automaticAlertsTotal, setAutomaticAlertsTotal] = useState(0);
@@ -93,6 +94,19 @@ export default function AppLayout() {
       navigate(to, options);
     }
   }, [navigate, requestNavigation]);
+
+  const focusSilentReaderInput = useCallback(function focusSilentReaderInput(attempt = 0) {
+    if (!silentReaderRef.current.active) return;
+
+    window.setTimeout(() => {
+      const target = silentReaderInputRef.current;
+      target?.focus?.({ preventScroll: true });
+
+      if (document.activeElement !== target && attempt < 3) {
+        focusSilentReaderInput(attempt + 1);
+      }
+    }, attempt === 0 ? 0 : 70);
+  }, []);
 
   const guardedNavClick = useCallback(function guardedNavClick(to) {
     return function handleGuardedNavClick(event) {
@@ -195,9 +209,18 @@ export default function AppLayout() {
     setSilentReaderContext(state || null);
     silentReaderRef.current = nextReader;
     setSilentReader(nextReader);
+    silentReaderInputRef.current?.focus?.({ preventScroll: true });
+    focusSilentReaderInput();
 
     ensureSilentReaderAnimals();
-  }, [deactivateSilentReader, ensureSilentReaderAnimals]);
+  }, [deactivateSilentReader, ensureSilentReaderAnimals, focusSilentReaderInput]);
+
+  function activateSilentReaderFromControl(event, action = 'lookup', state = null) {
+    event?.preventDefault?.();
+    event?.currentTarget?.blur?.();
+    activateSilentReader(action, state);
+    focusSilentReaderInput();
+  }
 
   const processSilentReaderCodes = useCallback(async function processSilentReaderCodes(rawCodes) {
     const codes = Array.isArray(rawCodes) ? rawCodes.map(normalizeCode).filter(Boolean) : extractCodes(rawCodes);
@@ -219,6 +242,7 @@ export default function AppLayout() {
       setSilentReader((current) => (
         current.active ? { ...current, status: 'active' } : current
       ));
+      focusSilentReaderInput();
       return false;
     }
 
@@ -241,8 +265,66 @@ export default function AppLayout() {
     location.hash,
     location.pathname,
     location.search,
-    navigate
+    navigate,
+    focusSilentReaderInput
   ]);
+
+  useEffect(() => {
+    if (silentReader.active) {
+      focusSilentReaderInput();
+    }
+  }, [focusSilentReaderInput, silentReader.active, silentReader.action]);
+
+  function flushSilentReaderInputBuffer() {
+    const raw = silentReaderBufferRef.current;
+    silentReaderBufferRef.current = '';
+    window.clearTimeout(silentReaderTimerRef.current);
+
+    if (raw && silentReaderRef.current.active) {
+      processSilentReaderCodes(extractCodes(raw));
+    }
+  }
+
+  function appendSilentReaderInput(value) {
+    if (!silentReaderRef.current.active) return;
+    silentReaderBufferRef.current += value;
+    window.clearTimeout(silentReaderTimerRef.current);
+    silentReaderTimerRef.current = window.setTimeout(flushSilentReaderInputBuffer, 160);
+  }
+
+  function handleSilentReaderInputKeyDown(event) {
+    if (!silentReaderRef.current.active) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    const isFinishKey = event.key === 'Enter' || event.key === 'Tab';
+    const isCharacter = event.key.length === 1;
+    const isBackspace = event.key === 'Backspace';
+
+    if (!isFinishKey && !isCharacter && !isBackspace) return;
+
+    event.preventDefault();
+
+    if (isFinishKey) {
+      flushSilentReaderInputBuffer();
+      return;
+    }
+
+    if (isBackspace) {
+      silentReaderBufferRef.current = silentReaderBufferRef.current.slice(0, -1);
+      return;
+    }
+
+    appendSilentReaderInput(event.key);
+  }
+
+  function handleSilentReaderInput(event) {
+    const value = event.currentTarget.value;
+    event.currentTarget.value = '';
+
+    if (value) {
+      appendSilentReaderInput(value);
+    }
+  }
 
   useEffect(() => {
     loadWatchlistCount();
@@ -371,6 +453,32 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell clean-app-shell">
+      <input
+        ref={silentReaderInputRef}
+        className="batch-reader-input"
+        data-reader-capture="true"
+        aria-label="Entrada lector silencioso"
+        inputMode="none"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
+        onKeyDown={handleSilentReaderInputKeyDown}
+        onInput={handleSilentReaderInput}
+        onPaste={(event) => {
+          if (!silentReaderRef.current.active) return;
+          const pasted = event.clipboardData?.getData('text') || '';
+          if (!pasted) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          silentReaderBufferRef.current = '';
+          window.clearTimeout(silentReaderTimerRef.current);
+          processSilentReaderCodes(extractCodes(pasted));
+        }}
+        onBlur={focusSilentReaderInput}
+      />
+
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">R</div>
@@ -384,21 +492,21 @@ export default function AppLayout() {
           <button
             type="button"
             className={silentReader.active && silentReader.action === 'lookup' ? 'active' : ''}
-            onClick={() => activateSilentReader('lookup')}
+            onClick={(event) => activateSilentReaderFromControl(event, 'lookup')}
           >
             Buscar crotal
           </button>
           <button
             type="button"
             className={silentReader.active && silentReader.action === 'parto' ? 'active parto' : 'parto'}
-            onClick={() => activateSilentReader('parto')}
+            onClick={(event) => activateSilentReaderFromControl(event, 'parto')}
           >
             Parto
           </button>
           <button
             type="button"
             className={silentReader.active && silentReader.action === 'baja' ? 'active baja' : 'baja'}
-            onClick={() => activateSilentReader('baja')}
+            onClick={(event) => activateSilentReaderFromControl(event, 'baja')}
           >
             Baja
           </button>
@@ -483,7 +591,7 @@ export default function AppLayout() {
           className={`mobile-search-button ${silentReader.active ? 'reading active' : ''} silent-mode-${silentReader.action}`}
           aria-label="Búsqueda por lector"
           aria-pressed={silentReader.active}
-          onClick={() => activateSilentReader('lookup')}
+          onClick={(event) => activateSilentReaderFromControl(event, 'lookup')}
         >
           <span className="mobile-search-spinner" aria-hidden="true" />
           <img
@@ -541,9 +649,11 @@ export default function AppLayout() {
           <button
             type="button"
             className={silentReader.active && silentReader.action === 'parto' ? 'active' : 'secondary'}
-            onClick={() => {
+            onClick={(event) => {
+              event.currentTarget.blur();
               setQuickActionsOpen(false);
               activateSilentReader('parto');
+              focusSilentReaderInput();
             }}
           >
             Parto
@@ -551,9 +661,11 @@ export default function AppLayout() {
           <button
             type="button"
             className={silentReader.active && silentReader.action === 'baja' ? 'active' : 'secondary'}
-            onClick={() => {
+            onClick={(event) => {
+              event.currentTarget.blur();
               setQuickActionsOpen(false);
               activateSilentReader('baja');
+              focusSilentReaderInput();
             }}
           >
             Baja

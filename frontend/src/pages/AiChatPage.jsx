@@ -201,7 +201,7 @@ function fallbackUiActionFromMessage(message, recentMessages = []) {
     };
   }
 
-  if (/\b(acaba de parir|acabo de parir|ha parido|pario|parir|parido|recien parida|parto|ha tenido cria|ha tenido crias|nacimiento)\b/.test(current)) {
+  if (/\b(acaba de parir|acabo de parir|ha parido|pario|parir|parido|recien parida|parto|ha tenido cria|ha tenido crias|nacimiento|nacer|nacio|nacieron|nacido|nacidos|nacida|nacidas|acaba de nacer|acaban de nacer)\b/.test(current)) {
     return {
       kind: 'silent_reader',
       action: 'parto',
@@ -853,7 +853,7 @@ export default function AiChatPage() {
       return text;
     } catch (err) {
       if (err.name === 'AbortError') {
-        throw new Error('La transcripción tardó demasiado. Prueba otra vez con un audio más corto.');
+        throw new Error('La transcripción tardó demasiado. Prueba otra vez con un audio más corto.', { cause: err });
       }
       throw err;
     } finally {
@@ -993,16 +993,6 @@ export default function AiChatPage() {
     } catch {
       stopRecognitionWithoutSend();
     }
-  }
-
-  function cancelVoiceInput(event) {
-    event.preventDefault();
-    clearVoiceStopTimer();
-    if (mediaRecorderRef.current) {
-      stopMediaRecorderWithoutSend();
-      return;
-    }
-    stopRecognitionWithoutSend();
   }
 
   useEffect(() => {
