@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { get, put } from '../api/apiClient';
 
@@ -38,8 +38,10 @@ export default function AnimalDischargePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const saveInFlightRef = useRef(false);
 
   const returnTo = location.state?.returnTo;
+  const returnMode = location.state?.returnMode;
 
   useEffect(() => {
     let ignore = false;
@@ -72,8 +74,13 @@ export default function AnimalDischargePage() {
   }, [id]);
 
   function closeFlow() {
+    if (returnMode === 'back') {
+      navigate(-1);
+      return;
+    }
+
     if (returnTo) {
-      navigate(returnTo);
+      navigate(returnTo, { replace: true });
       return;
     }
 
@@ -90,8 +97,9 @@ export default function AnimalDischargePage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (!animal?.id) return;
+    if (!animal?.id || saveInFlightRef.current || done) return;
 
+    saveInFlightRef.current = true;
     setSaving(true);
     setError('');
 
@@ -107,6 +115,7 @@ export default function AnimalDischargePage() {
     } catch (err) {
       setError(err.message);
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   }

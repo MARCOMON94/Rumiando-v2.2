@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { get, post } from '../api/apiClient';
 import { useCatalogs } from '../context/CatalogsContext';
@@ -75,8 +75,10 @@ export default function BirthNewPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const saveInFlightRef = useRef(false);
 
   const returnTo = location.state?.returnTo;
+  const returnMode = location.state?.returnMode;
 
   const farmPens = useMemo(() => {
     if (!mother?.unidadRegaId) return [];
@@ -157,8 +159,13 @@ export default function BirthNewPage() {
   }, [parideraPen]);
 
   function closeFlow() {
+    if (returnMode === 'back') {
+      navigate(-1);
+      return;
+    }
+
     if (returnTo) {
-      navigate(returnTo);
+      navigate(returnTo, { replace: true });
       return;
     }
 
@@ -210,8 +217,9 @@ export default function BirthNewPage() {
   }
 
   async function saveBirth() {
-    if (!mother?.id || !lactanteStatus?.id) return;
+    if (!mother?.id || !lactanteStatus?.id || saveInFlightRef.current || result) return;
 
+    saveInFlightRef.current = true;
     setSaving(true);
     setError('');
 
@@ -275,6 +283,7 @@ export default function BirthNewPage() {
     } catch (err) {
       setError(err.message);
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   }

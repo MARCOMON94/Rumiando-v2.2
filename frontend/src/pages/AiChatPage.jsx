@@ -12,6 +12,7 @@ const QUICK_PROMPTS = [
 const AI_DRAFT_STORAGE_PREFIX = 'rumiando-ai-draft:';
 const SILENT_READER_EVENT = 'rumiando:silent-reader:activate';
 const VOICE_MAX_RECORDING_MS = 15000;
+const VOICE_TRANSCRIPTION_TIMEOUT_MS = 30000;
 
 function ChatMessage({ message }) {
   const isAssistant = message.role === 'assistant';
@@ -517,6 +518,7 @@ export default function AiChatPage() {
       const state = {
         openedBySilentReader: true,
         returnTo: '/ai-chat',
+        returnMode: 'back',
         silentAction: action,
         fromAiChat: true,
         aiDraft: uiAction.draft || null
@@ -548,8 +550,9 @@ export default function AiChatPage() {
   }
 
   useEffect(() => {
+    if (voiceState === 'listening' || voiceState === 'processing') return;
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, loading]);
+  }, [messages, loading, voiceState]);
 
   useEffect(() => {
     function handleOperationMessage(event) {
@@ -793,24 +796,69 @@ export default function AiChatPage() {
     }
   }
 
-  async function transcribeAudio(blob) {
-    const response = await fetch(`${apiUrl()}/ai/transcribe`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': blob.type || 'audio/webm',
-        'x-audio-filename': audioFilenameForBlob(blob),
-        'x-audio-language': 'es'
-      },
-      credentials: 'include',
-      body: blob
-    });
+  function voiceErrorMessage(response, payload) {
+    const rawMessage = typeof payload === 'string'
+      ? payload
+      : (payload?.error || payload?.message || payload?.detail || '');
+    const normalized = `${response.status} ${rawMessage}`.toLowerCase();
 
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(data?.error || data?.message || 'No se pudo transcribir el audio');
+    if (response.status === 404 || normalized.includes('not found')) {
+      return 'La ruta de voz no existe en el backend desplegado. Revisa VITE_API_URL, _redirects y que Railway tenga POST /api/ai/transcribe.';
     }
+    if (response.status === 502 || normalized.includes('ai_service_url') || normalized.includes('servicio de transcripcion')) {
+      return 'No se pudo conectar con el servicio de transcripción local. Revisa AI_SERVICE_URL en Railway Backend.';
+    }
+    if (response.status === 503 && normalized.includes('whisper')) {
+      return 'Whisper local no está instalado o no arrancó en el servicio IA. Redeploya ai-service con faster-whisper.';
+    }
+    if (response.status === 504 || normalized.includes('tiempo') || normalized.includes('timeout')) {
+      return 'La transcripción tardó demasiado. Si es la primera vez, puede estar descargando el modelo Whisper; prueba otra vez en unos segundos.';
+    }
+    if (rawMessage) {
+      return rawMessage;
+    }
+    return 'No se pudo transcribir el audio.';
+  }
 
-    return String(data?.text || '').trim();
+  async function transcribeAudio(blob) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), VOICE_TRANSCRIPTION_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${apiUrl()}/ai/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': blob.type || 'audio/webm',
+          'x-audio-filename': audioFilenameForBlob(blob),
+          'x-audio-language': 'es'
+        },
+        credentials: 'include',
+        signal: controller.signal,
+        body: blob
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      const payload = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => '');
+
+      if (!response.ok) {
+        throw new Error(voiceErrorMessage(response, payload));
+      }
+
+      const text = String(payload?.text || '').trim();
+      if (!text) {
+        throw new Error('No se entendió ningún texto en el audio.');
+      }
+      return text;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('La transcripción tardó demasiado. Prueba otra vez con un audio más corto.');
+      }
+      throw err;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
 
   async function startVoiceInput(event) {

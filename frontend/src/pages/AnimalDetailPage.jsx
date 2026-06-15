@@ -249,6 +249,7 @@ export default function AnimalDetailPage() {
     `${children.length} cría(s)`
   ].join(' · ');
   const returnTo = location.state?.returnTo;
+  const returnMode = location.state?.returnMode;
   const currentPath = `${location.pathname}${location.search || ''}${location.hash || ''}`;
   const isDischarged = animal.estadoRegistro === 'BAJA';
 
@@ -260,8 +261,13 @@ export default function AnimalDetailPage() {
   }
 
   function closeDetail() {
+    if (returnMode === 'back') {
+      navigate(-1);
+      return;
+    }
+
     if (returnTo) {
-      navigate(returnTo);
+      navigate(returnTo, { replace: true });
       return;
     }
 
@@ -273,7 +279,8 @@ export default function AnimalDetailPage() {
 
     navigate(`/birth/new/${animal.id}`, {
       state: {
-        returnTo: currentPath
+        returnTo: currentPath,
+        returnMode: 'back'
       }
     });
   }
@@ -283,7 +290,8 @@ export default function AnimalDetailPage() {
 
     navigate(`/animals/${animal.id}/discharge`, {
       state: {
-        returnTo: currentPath
+        returnTo: currentPath,
+        returnMode: 'back'
       }
     });
   }

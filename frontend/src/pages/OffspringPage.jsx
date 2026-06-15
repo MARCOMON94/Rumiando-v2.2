@@ -236,7 +236,11 @@ export default function OffspringPage() {
                 <button type="button" className="secondary" onClick={() => activateReader(animal)}>
                   Añadir crotal
                 </button>
-                <button type="button" className="secondary" onClick={() => navigate(`/animals/${animal.id}/discharge`, { state: { returnTo: '/offspring' } })}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => navigate(`/animals/${animal.id}/discharge`, { state: { returnTo: '/offspring', returnMode: 'back' } })}
+                >
                   Baja
                 </button>
                 <Link className="button secondary" to={`/animals/${animal.id}`}>

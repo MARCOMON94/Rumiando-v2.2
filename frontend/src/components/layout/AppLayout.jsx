@@ -227,6 +227,7 @@ export default function AppLayout() {
     const state = {
       openedBySilentReader: true,
       returnTo,
+      returnMode: 'back',
       silentAction: action
     };
     const extraState = silentReaderStateRef.current || {};

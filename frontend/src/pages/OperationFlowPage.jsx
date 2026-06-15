@@ -256,6 +256,7 @@ export default function OperationFlowPage() {
   const restoredDraftRef = useRef(false);
   const appliedAiDraftRef = useRef(false);
   const silentReaderActiveRef = useRef(false);
+  const operationInFlightRef = useRef(false);
 
   const [animals, setAnimals] = useState([]);
   const [rules, setRules] = useState([]);
@@ -1157,6 +1158,9 @@ export default function OperationFlowPage() {
   }
 
   async function runOperation(applyRule = false, rule = null, normalizedItem = null) {
+    if (operationInFlightRef.current) return;
+
+    operationInFlightRef.current = true;
     setSaving(true);
     setError('');
     setPendingRule(null);
@@ -1200,6 +1204,7 @@ export default function OperationFlowPage() {
     } catch (err) {
       setError(err.message);
     } finally {
+      operationInFlightRef.current = false;
       setSaving(false);
       if (!shouldCloseAfterSave) {
         focusReader();

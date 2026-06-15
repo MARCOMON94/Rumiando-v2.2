@@ -487,9 +487,8 @@ FRONTEND_URL=http://localhost:5173
 FRONTEND_URLS=http://localhost:5173,http://127.0.0.1:5173
 AI_SERVICE_URL=http://localhost:8000
 AI_SERVICE_TIMEOUT_MS=20000
-OPENAI_API_KEY=
-OPENAI_TRANSCRIPTION_MODEL=whisper-1
-OPENAI_TRANSCRIPTION_TIMEOUT_MS=15000
+AI_TRANSCRIPTION_PROVIDER=local
+AI_TRANSCRIPTION_TIMEOUT_MS=30000
 AI_TRANSCRIPTION_MAX_BYTES=20mb
 N8N_API_KEY=clave_integraciones
 DEMO_CUENTA_GANADERA_ID=1
@@ -500,7 +499,16 @@ EMAIL_FROM_NAME=RumiAndo
 LEARNING_QUEUE_TOKEN=
 ```
 
-La voz del chat se transcribe de forma temporal: el navegador graba un audio en memoria, el backend lo recibe como binario, lo envía al proveedor de transcripción y descarta el buffer al terminar la petición. RumiAndo no escribe esos audios en disco ni los guarda en base de datos.
+La voz del chat usa Whisper local por defecto. El navegador graba un audio en memoria, el backend lo recibe como binario y lo reenvia a `AI_SERVICE_URL/api/transcribe`. El `ai-service` lo transcribe con `faster-whisper`. RumiAndo no guarda audios en base de datos, historial ni logs. El servicio IA puede crear un archivo temporal efimero si Whisper lo necesita y lo borra en `finally` al terminar la request.
+
+OpenAI queda solo como fallback opcional de voz si se cambia el proveedor:
+
+```env
+AI_TRANSCRIPTION_PROVIDER=auto
+OPENAI_API_KEY=
+OPENAI_TRANSCRIPTION_MODEL=whisper-1
+OPENAI_TRANSCRIPTION_TIMEOUT_MS=15000
+```
 
 ### AI service: `ai-service/.env`
 
@@ -520,7 +528,17 @@ SAVE_UNRESOLVED_QUESTIONS=true
 ANONYMIZE_UNRESOLVED_QUESTIONS=true
 LEARNING_USE_OPENAI_REFORMULATION=false
 LEARNING_QUEUE_TOKEN=
+LOCAL_WHISPER_MODEL=base
+LOCAL_WHISPER_DEVICE=cpu
+LOCAL_WHISPER_COMPUTE_TYPE=int8
+LOCAL_WHISPER_LANGUAGE=es
+LOCAL_WHISPER_BEAM_SIZE=1
+LOCAL_WHISPER_VAD_FILTER=true
+LOCAL_WHISPER_MAX_BYTES=15728640
+LOCAL_WHISPER_DOWNLOAD_ROOT=
 ```
+
+`LOCAL_WHISPER_MODEL=base` es el valor recomendado para Railway CPU. Si el servicio tiene mas recursos, se puede probar `small`. La primera transcripcion puede tardar porque descarga o calienta el modelo.
 
 ## Base de Datos Local y Railway
 
@@ -648,8 +666,11 @@ VITE_GOOGLE_CLIENT_ID=tu_google_client_id
 El archivo `frontend/public/_redirects` debe conservar:
 
 ```txt
-/* /index.html 200
+/api/*  https://rumiando-v2-production.up.railway.app/api/:splat  200
+/*      /index.html  200
 ```
+
+Si en produccion sigue apareciendo `Mantén para hablar`, Netlify esta sirviendo un build antiguo. Hacer redeploy del frontend y comprobar que el publish directory es `frontend/dist`.
 
 ### Railway Backend
 
@@ -671,9 +692,8 @@ GOOGLE_CLIENT_ID=...
 FRONTEND_URL=https://rumiando.netlify.app
 FRONTEND_URLS=https://rumiando.netlify.app,http://localhost:5173,http://127.0.0.1:5173
 AI_SERVICE_URL=https://url-del-ai-service.up.railway.app
-OPENAI_API_KEY=...
-OPENAI_TRANSCRIPTION_MODEL=whisper-1
-OPENAI_TRANSCRIPTION_TIMEOUT_MS=15000
+AI_TRANSCRIPTION_PROVIDER=local
+AI_TRANSCRIPTION_TIMEOUT_MS=30000
 AI_TRANSCRIPTION_MAX_BYTES=20mb
 N8N_API_KEY=...
 EMAIL_ENABLED=false
@@ -682,6 +702,15 @@ EMAIL_FROM_ADDRESS=
 EMAIL_FROM_NAME=RumiAndo
 LEARNING_QUEUE_TOKEN=...
 NODE_ENV=production
+```
+
+OpenAI para voz no es obligatorio. Solo configurarlo si se quiere fallback externo:
+
+```env
+AI_TRANSCRIPTION_PROVIDER=auto
+OPENAI_API_KEY=...
+OPENAI_TRANSCRIPTION_MODEL=whisper-1
+OPENAI_TRANSCRIPTION_TIMEOUT_MS=15000
 ```
 
 ### Railway AI Service
@@ -709,7 +738,43 @@ SAVE_UNRESOLVED_QUESTIONS=true
 ANONYMIZE_UNRESOLVED_QUESTIONS=true
 LEARNING_USE_OPENAI_REFORMULATION=false
 LEARNING_QUEUE_TOKEN=...
+LOCAL_WHISPER_MODEL=base
+LOCAL_WHISPER_DEVICE=cpu
+LOCAL_WHISPER_COMPUTE_TYPE=int8
+LOCAL_WHISPER_LANGUAGE=es
+LOCAL_WHISPER_BEAM_SIZE=1
+LOCAL_WHISPER_VAD_FILTER=true
+LOCAL_WHISPER_MAX_BYTES=15728640
+LOCAL_WHISPER_DOWNLOAD_ROOT=/data/whisper-models
 ```
+
+`LOCAL_WHISPER_DOWNLOAD_ROOT` es opcional. Usarlo si Railway tiene volumen persistente para no descargar el modelo en cada arranque. Si no hay volumen, dejarlo vacio.
+
+## Diagnostico de Voz en Produccion
+
+Cadena completa:
+
+```txt
+Netlify frontend -> Railway backend /api/ai/transcribe -> Railway ai-service /api/transcribe -> faster-whisper local
+```
+
+Comprobaciones rapidas:
+
+1. Abrir `https://rumiando.netlify.app` y revisar que el boton diga `Pulsa para hablar`.
+2. Probar `GET https://rumiando-v2-production.up.railway.app/api/health`.
+3. Probar que `POST https://rumiando-v2-production.up.railway.app/api/ai/transcribe` no devuelve `Not Found`.
+4. Probar `GET https://url-del-ai-service.up.railway.app/api/health` y revisar que `transcription.provider` sea `local-whisper`.
+
+Errores frecuentes:
+
+- `Mantén para hablar`: Netlify esta sirviendo un build viejo. Redeploy del frontend.
+- `Not Found`: backend Railway sin redeploy, `VITE_API_URL` mal configurado o `_redirects` no aplicado.
+- `Whisper local no esta instalado`: el AI service no instalo `faster-whisper` o no se redesplego.
+- `No se pudo conectar con el servicio de transcripcion local`: revisar `AI_SERVICE_URL` en Railway Backend.
+- Primera transcripcion muy lenta: descarga/cache inicial del modelo Whisper. Con volumen Railway, usar `LOCAL_WHISPER_DOWNLOAD_ROOT=/data/whisper-models`.
+- Se queda en `Transcribiendo audio...`: frontend antiguo o request sin timeout. Redeployar frontend y comprobar que el build contiene el texto `Pulsa para hablar`.
+
+Sin cobertura total: Netlify y Railway necesitan internet. Para usar voz sin cobertura real, el movil debe poder llegar a un backend/AI service local de la explotacion o el modelo tendria que correr en el propio dispositivo, que es mas pesado. En todos los modos, RumiAndo no conserva los audios.
 
 ## RAG y Conocimiento IA
 
