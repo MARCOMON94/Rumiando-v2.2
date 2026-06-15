@@ -321,6 +321,21 @@ function extractCodes(raw) {
     .filter(Boolean);
 }
 
+function isLikelyReaderCode(value) {
+  const code = normalizeCode(value);
+  return Boolean(code && code.length >= 3 && /\d/.test(code));
+}
+
+function extractReaderCodes(raw) {
+  return extractCodes(raw).filter(isLikelyReaderCode);
+}
+
+function isReaderInteractiveElement(element) {
+  return Boolean(element?.closest?.(
+    'input, textarea, select, button, a[href], [contenteditable="true"], [role="button"]'
+  ));
+}
+
 function routeForSilentAction(action, animalId) {
   if (action === 'parto') return `/birth/new/${animalId}`;
   if (action === 'baja') return `/animals/${animalId}/discharge`;
@@ -587,7 +602,7 @@ export default function AiChatPage() {
     if (!activeOperationAction) return undefined;
 
     function postCodesToOperation(raw) {
-      const codes = extractCodes(raw);
+      const codes = extractReaderCodes(raw);
       if (!codes.length) return;
 
       operationFrameRef.current?.contentWindow?.postMessage({
@@ -615,12 +630,15 @@ export default function AiChatPage() {
 
     function handleCaptureKeyDown(event) {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isReaderInteractiveElement(event.target)) return;
 
       const isFinishKey = event.key === 'Enter' || event.key === 'Tab';
       const isCharacter = event.key.length === 1;
       const isBackspace = event.key === 'Backspace';
 
       if (!isFinishKey && !isCharacter && !isBackspace) return;
+
+      if (isFinishKey && !operationReaderBufferRef.current) return;
 
       stopReaderEvent(event);
 
@@ -642,6 +660,8 @@ export default function AiChatPage() {
     function handleCapturePaste(event) {
       const pasted = event.clipboardData?.getData('text');
       if (!pasted) return;
+      if (isReaderInteractiveElement(event.target)) return;
+      if (!extractReaderCodes(pasted).length) return;
 
       stopReaderEvent(event);
       resetBuffer();

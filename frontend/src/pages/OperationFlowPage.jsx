@@ -132,6 +132,11 @@ function likelyCode(value) {
   return code;
 }
 
+function isLikelyReaderCode(value) {
+  const code = likelyCode(value);
+  return Boolean(code && /\d/.test(code));
+}
+
 function animalOfficialCrotalCodes(animal) {
   return [animal?.crotal, animal?.earTag]
     .map(likelyCode)
@@ -139,9 +144,13 @@ function animalOfficialCrotalCodes(animal) {
 }
 
 function animalReaderCodes(animal) {
-  return [...animalOfficialCrotalCodes(animal), animal?.numeroInterno]
-    .map(likelyCode)
-    .filter(Boolean);
+  return animalOfficialCrotalCodes(animal);
+}
+
+function isReaderInteractiveElement(element) {
+  return Boolean(element?.closest?.(
+    'input:not([data-reader-capture="true"]), textarea, select, button, a[href], [contenteditable="true"], [role="button"]'
+  ));
 }
 
 function getItems(data, keys) {
@@ -280,6 +289,8 @@ export default function OperationFlowPage() {
   const appliedAiDraftRef = useRef(false);
   const silentReaderActiveRef = useRef(false);
   const operationInFlightRef = useRef(false);
+  const selectedAnimalsRef = useRef([]);
+  const formDataRef = useRef(null);
 
   const [animals, setAnimals] = useState([]);
   const [rules, setRules] = useState([]);
@@ -297,6 +308,14 @@ export default function OperationFlowPage() {
   const [error, setError] = useState('');
   const [formData, setFormData] = useState(createInitialFormData);
   const [aiDraftMeta, setAiDraftMeta] = useState(null);
+
+  useEffect(() => {
+    selectedAnimalsRef.current = selectedAnimals;
+  }, [selectedAnimals]);
+
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   useEffect(() => {
     function handleSilentReaderState(event) {
@@ -463,6 +482,10 @@ export default function OperationFlowPage() {
       const target = readerInputRef.current;
       if (!target) return;
 
+      if (isReaderInteractiveElement(document.activeElement)) {
+        return;
+      }
+
       target.focus({ preventScroll: true });
       if (document.activeElement === target) {
         setReaderActivationFallback(false);
@@ -542,7 +565,7 @@ export default function OperationFlowPage() {
   const addCodes = useCallback(async function addCodes(rawCodes) {
     const codes = (Array.isArray(rawCodes) ? rawCodes : extractCodes(rawCodes))
       .map(likelyCode)
-      .filter(Boolean);
+      .filter(isLikelyReaderCode);
     if (!codes.length) return;
 
     setResult(null);
@@ -561,60 +584,64 @@ export default function OperationFlowPage() {
       resolvedAnimals.push([code, animal]);
     }
 
-    setSelectedAnimals((current) => {
-      const next = [...current];
-      let inferredUnitId = formData.unidadRegaId;
+    const next = [...selectedAnimalsRef.current];
+    const currentFormData = formDataRef.current || formData;
+    let inferredUnitId = currentFormData.unidadRegaId;
 
-      for (const [, animal] of resolvedAnimals) {
-        if (!animal) {
-          unknownCount++;
-          continue;
-        }
-
-        if (animal.estadoRegistro === 'BAJA') {
-          inactiveCount++;
-          continue;
-        }
-
-        const currentAnimalUnitId = animalUnitId(animal);
-
-        if (
-          inferredUnitId
-          && currentAnimalUnitId
-          && currentAnimalUnitId !== Number(inferredUnitId)
-          && next.length > 0
-        ) {
-          wrongUnitCount++;
-          continue;
-        }
-
-        if (
-          currentAnimalUnitId
-          && (!inferredUnitId || (next.length === 0 && currentAnimalUnitId !== Number(inferredUnitId)))
-        ) {
-          inferredUnitId = String(currentAnimalUnitId);
-        }
-
-        if (next.some((item) => item.id === animal.id)) {
-          duplicateCount++;
-          continue;
-        }
-
-        next.push(animal);
-        addedCount++;
+    for (const [, animal] of resolvedAnimals) {
+      if (!animal) {
+        unknownCount++;
+        continue;
       }
 
-      if (inferredUnitId && String(formData.unidadRegaId || '') !== String(inferredUnitId)) {
-        setFormData((currentForm) => ({
+      if (animal.estadoRegistro === 'BAJA') {
+        inactiveCount++;
+        continue;
+      }
+
+      const currentAnimalUnitId = animalUnitId(animal);
+
+      if (
+        inferredUnitId
+        && currentAnimalUnitId
+        && currentAnimalUnitId !== Number(inferredUnitId)
+        && next.length > 0
+      ) {
+        wrongUnitCount++;
+        continue;
+      }
+
+      if (
+        currentAnimalUnitId
+        && (!inferredUnitId || (next.length === 0 && currentAnimalUnitId !== Number(inferredUnitId)))
+      ) {
+        inferredUnitId = String(currentAnimalUnitId);
+      }
+
+      if (next.some((item) => item.id === animal.id)) {
+        duplicateCount++;
+        continue;
+      }
+
+      next.push(animal);
+      addedCount++;
+    }
+
+    selectedAnimalsRef.current = next;
+    setSelectedAnimals(next);
+
+    if (inferredUnitId && String(currentFormData.unidadRegaId || '') !== String(inferredUnitId)) {
+      setFormData((currentForm) => {
+        const nextForm = {
           ...currentForm,
           unidadRegaId: inferredUnitId,
           corralDestinoId: reconcilePenIdForUnit(currentForm.corralDestinoId, inferredUnitId),
           sourcePenId: reconcilePenIdForUnit(currentForm.sourcePenId, inferredUnitId)
-        }));
-      }
-
-      return next;
-    });
+        };
+        formDataRef.current = nextForm;
+        return nextForm;
+      });
+    }
 
     const parts = [];
     if (addedCount) parts.push(`${addedCount} añadido${addedCount === 1 ? '' : 's'}`);
@@ -677,7 +704,8 @@ export default function OperationFlowPage() {
     delay: 160,
     extractCodes,
     onCodes: addCodes,
-    shouldCaptureIgnoredPaste: (pasted) => extractCodes(pasted).length > 0,
+    shouldCaptureIgnoredPaste: () => false,
+    shouldIgnoreTarget: isReaderInteractiveElement,
     shouldPause: () => silentReaderActiveRef.current
   });
 
@@ -866,9 +894,7 @@ export default function OperationFlowPage() {
     const timer = window.setTimeout(() => {
       const target = readerInputRef.current;
       const activeElement = document.activeElement;
-      const activeIsManualField = activeElement?.closest?.(
-        'input:not([data-reader-capture="true"]), textarea, select, [contenteditable="true"]'
-      );
+      const activeIsManualField = isReaderInteractiveElement(activeElement);
 
       if (
         !embedded
@@ -1445,7 +1471,6 @@ export default function OperationFlowPage() {
           inputMode="none"
           autoComplete="off"
           onFocus={() => setReaderActivationFallback(false)}
-          onBlur={focusReader}
           onInput={handleReaderInput}
           onKeyDown={(event) => {
             if (silentReaderActiveRef.current) return;

@@ -180,6 +180,12 @@ function farmUnitLabel(unit) {
   return suffix ? `${base} (${suffix})` : base;
 }
 
+function isReaderInteractiveElement(element) {
+  return Boolean(element?.closest?.(
+    'input:not([data-reader-capture="true"]), textarea, select, button, a[href], [contenteditable="true"], [role="button"]'
+  ));
+}
+
 export default function AddAnimalsSettingsPanel() {
   const { catalogs, loading, error: catalogsError, loadCatalogs } = useCatalogs();
   const readerInputRef = useRef(null);
@@ -212,6 +218,7 @@ export default function AddAnimalsSettingsPanel() {
     window.setTimeout(() => {
       const target = readerInputRef.current;
       if (!target) return;
+      if (isReaderInteractiveElement(document.activeElement)) return;
 
       target.focus({ preventScroll: true });
       if (document.activeElement === target) {
@@ -303,7 +310,8 @@ export default function AddAnimalsSettingsPanel() {
     delay: 160,
     extractCodes,
     onCodes: addCodes,
-    shouldCaptureIgnoredPaste: (pasted) => extractCodes(pasted).length > 0
+    shouldCaptureIgnoredPaste: () => false,
+    shouldIgnoreTarget: isReaderInteractiveElement
   });
 
   function flushReaderBuffer() {
@@ -362,14 +370,16 @@ export default function AddAnimalsSettingsPanel() {
     };
   }
 
-  async function createAnimals(items) {
+  async function createAnimals(items, options = {}) {
+    const useDefaultBirthDate = options.useDefaultBirthDate !== false;
+
     try {
       validateCommon();
     setSaving(true);
     setFormError('');
     setMessage('');
 
-    const fallbackBirthDate = buildDate(birthParts);
+    const fallbackBirthDate = useDefaultBirthDate ? buildDate(birthParts) : '';
     let created = 0;
     const failures = [];
 
@@ -378,12 +388,13 @@ export default function AddAnimalsSettingsPanel() {
       if (!crotal) continue;
 
       try {
+        const birthDate = item.fechaNacimiento || fallbackBirthDate;
         await post('/animals', {
           ...basePayload(),
           crotal,
           numeroInterno: item.numeroInterno || null,
           sexo: item.sexo || 'DESCONOCIDO',
-          fechaNacimiento: item.fechaNacimiento || fallbackBirthDate
+          ...(birthDate ? { fechaNacimiento: birthDate } : {})
         });
         created++;
       } catch (err) {
@@ -407,7 +418,7 @@ export default function AddAnimalsSettingsPanel() {
     await createAnimals(readerItems.map((item) => ({
       ...item,
       fechaNacimiento: buildDate(birthParts)
-    })));
+    })), { useDefaultBirthDate: true });
   }
 
   async function handleFiles(event) {
@@ -455,7 +466,7 @@ export default function AddAnimalsSettingsPanel() {
     return fileRows.map((row) => ({
       crotal: normalizeCode(row[columnMap.crotal]),
       sexo: columnMap.sexo ? normalizeSex(row[columnMap.sexo]) : sex,
-      fechaNacimiento: normalizeDate(row[columnMap.fechaNacimiento], buildDate(birthParts)),
+      fechaNacimiento: columnMap.fechaNacimiento ? normalizeDate(row[columnMap.fechaNacimiento], '') : '',
       numeroInterno: columnMap.numeroInterno ? row[columnMap.numeroInterno] : ''
     })).filter((row) => row.crotal);
   }
@@ -467,7 +478,7 @@ export default function AddAnimalsSettingsPanel() {
       setFormError('No hay filas válidas para importar.');
       return;
     }
-    await createAnimals(items);
+    await createAnimals(items, { useDefaultBirthDate: false });
   }
 
   if (loading) return <p>Cargando catálogos...</p>;
@@ -526,6 +537,7 @@ export default function AddAnimalsSettingsPanel() {
           Se darán de alta en este corral inicial. Después podrás moverlas con Movimiento de corral si hace falta.
         </p>
 
+        {mode === 'reader' && (
         <div className="form-grid">
           <label>
             Día
@@ -533,7 +545,6 @@ export default function AddAnimalsSettingsPanel() {
               value={birthParts.day}
               onChange={(event) => {
                 setBirthField('day', event.target.value);
-                focusReader();
               }}
             >
               {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
@@ -547,7 +558,6 @@ export default function AddAnimalsSettingsPanel() {
               value={birthParts.month}
               onChange={(event) => {
                 setBirthField('month', event.target.value);
-                focusReader();
               }}
             >
               {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
@@ -561,7 +571,6 @@ export default function AddAnimalsSettingsPanel() {
               value={birthParts.year}
               onChange={(event) => {
                 setBirthField('year', event.target.value);
-                focusReader();
               }}
             >
               {years.map((year) => (
@@ -570,6 +579,7 @@ export default function AddAnimalsSettingsPanel() {
             </select>
           </label>
         </div>
+        )}
       </section>
 
       {mode === 'reader' ? (
@@ -677,7 +687,7 @@ export default function AddAnimalsSettingsPanel() {
                     ))}
                   </select>
                   {field === 'sexo' && <small>Si lo dejas vacío, se usará el sexo por defecto.</small>}
-                  {field === 'fechaNacimiento' && <small>Si lo dejas vacío, se usará la fecha por defecto.</small>}
+                  {field === 'fechaNacimiento' && <small>Opcional. Si no viene en el Excel, queda sin fecha.</small>}
                   {field === 'numeroInterno' && <small>Opcional.</small>}
                 </label>
               ))}
