@@ -132,6 +132,18 @@ function likelyCode(value) {
   return code;
 }
 
+function animalOfficialCrotalCodes(animal) {
+  return [animal?.crotal, animal?.earTag]
+    .map(likelyCode)
+    .filter(Boolean);
+}
+
+function animalReaderCodes(animal) {
+  return [...animalOfficialCrotalCodes(animal), animal?.numeroInterno]
+    .map(likelyCode)
+    .filter(Boolean);
+}
+
 function getItems(data, keys) {
   if (Array.isArray(data)) return data;
 
@@ -148,6 +160,10 @@ function animalPenName(animal) {
 
 function animalUnitId(animal) {
   return Number(animal?.unidadRegaId || animal?.unidadRega?.id || 0);
+}
+
+function penUnitId(pen) {
+  return Number(pen?.unidadRegaId || pen?.unidadRega?.id || 0);
 }
 
 function animalSpeciesId(animal) {
@@ -301,9 +317,8 @@ export default function OperationFlowPage() {
   const animalsByCode = useMemo(() => {
     const map = new Map();
     for (const animal of animals) {
-      for (const value of [animal?.crotal, animal?.numeroInterno, animal?.earTag, animal?.code]) {
-        const code = likelyCode(value);
-        if (code) map.set(code, animal);
+      for (const code of animalReaderCodes(animal)) {
+        map.set(code, animal);
       }
     }
     return map;
@@ -316,13 +331,13 @@ export default function OperationFlowPage() {
     const exact = animalsByCode.get(code);
     if (exact) return exact;
 
-    for (const [knownCode, animal] of animalsByCode.entries()) {
-      if (knownCode.length >= 4 && code.includes(knownCode)) return animal;
-      if (code.length >= 4 && knownCode.includes(code)) return animal;
-    }
-
-    return null;
-  }, [animalsByCode]);
+    return animals.find((animal) => (
+      animalOfficialCrotalCodes(animal).some((candidate) => (
+        (candidate.length >= 4 && code.includes(candidate))
+        || (code.length >= 6 && candidate.includes(code))
+      ))
+    )) || null;
+  }, [animals, animalsByCode]);
 
   const resolveAnimalByReadCode = useCallback(async function resolveAnimalByReadCode(rawCode) {
     const code = likelyCode(rawCode);
@@ -335,19 +350,16 @@ export default function OperationFlowPage() {
       const response = await get(`/animals?search=${encodeURIComponent(code)}`);
       const matches = getItems(response, ['data', 'animals', 'animales']);
       const exactMatch = matches.find((animal) => {
-        return [animal?.crotal, animal?.numeroInterno, animal?.earTag, animal?.code]
-          .map(likelyCode)
-          .some((candidate) => candidate === code);
+        return animalReaderCodes(animal).some((candidate) => candidate === code);
       });
       const partialMatch = matches.find((animal) => {
-        return [animal?.crotal, animal?.numeroInterno, animal?.earTag, animal?.code]
-          .map(likelyCode)
+        return animalOfficialCrotalCodes(animal)
           .some((candidate) => (
-            candidate.length >= 4
-            && (code.includes(candidate) || candidate.includes(code))
+            (candidate.length >= 4 && code.includes(candidate))
+            || (code.length >= 6 && candidate.includes(code))
           ));
       });
-      const fallbackMatch = exactMatch || partialMatch || (matches.length === 1 ? matches[0] : null);
+      const fallbackMatch = exactMatch || partialMatch || null;
 
       if (fallbackMatch) {
         setAnimals((current) => (
@@ -511,6 +523,22 @@ export default function OperationFlowPage() {
     });
   }, [catalogs.dewormers, catalogs.diseases, catalogs.pens]);
 
+  const reconcilePenIdForUnit = useCallback(function reconcilePenIdForUnit(penId, unitId) {
+    if (!penId || !unitId) return '';
+
+    const currentPen = (catalogs.pens || []).find((pen) => String(pen.id) === String(penId));
+    if (!currentPen) return '';
+    if (penUnitId(currentPen) === Number(unitId)) return String(currentPen.id);
+
+    const currentName = normalizeText(itemName(currentPen, ''));
+    const matchingPen = (catalogs.pens || []).find((pen) => (
+      penUnitId(pen) === Number(unitId)
+      && normalizeText(itemName(pen, '')) === currentName
+    ));
+
+    return matchingPen?.id ? String(matchingPen.id) : '';
+  }, [catalogs.pens]);
+
   const addCodes = useCallback(async function addCodes(rawCodes) {
     const codes = (Array.isArray(rawCodes) ? rawCodes : extractCodes(rawCodes))
       .map(likelyCode)
@@ -548,13 +576,23 @@ export default function OperationFlowPage() {
           continue;
         }
 
-        if (inferredUnitId && animalUnitId(animal) !== Number(inferredUnitId)) {
+        const currentAnimalUnitId = animalUnitId(animal);
+
+        if (
+          inferredUnitId
+          && currentAnimalUnitId
+          && currentAnimalUnitId !== Number(inferredUnitId)
+          && next.length > 0
+        ) {
           wrongUnitCount++;
           continue;
         }
 
-        if (!inferredUnitId) {
-          inferredUnitId = String(animalUnitId(animal) || '');
+        if (
+          currentAnimalUnitId
+          && (!inferredUnitId || (next.length === 0 && currentAnimalUnitId !== Number(inferredUnitId)))
+        ) {
+          inferredUnitId = String(currentAnimalUnitId);
         }
 
         if (next.some((item) => item.id === animal.id)) {
@@ -566,10 +604,12 @@ export default function OperationFlowPage() {
         addedCount++;
       }
 
-      if (!formData.unidadRegaId && inferredUnitId) {
+      if (inferredUnitId && String(formData.unidadRegaId || '') !== String(inferredUnitId)) {
         setFormData((currentForm) => ({
           ...currentForm,
-          unidadRegaId: inferredUnitId
+          unidadRegaId: inferredUnitId,
+          corralDestinoId: reconcilePenIdForUnit(currentForm.corralDestinoId, inferredUnitId),
+          sourcePenId: reconcilePenIdForUnit(currentForm.sourcePenId, inferredUnitId)
         }));
       }
 
@@ -588,7 +628,7 @@ export default function OperationFlowPage() {
       setFlashKey((current) => current + 1);
     }
     focusReader();
-  }, [focusReader, formData.unidadRegaId, resolveAnimalByReadCode]);
+  }, [focusReader, formData.unidadRegaId, reconcilePenIdForUnit, resolveAnimalByReadCode]);
 
   const flushReaderBuffer = useCallback(function flushReaderBuffer() {
     const raw = readerBufferRef.current;
@@ -640,6 +680,22 @@ export default function OperationFlowPage() {
     shouldCaptureIgnoredPaste: (pasted) => extractCodes(pasted).length > 0,
     shouldPause: () => silentReaderActiveRef.current
   });
+
+  useEffect(() => {
+    function handleParentReaderMessage(event) {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== 'rumiando:operation-reader-codes') return;
+
+      addCodes(event.data.codes || event.data.raw || '');
+      focusReader();
+    }
+
+    window.addEventListener('message', handleParentReaderMessage);
+
+    return () => {
+      window.removeEventListener('message', handleParentReaderMessage);
+    };
+  }, [addCodes, focusReader]);
 
   useEffect(() => {
     async function loadData() {

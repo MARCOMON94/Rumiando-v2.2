@@ -314,6 +314,13 @@ function normalizeCode(value) {
     .toUpperCase();
 }
 
+function extractCodes(raw) {
+  return String(raw || '')
+    .split(/[\s,;]+/)
+    .map(normalizeCode)
+    .filter(Boolean);
+}
+
 function routeForSilentAction(action, animalId) {
   if (action === 'parto') return `/birth/new/${animalId}`;
   if (action === 'baja') return `/animals/${animalId}/discharge`;
@@ -440,6 +447,8 @@ export default function AiChatPage() {
   const voiceInterimRef = useRef('');
   const voiceSendOnEndRef = useRef(false);
   const voiceStopTimerRef = useRef(null);
+  const operationReaderBufferRef = useRef('');
+  const operationReaderTimerRef = useRef(null);
 
   async function findAnimalByCode(code) {
     const normalized = normalizeCode(code);
@@ -573,6 +582,81 @@ export default function AiChatPage() {
       window.removeEventListener('message', handleOperationMessage);
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeOperationAction) return undefined;
+
+    function postCodesToOperation(raw) {
+      const codes = extractCodes(raw);
+      if (!codes.length) return;
+
+      operationFrameRef.current?.contentWindow?.postMessage({
+        type: 'rumiando:operation-reader-codes',
+        codes
+      }, window.location.origin);
+    }
+
+    function resetBuffer() {
+      operationReaderBufferRef.current = '';
+      window.clearTimeout(operationReaderTimerRef.current);
+    }
+
+    function flushBuffer() {
+      const raw = operationReaderBufferRef.current;
+      resetBuffer();
+      postCodesToOperation(raw);
+    }
+
+    function stopReaderEvent(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
+
+    function handleCaptureKeyDown(event) {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const isFinishKey = event.key === 'Enter' || event.key === 'Tab';
+      const isCharacter = event.key.length === 1;
+      const isBackspace = event.key === 'Backspace';
+
+      if (!isFinishKey && !isCharacter && !isBackspace) return;
+
+      stopReaderEvent(event);
+
+      if (isFinishKey) {
+        flushBuffer();
+        return;
+      }
+
+      if (isBackspace) {
+        operationReaderBufferRef.current = operationReaderBufferRef.current.slice(0, -1);
+        return;
+      }
+
+      operationReaderBufferRef.current += event.key;
+      window.clearTimeout(operationReaderTimerRef.current);
+      operationReaderTimerRef.current = window.setTimeout(flushBuffer, 160);
+    }
+
+    function handleCapturePaste(event) {
+      const pasted = event.clipboardData?.getData('text');
+      if (!pasted) return;
+
+      stopReaderEvent(event);
+      resetBuffer();
+      postCodesToOperation(pasted);
+    }
+
+    window.addEventListener('keydown', handleCaptureKeyDown, true);
+    window.addEventListener('paste', handleCapturePaste, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleCaptureKeyDown, true);
+      window.removeEventListener('paste', handleCapturePaste, true);
+      resetBuffer();
+    };
+  }, [activeOperationAction]);
 
   function closeOperationOverlay() {
     blurActiveElement();
