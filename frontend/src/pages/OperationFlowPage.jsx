@@ -125,6 +125,13 @@ function extractCodes(raw) {
     .filter(Boolean);
 }
 
+function likelyCode(value) {
+  const code = normalizeCode(value);
+  if (code.length < 3) return '';
+  if (/^(CROTAL|RFID|ID|ANIMAL|CORRAL|FICHA|BUSQUEDA)$/i.test(code)) return '';
+  return code;
+}
+
 function getItems(data, keys) {
   if (Array.isArray(data)) return data;
 
@@ -294,13 +301,67 @@ export default function OperationFlowPage() {
   const animalsByCode = useMemo(() => {
     const map = new Map();
     for (const animal of animals) {
-      for (const value of [animal?.crotal, animal?.numeroInterno]) {
-        const code = normalizeCode(value);
+      for (const value of [animal?.crotal, animal?.numeroInterno, animal?.earTag, animal?.code]) {
+        const code = likelyCode(value);
         if (code) map.set(code, animal);
       }
     }
     return map;
   }, [animals]);
+
+  const findAnimalByReadCode = useCallback(function findAnimalByReadCode(rawCode) {
+    const code = likelyCode(rawCode);
+    if (!code) return null;
+
+    const exact = animalsByCode.get(code);
+    if (exact) return exact;
+
+    for (const [knownCode, animal] of animalsByCode.entries()) {
+      if (knownCode.length >= 4 && code.includes(knownCode)) return animal;
+      if (code.length >= 4 && knownCode.includes(code)) return animal;
+    }
+
+    return null;
+  }, [animalsByCode]);
+
+  const resolveAnimalByReadCode = useCallback(async function resolveAnimalByReadCode(rawCode) {
+    const code = likelyCode(rawCode);
+    if (!code) return null;
+
+    const localAnimal = findAnimalByReadCode(code);
+    if (localAnimal) return localAnimal;
+
+    try {
+      const response = await get(`/animals?search=${encodeURIComponent(code)}`);
+      const matches = getItems(response, ['data', 'animals', 'animales']);
+      const exactMatch = matches.find((animal) => {
+        return [animal?.crotal, animal?.numeroInterno, animal?.earTag, animal?.code]
+          .map(likelyCode)
+          .some((candidate) => candidate === code);
+      });
+      const partialMatch = matches.find((animal) => {
+        return [animal?.crotal, animal?.numeroInterno, animal?.earTag, animal?.code]
+          .map(likelyCode)
+          .some((candidate) => (
+            candidate.length >= 4
+            && (code.includes(candidate) || candidate.includes(code))
+          ));
+      });
+      const fallbackMatch = exactMatch || partialMatch || (matches.length === 1 ? matches[0] : null);
+
+      if (fallbackMatch) {
+        setAnimals((current) => (
+          current.some((animal) => animal.id === fallbackMatch.id)
+            ? current
+            : [...current, fallbackMatch]
+        ));
+      }
+
+      return fallbackMatch || null;
+    } catch {
+      return null;
+    }
+  }, [findAnimalByReadCode]);
 
   const activeSpeciesId = useMemo(() => (
     animalSpeciesId(selectedAnimals[0])
@@ -450,8 +511,10 @@ export default function OperationFlowPage() {
     });
   }, [catalogs.dewormers, catalogs.diseases, catalogs.pens]);
 
-  const addCodes = useCallback(function addCodes(rawCodes) {
-    const codes = Array.isArray(rawCodes) ? rawCodes : extractCodes(rawCodes);
+  const addCodes = useCallback(async function addCodes(rawCodes) {
+    const codes = (Array.isArray(rawCodes) ? rawCodes : extractCodes(rawCodes))
+      .map(likelyCode)
+      .filter(Boolean);
     if (!codes.length) return;
 
     setResult(null);
@@ -463,13 +526,18 @@ export default function OperationFlowPage() {
     let inactiveCount = 0;
     let wrongUnitCount = 0;
 
+    const resolvedAnimals = [];
+
+    for (const code of codes) {
+      const animal = await resolveAnimalByReadCode(code);
+      resolvedAnimals.push([code, animal]);
+    }
+
     setSelectedAnimals((current) => {
       const next = [...current];
       let inferredUnitId = formData.unidadRegaId;
 
-      for (const code of codes) {
-        const animal = animalsByCode.get(normalizeCode(code));
-
+      for (const [, animal] of resolvedAnimals) {
         if (!animal) {
           unknownCount++;
           continue;
@@ -520,7 +588,7 @@ export default function OperationFlowPage() {
       setFlashKey((current) => current + 1);
     }
     focusReader();
-  }, [animalsByCode, focusReader, formData.unidadRegaId]);
+  }, [focusReader, formData.unidadRegaId, resolveAnimalByReadCode]);
 
   const flushReaderBuffer = useCallback(function flushReaderBuffer() {
     const raw = readerBufferRef.current;
