@@ -75,7 +75,7 @@ function getInitialTheme() {
   const storedTheme = window.localStorage.getItem('rumiando-theme');
   if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme;
 
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 }
 
 function createAlertConfig(preset = 'ovino') {

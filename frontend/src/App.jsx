@@ -28,8 +28,7 @@ import OffspringPage from './pages/OffspringPage';
 export default function App() {
   useEffect(() => {
     const storedTheme = window.localStorage.getItem('rumiando-theme');
-    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-    const theme = storedTheme || (prefersDark ? 'dark' : 'light');
+    const theme = storedTheme || 'light';
 
     document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
   }, []);
