@@ -26,3 +26,4 @@ exports/
 .railway/
 .vercel/
 .netlify/
+output/
